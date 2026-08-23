@@ -1,0 +1,6 @@
+{
+  "name": "Agenda Maicon Automação",
+  "description": "Aplicativo de gestão de agenda, orçamentos rápidos, clientes e agendamentos de serviços de instalação e manutenção de fechaduras eletrônicas com notificações e integração WhatsApp.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

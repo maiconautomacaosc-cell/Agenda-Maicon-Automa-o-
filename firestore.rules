@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+      
+      // Subcollections inside user doc
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Appointments collection
+    match /appointments/{appointmentId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
+    }
+
+    // Clients collection
+    match /clients/{clientId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
+    }
+
+    // Quotes collection
+    match /quotes/{quoteId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid) && (request.resource == null || request.resource.data.userId == request.auth.uid);
+    }
+
+    // Settings collection
+    match /settings/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}

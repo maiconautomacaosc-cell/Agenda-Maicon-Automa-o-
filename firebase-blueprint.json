@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "users": {
+      "fields": {
+        "email": { "type": "string", "description": "Email do usuário" },
+        "displayName": { "type": "string", "description": "Nome de exibição" },
+        "photoURL": { "type": "string", "description": "Foto de perfil" },
+        "updatedAt": { "type": "string", "description": "Data de atualização" }
+      }
+    },
+    "appointments": {
+      "fields": {
+        "userId": { "type": "string", "description": "ID do usuário proprietário" },
+        "clientId": { "type": "string", "description": "ID do cliente" },
+        "clientName": { "type": "string", "description": "Nome do cliente" },
+        "clientPhone": { "type": "string", "description": "Telefone do cliente" },
+        "address": { "type": "string", "description": "Endereço do serviço" },
+        "neighborhood": { "type": "string", "description": "Bairro" },
+        "city": { "type": "string", "description": "Cidade" },
+        "date": { "type": "string", "description": "Data do agendamento YYYY-MM-DD" },
+        "startTime": { "type": "string", "description": "Horário de início HH:mm" },
+        "endTime": { "type": "string", "description": "Horário de término HH:mm" },
+        "durationMinutes": { "type": "number", "description": "Duração em minutos" },
+        "serviceType": { "type": "string", "description": "Tipo de serviço" },
+        "serviceTypeName": { "type": "string", "description": "Nome do serviço" },
+        "description": { "type": "string", "description": "Descrição detalhada" },
+        "lockModel": { "type": "string", "description": "Modelo da fechadura" },
+        "price": { "type": "number", "description": "Valor do serviço" },
+        "paymentMethod": { "type": "string", "description": "Forma de pagamento" },
+        "status": { "type": "string", "description": "Status do agendamento" },
+        "reminderMinutesBefore": { "type": "number", "description": "Minutos de antecedência do alarme" },
+        "alarmDismissed": { "type": "boolean", "description": "Alarme dispensado" },
+        "notes": { "type": "string", "description": "Observações técnicas" },
+        "createdAt": { "type": "string", "description": "Data de criação" },
+        "updatedAt": { "type": "string", "description": "Data de atualização" }
+      }
+    },
+    "clients": {
+      "fields": {
+        "userId": { "type": "string", "description": "ID do usuário proprietário" },
+        "name": { "type": "string", "description": "Nome completo do cliente" },
+        "phone": { "type": "string", "description": "WhatsApp / Telefone" },
+        "address": { "type": "string", "description": "Endereço completo" },
+        "neighborhood": { "type": "string", "description": "Bairro" },
+        "city": { "type": "string", "description": "Cidade" },
+        "notes": { "type": "string", "description": "Observações e histórico" },
+        "createdAt": { "type": "string", "description": "Data de criação" }
+      }
+    },
+    "quotes": {
+      "fields": {
+        "userId": { "type": "string", "description": "ID do usuário proprietário" },
+        "code": { "type": "string", "description": "Código do orçamento" },
+        "clientId": { "type": "string", "description": "ID do cliente vinculado" },
+        "clientName": { "type": "string", "description": "Nome do cliente" },
+        "clientPhone": { "type": "string", "description": "Telefone do cliente" },
+        "address": { "type": "string", "description": "Endereço" },
+        "neighborhood": { "type": "string", "description": "Bairro" },
+        "city": { "type": "string", "description": "Cidade" },
+        "lockModel": { "type": "string", "description": "Modelo da fechadura" },
+        "doorType": { "type": "string", "description": "Tipo de porta" },
+        "items": { "type": "array", "description": "Itens inclusos no orçamento" },
+        "discountAmount": { "type": "number", "description": "Valor de desconto" },
+        "totalAmount": { "type": "number", "description": "Valor total" },
+        "paymentTerms": { "type": "string", "description": "Condições de pagamento" },
+        "validityDays": { "type": "number", "description": "Dias de validade" },
+        "warrantyInfo": { "type": "string", "description": "Informações de garantia" },
+        "notes": { "type": "string", "description": "Observações" },
+        "status": { "type": "string", "description": "Status do orçamento" },
+        "date": { "type": "string", "description": "Data do orçamento" },
+        "createdAt": { "type": "string", "description": "Data de criação" },
+        "updatedAt": { "type": "string", "description": "Data de atualização" }
+      }
+    },
+    "settings": {
+      "fields": {
+        "userId": { "type": "string", "description": "ID do usuário proprietário" },
+        "defaultReminderMinutes": { "type": "number", "description": "Tempo padrão de lembrete" },
+        "alarmSoundEnabled": { "type": "boolean", "description": "Som ativado" },
+        "alarmMelody": { "type": "string", "description": "Melodia do alarme" },
+        "autoOpenMapApp": { "type": "string", "description": "App de mapa padrão" },
+        "technicianName": { "type": "string", "description": "Nome do técnico" },
+        "pixKey": { "type": "string", "description": "Chave Pix" }
+      }
+    }
+  }
+}
