@@ -25,6 +25,8 @@
         "serviceTypeName": { "type": "string", "description": "Nome do serviço" },
         "description": { "type": "string", "description": "Descrição detalhada" },
         "lockModel": { "type": "string", "description": "Modelo da fechadura" },
+        "serialNumber": { "type": "string", "description": "N° de Série da fechadura (MA-XXXXXX)" },
+        "serviceOrder": { "type": "string", "description": "N° da Ordem de Serviço (OS-XXXXXX)" },
         "price": { "type": "number", "description": "Valor do serviço" },
         "paymentMethod": { "type": "string", "description": "Forma de pagamento" },
         "status": { "type": "string", "description": "Status do agendamento" },
@@ -43,6 +45,8 @@
         "address": { "type": "string", "description": "Endereço completo" },
         "neighborhood": { "type": "string", "description": "Bairro" },
         "city": { "type": "string", "description": "Cidade" },
+        "serialNumber": { "type": "string", "description": "N° de Série da fechadura (MA-XXXXXX)" },
+        "serviceOrder": { "type": "string", "description": "N° da Ordem de Serviço (OS-XXXXXX)" },
         "notes": { "type": "string", "description": "Observações e histórico" },
         "createdAt": { "type": "string", "description": "Data de criação" }
       }
