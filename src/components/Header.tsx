@@ -32,6 +32,7 @@ interface HeaderProps {
   onOpenBrandInfo: () => void;
   onPlayIntroAnimation?: () => void;
   user: User | null;
+  googleConnected?: boolean;
   syncStatus: 'synced' | 'syncing' | 'offline' | 'error';
   onOpenCloudSync: () => void;
 }
@@ -49,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBrandInfo,
   onPlayIntroAnimation,
   user,
+  googleConnected,
   syncStatus,
   onOpenCloudSync,
 }) => {
@@ -162,17 +164,17 @@ export const Header: React.FC<HeaderProps> = ({
             id="btn-header-cloud-sync"
             onClick={onOpenCloudSync}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
-              user
+              user || googleConnected
                 ? syncStatus === 'syncing'
-                  ? 'bg-cyan-950/40 border-cyan-700 text-cyan-300'
+                  ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300'
                   : 'bg-emerald-950/40 border-emerald-800 text-emerald-300 hover:bg-emerald-900/50'
                 : 'bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
             }`}
-            title={user ? `Nuvem sincronizada (${user.email})` : 'Conectar na nuvem para sincronizar aparelhos'}
+            title={user || googleConnected ? `Google Drive conectado (${user?.email || 'Nuvem'})` : 'Conectar Google Drive para sincronizar aparelhos'}
           >
-            {user ? (
+            {user || googleConnected ? (
               syncStatus === 'syncing' ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
               ) : (
                 <Cloud className="w-3.5 h-3.5 text-emerald-400" />
               )
@@ -180,7 +182,7 @@ export const Header: React.FC<HeaderProps> = ({
               <CloudOff className="w-3.5 h-3.5 text-amber-400" />
             )}
             <span className="hidden sm:inline text-[11px] font-semibold">
-              {user ? (syncStatus === 'syncing' ? 'Sincronizando...' : 'Nuvem Conectada') : 'Sincronizar Nuvem'}
+              {user || googleConnected ? (syncStatus === 'syncing' ? 'Sincronizando Drive...' : 'Google Drive Conectado') : 'Google Drive (Grátis)'}
             </span>
           </button>
 

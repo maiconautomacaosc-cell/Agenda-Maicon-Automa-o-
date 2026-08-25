@@ -27,6 +27,7 @@ import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { User } from 'firebase/auth';
 import { auth, cloudSync, checkRedirectAuth, subscribeGoogleToken, getCachedAccessToken } from './lib/firebase';
+import { saveDatabaseToGoogleDrive, loadDatabaseFromGoogleDrive } from './lib/googleDrive';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -174,6 +175,49 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
+
+  // Auto-sync database directly to Google Drive when connected
+  useEffect(() => {
+    if (!googleAccessToken) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        setSyncStatus('syncing');
+        await saveDatabaseToGoogleDrive(
+          {
+            version: '2.0',
+            updatedAt: new Date().toISOString(),
+            clients,
+            appointments,
+            quotes,
+            settings,
+          },
+          googleAccessToken
+        );
+        const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        localStorage.setItem('maicon_last_drive_sync', nowStr);
+        setSyncStatus('synced');
+      } catch (err) {
+        console.warn('Auto sync to Google Drive error:', err);
+        setSyncStatus('error');
+      }
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [clients, appointments, quotes, settings, googleAccessToken]);
+
+  const handleRestoreData = (data: { clients: Client[]; appointments: Appointment[]; quotes: Quote[]; settings?: AppSettings }) => {
+    setClients(data.clients);
+    saveClients(data.clients);
+    setAppointments(data.appointments);
+    saveAppointments(data.appointments);
+    setQuotes(data.quotes);
+    saveQuotes(data.quotes);
+    if (data.settings) {
+      setSettings(data.settings);
+      saveSettings(data.settings);
+    }
+  };
 
   // Appointment Actions
   const handleOpenNewAppointment = (date?: string) => {
@@ -556,6 +600,7 @@ export default function App() {
         onOpenBrandInfo={() => setIsBrandInfoOpen(true)}
         onPlayIntroAnimation={() => setIsSplashScreenOpen(true)}
         user={currentUser}
+        googleConnected={!!currentUser || !!googleAccessToken}
         syncStatus={syncStatus}
         onOpenCloudSync={() => setIsCloudSyncOpen(true)}
       />
@@ -640,6 +685,10 @@ export default function App() {
         syncStatus={syncStatus}
         errorMessage={syncErrorMessage}
         appointments={appointments}
+        clients={clients}
+        quotes={quotes}
+        settings={settings}
+        onRestoreData={handleRestoreData}
         onManualSync={() => {
           if (currentUser) {
             cloudSync.uploadLocalDataToCloud(clients, appointments, quotes, settings);

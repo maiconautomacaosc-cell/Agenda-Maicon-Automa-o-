@@ -52,17 +52,10 @@ const firestoreDbId = configWithDb.firestoreDatabaseId && configWithDb.firestore
 
 export const db = firestoreDbId ? getFirestore(app, firestoreDbId) : getFirestore(app);
 
-export const SCOPES = [
-  'https://www.googleapis.com/auth/calendar.events',
-];
-
+// Standard Google Auth Provider (No restricted scopes, avoids Google 403 Access Denied error)
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account',
-  login_hint: 'Maiconautomacaosc@gmail.com',
-});
-SCOPES.forEach(scope => {
-  googleProvider.addScope(scope);
 });
 
 const TOKEN_STORAGE_KEY = 'maicon_google_cal_access_token';
