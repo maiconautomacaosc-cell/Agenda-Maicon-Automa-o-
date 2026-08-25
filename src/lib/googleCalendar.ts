@@ -131,124 +131,36 @@ function buildEventPayload(appointment: Appointment): GoogleCalendarEventPayload
 /**
  * Creates a new event in Google Calendar
  */
-export async function createGoogleCalendarEvent(
-  appointment: Appointment,
-  accessToken: string
-): Promise<{ eventId: string; htmlLink?: string }> {
-  const payload = buildEventPayload(appointment);
-
-  const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Erro ${res.status} ao criar evento no Google Calendar`);
-  }
-
-  const data = await res.json();
-  return {
-    eventId: data.id,
-    htmlLink: data.htmlLink,
-  };
-}
-
-/**
- * Updates an existing event in Google Calendar
- */
-export async function updateGoogleCalendarEvent(
-  appointment: Appointment,
-  accessToken: string
-): Promise<{ eventId: string; htmlLink?: string }> {
-  if (!appointment.googleEventId) {
-    // If not existing yet, create it
-    return createGoogleCalendarEvent(appointment, accessToken);
-  }
-
-  const payload = buildEventPayload(appointment);
-
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(appointment.googleEventId)}`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-
-  if (res.status === 404) {
-    // Event was deleted in Google Calendar, re-create it
-    return createGoogleCalendarEvent(appointment, accessToken);
-  }
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Erro ${res.status} ao atualizar evento no Google Calendar`);
-  }
-
-  const data = await res.json();
-  return {
-    eventId: data.id,
-    htmlLink: data.htmlLink,
-  };
-}
-
-/**
- * Deletes an event from Google Calendar
- */
-export async function deleteGoogleCalendarEvent(
-  eventId: string,
-  accessToken: string
-): Promise<boolean> {
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
-    {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  if (res.status === 404 || res.status === 410) {
-    return true; // Already removed
-  }
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Erro ${res.status} ao excluir evento no Google Calendar`);
-  }
-
-  return true;
-}
-
-/**
- * Syncs multiple appointments in batch to Google Calendar
- */
 export async function syncAllToGoogleCalendar(
   appointments: Appointment[],
   accessToken: string
-): Promise<{ syncedCount: number; errors: number }> {
-  let syncedCount = 0;
-  let errors = 0;
+): Promise<Appointment[]> {
+
+  const updatedAppointments: Appointment[] = [];
 
   for (const appt of appointments) {
     try {
-      await updateGoogleCalendarEvent(appt, accessToken);
-      syncedCount++;
+
+      let result;
+
+      if (appt.googleEventId) {
+        result = await updateGoogleCalendarEvent(appt, accessToken);
+      } else {
+        result = await createGoogleCalendarEvent(appt, accessToken);
+      }
+
+      updatedAppointments.push({
+        ...appt,
+        googleEventId: result.eventId,
+        syncedToCalendar: true,
+      });
+
     } catch (e) {
-      console.warn(`Erro ao sincronizar agendamento ${appt.id}:`, e);
-      errors++;
+      console.warn(`Erro ao sincronizar ${appt.clientName}:`, e);
+
+      updatedAppointments.push(appt);
     }
   }
 
-  return { syncedCount, errors };
+  return updatedAppointments;
 }
