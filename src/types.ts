@@ -52,6 +52,12 @@ export interface Appointment {
   googleSyncedAt?: string;
   createdAt: string;
   updatedAt: string;
+  export interface Appointment {
+  // ...campos que já existem
+
+  googleEventId?: string;
+  syncedToCalendar?: boolean;
+  }
 }
 
 export type DayOccupancyStatus = 'livre' | 'parcial' | 'ocupado';
