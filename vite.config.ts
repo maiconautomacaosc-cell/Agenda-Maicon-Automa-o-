@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: '/Agenda-Maicon-Automacao-o-pro-v3.0/',
+    base: '/Agenda-Maicon-Automa-o-/',
 
     plugins: [react(), tailwindcss()],
 
