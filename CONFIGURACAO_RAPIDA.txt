@@ -1,0 +1,36 @@
+AGENDA MAICON AUTOMAÇÃO PRO v3.1 — CONFIGURAÇÃO RÁPIDA
+
+1) GOOGLE CLOUD (não exige cartão)
+- Abra console.cloud.google.com
+- Crie/selecione um projeto.
+- Em APIs e serviços > Biblioteca, ative:
+  • Google Calendar API
+  • Google Drive API
+  • Google Sheets API
+- Em Tela de consentimento OAuth, configure como Externo e adicione seu próprio Gmail como usuário de teste.
+- Em Credenciais > Criar credencial > ID do cliente OAuth > Aplicativo da Web.
+- Em Origens JavaScript autorizadas, coloque o endereço onde o app ficará publicado (ex.: https://SEUUSUARIO.github.io).
+- Copie o Client ID terminado em .apps.googleusercontent.com.
+
+2) DENTRO DO APP
+- Abra o ícone "Nuvem Google".
+- Cole o Client ID.
+- Cole o link da sua planilha Maicon Automação.
+- Clique "Entrar com Conta Google" e aceite as permissões.
+- Clique "Salvar agora" na primeira vez.
+
+O app criará 4 abas NOVAS na sua planilha, sem mexer nas existentes:
+APP_AGENDA, APP_CLIENTES, APP_ORCAMENTOS e APP_CONFIG.
+
+3) GOOGLE AGENDA
+Depois de conectado:
+- Criar agendamento = cria evento automaticamente.
+- Editar data/hora = atualiza o mesmo evento.
+- Excluir = remove o evento e os lembretes.
+
+4) PUBLICAÇÃO WEB GRATUITA
+O projeto continua sendo React/Vite e pode ser publicado gratuitamente no GitHub Pages.
+Não usa Firebase nem plano Blaze.
+
+IMPORTANTE
+O acesso Google dura por um período definido pelo Google. Se a sessão expirar, basta entrar novamente pelo botão Nuvem Google. Os dados locais continuam no aparelho e a planilha continua salva.
