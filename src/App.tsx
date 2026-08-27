@@ -25,9 +25,9 @@ import {
 } from './utils/storage';
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
-import { User } from 'firebase/auth';
-import { auth, cloudSync, checkRedirectAuth, subscribeGoogleToken, getCachedAccessToken } from './lib/firebase';
-import { saveDatabaseToGoogleDrive, loadDatabaseFromGoogleDrive } from './lib/googleDrive';
+import { GoogleUser, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
+import { saveDatabaseToGoogleDrive } from './lib/googleDrive';
+import { getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -55,20 +55,13 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
 
   // Cloud Sync & Auth State
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<GoogleUser | null>(() => getCachedGoogleUser());
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'error'>('offline');
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | undefined>();
   const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => getCachedAccessToken());
   const [googleToast, setGoogleToast] = useState<{ show: boolean; text: string } | null>(null);
-
-  // Subscribe to Google OAuth Token
-  useEffect(() => {
-    const unsub = subscribeGoogleToken((token) => {
-      setGoogleAccessToken(token);
-    });
-    return unsub;
-  }, []);
+  const [cloudReady, setCloudReady] = useState(false);
 
   const showGoogleNotification = (text: string) => {
     setGoogleToast({ show: true, text });
@@ -101,63 +94,16 @@ export default function App() {
 
   const [isBrandInfoOpen, setIsBrandInfoOpen] = useState(false);
 
-  // Refs for tracking local vs cloud sync
-  const isCloudUpdateRef = useRef(false);
-
-  // Initialize Firebase Cloud Sync
+  // Google account state (sem Firebase)
   useEffect(() => {
-    checkRedirectAuth();
-
-    cloudSync.init({
-      onAppointmentsUpdate: (cloudAppts) => {
-        if (cloudAppts && cloudAppts.length > 0) {
-          isCloudUpdateRef.current = true;
-          setAppointments(cloudAppts);
-          saveAppointments(cloudAppts);
-        }
-      },
-      onClientsUpdate: (cloudClients) => {
-        if (cloudClients && cloudClients.length > 0) {
-          isCloudUpdateRef.current = true;
-          setClients(cloudClients);
-          saveClients(cloudClients);
-        }
-      },
-      onQuotesUpdate: (cloudQuotes) => {
-        if (cloudQuotes && cloudQuotes.length > 0) {
-          isCloudUpdateRef.current = true;
-          setQuotes(cloudQuotes);
-          saveQuotes(cloudQuotes);
-        }
-      },
-      onSettingsUpdate: (cloudSettings) => {
-        if (cloudSettings) {
-          isCloudUpdateRef.current = true;
-          setSettings(cloudSettings);
-          saveSettings(cloudSettings);
-        }
-      },
-      onSyncStatusChange: (status, errMsg) => {
-        setSyncStatus(status);
-        setSyncErrorMessage(errMsg);
-      },
-    });
-
-    const unsubAuth = auth.onAuthStateChanged((user) => {
-      setCurrentUser(user);
-      if (user) {
-        // Upload initial local data to cloud if new account
-        cloudSync.uploadLocalDataToCloud(
-          loadClients(),
-          loadAppointments(),
-          loadQuotes(),
-          loadSettings()
-        );
-      }
-    });
-
-    return () => unsubAuth();
+    const unsubToken = subscribeGoogleToken(setGoogleAccessToken);
+    const unsubUser = subscribeGoogleUser(setCurrentUser);
+    validateCachedToken().catch(() => {});
+    return () => { unsubToken(); unsubUser(); };
   }, []);
+
+  const lastCloudUpdatedAtRef = useRef<string>('');
+  const initialCloudLoadDoneRef = useRef(false);
 
   // Sync to localStorage
   useEffect(() => {
@@ -176,35 +122,71 @@ export default function App() {
     saveSettings(settings);
   }, [settings]);
 
-  // Auto-sync database directly to Google Drive when connected
+  // Auto-sync para a mesma Planilha Google + backup no Drive
   useEffect(() => {
-    if (!googleAccessToken) return;
+    const spreadsheetId = getSpreadsheetId();
+    if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
 
     const timer = setTimeout(async () => {
       try {
         setSyncStatus('syncing');
-        await saveDatabaseToGoogleDrive(
-          {
-            version: '2.0',
-            updatedAt: new Date().toISOString(),
-            clients,
-            appointments,
-            quotes,
-            settings,
-          },
-          googleAccessToken
-        );
-        const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        localStorage.setItem('maicon_last_drive_sync', nowStr);
+        setSyncErrorMessage(undefined);
+        const updatedAt = new Date().toISOString();
+        const payload = { version: '3.1', updatedAt, clients, appointments, quotes, settings };
+        await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
+        await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
+        lastCloudUpdatedAtRef.current = updatedAt;
+        localStorage.setItem('maicon_last_drive_sync', new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
         setSyncStatus('synced');
-      } catch (err) {
-        console.warn('Auto sync to Google Drive error:', err);
+      } catch (err: any) {
+        console.warn('Auto sync Google error:', err);
         setSyncStatus('error');
+        setSyncErrorMessage(err?.message || 'Falha ao salvar na Planilha Google');
       }
-    }, 2500);
+    }, 2200);
 
     return () => clearTimeout(timer);
-  }, [clients, appointments, quotes, settings, googleAccessToken]);
+  }, [clients, appointments, quotes, settings, googleAccessToken, cloudReady]);
+
+  // Ao conectar em outro aparelho, carrega a versão mais recente da planilha.
+  useEffect(() => {
+    const spreadsheetId = getSpreadsheetId();
+    if (!googleAccessToken || !spreadsheetId || initialCloudLoadDoneRef.current) return;
+    initialCloudLoadDoneRef.current = true;
+    loadDatabaseFromGoogleSheets(googleAccessToken, spreadsheetId)
+      .then((data) => {
+        if (!data) { setCloudReady(true); return; }
+        lastCloudUpdatedAtRef.current = data.updatedAt || '';
+        setClients(data.clients || []);
+        setAppointments(data.appointments || []);
+        setQuotes(data.quotes || []);
+        if (data.settings) setSettings(data.settings);
+        setSyncStatus('synced');
+        setCloudReady(true);
+      })
+      .catch((err) => {
+        console.warn('Initial Google Sheets load:', err);
+        setCloudReady(true);
+      });
+  }, [googleAccessToken]);
+
+  // Mantém aparelhos abertos sincronizados sem precisar apertar botão.
+  useEffect(() => {
+    const spreadsheetId = getSpreadsheetId();
+    if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await loadDatabaseFromGoogleSheets(googleAccessToken, spreadsheetId);
+        if (!data?.updatedAt || data.updatedAt <= lastCloudUpdatedAtRef.current) return;
+        lastCloudUpdatedAtRef.current = data.updatedAt;
+        setClients(data.clients || []);
+        setAppointments(data.appointments || []);
+        setQuotes(data.quotes || []);
+        if (data.settings) setSettings(data.settings);
+      } catch {}
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [googleAccessToken, cloudReady]);
 
   const handleRestoreData = (data: { clients: Client[]; appointments: Appointment[]; quotes: Quote[]; settings?: AppSettings }) => {
     setClients(data.clients);
@@ -267,9 +249,6 @@ export default function App() {
       return [appt, ...prev];
     });
 
-    // Save to Cloud Firestore
-    cloudSync.saveAppointmentCloud(appt);
-
     // Automatic Google Calendar Sync
     const tokenToUse = googleAccessToken || getCachedAccessToken();
     if (tokenToUse) {
@@ -286,7 +265,6 @@ export default function App() {
               saveAppointments(updated);
               return updated;
             });
-            cloudSync.saveAppointmentCloud(syncedAppt);
           }
           showGoogleNotification(`📅 Agendamento de ${appt.clientName} sincronizado com seu Google Agenda!`);
         })
@@ -311,7 +289,6 @@ export default function App() {
           };
           const updatedList = [...prev];
           updatedList[existingIndex] = updatedClient;
-          cloudSync.saveClientCloud(updatedClient);
           saveClients(updatedList);
           return updatedList;
         }
@@ -322,13 +299,12 @@ export default function App() {
           phone: appt.clientPhone,
           address: appt.address,
           neighborhood: appt.neighborhood,
-          city: appt.city || 'São Paulo',
+          city: appt.city || 'Joinville',
           serialNumber: appt.serialNumber,
           serviceOrder: appt.serviceOrder,
           notes: `Fechadura: ${appt.lockModel || 'Digital'}. Criado via agendamento.`,
           createdAt: new Date().toISOString(),
         };
-        cloudSync.saveClientCloud(newClient);
         const updatedList = [newClient, ...prev];
         saveClients(updatedList);
         return updatedList;
@@ -336,18 +312,17 @@ export default function App() {
     }
   };
 
-  const handleDeleteAppointment = (id: string) => {
+  const handleDeleteAppointment = async (id: string) => {
     const target = appointments.find((a) => a.id === id);
     const tokenToUse = googleAccessToken || getCachedAccessToken();
     
     if (target?.googleEventId && tokenToUse) {
-      deleteGoogleCalendarEvent(target.googleEventId, tokenToUse)
-        .then(() => {
-          showGoogleNotification(`🗑️ Evento de ${target.clientName} removido do seu Google Agenda.`);
-        })
-        .catch((err) => {
-          console.warn('Erro ao excluir no Google Agenda:', err);
-        });
+      try {
+        await deleteGoogleCalendarEvent(target.googleEventId, tokenToUse);
+        showGoogleNotification(`🗑️ Evento de ${target.clientName} removido do seu Google Agenda.`);
+      } catch (err) {
+        console.warn('Erro ao excluir no Google Agenda:', err);
+      }
     }
 
     setAppointments((prev) => {
@@ -355,7 +330,6 @@ export default function App() {
       saveAppointments(updated);
       return updated;
     });
-    cloudSync.deleteAppointmentCloud(id);
   };
 
   const handleStatusChange = (id: string, newStatus: AppointmentStatus) => {
@@ -364,7 +338,6 @@ export default function App() {
       prev.map((a) => {
         if (a.id === id) {
           const updated = { ...a, status: newStatus, updatedAt: new Date().toISOString() };
-          cloudSync.saveAppointmentCloud(updated);
           if (tokenToUse) {
             updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
           }
@@ -398,9 +371,6 @@ export default function App() {
       return [quote, ...prev];
     });
 
-    // Save to Cloud Firestore
-    cloudSync.saveQuoteCloud(quote);
-
     // Auto-create client if requested
     if (saveClientToDb && quote.clientName) {
       setClients((prev) => {
@@ -414,12 +384,11 @@ export default function App() {
             phone: quote.clientPhone,
             address: quote.address || '',
             neighborhood: quote.neighborhood || '',
-            city: quote.city || 'São Paulo',
+            city: quote.city || 'Joinville',
             notes: `Fechadura: ${quote.lockModel || 'Digital'}. Criado via orçamento #${quote.code}.`,
             createdAt: new Date().toISOString(),
           };
-          cloudSync.saveClientCloud(newClient);
-          return [newClient, ...prev];
+            return [newClient, ...prev];
         }
         return prev;
       });
@@ -435,7 +404,6 @@ export default function App() {
 
   const handleDeleteQuote = (id: string) => {
     setQuotes((prev) => prev.filter((q) => q.id !== id));
-    cloudSync.deleteQuoteCloud(id);
   };
 
   const handleQuoteStatusChange = (id: string, status: QuoteStatus) => {
@@ -443,7 +411,6 @@ export default function App() {
       prev.map((q) => {
         if (q.id === id) {
           const updated = { ...q, status, updatedAt: new Date().toISOString() };
-          cloudSync.saveQuoteCloud(updated);
           return updated;
         }
         return q;
@@ -476,7 +443,7 @@ export default function App() {
       clientPhone: quote.clientPhone,
       address: quote.address || '',
       neighborhood: quote.neighborhood || '',
-      city: quote.city || 'São Paulo',
+      city: quote.city || 'Joinville',
       date: defaultDate,
       startTime: '09:00',
       endTime: '11:00',
@@ -509,12 +476,10 @@ export default function App() {
       }
       return [client, ...prev];
     });
-    cloudSync.saveClientCloud(client);
   };
 
   const handleDeleteClient = (id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
-    cloudSync.deleteClientCloud(id);
   };
 
   const handleScheduleForClient = (client: Client) => {
@@ -526,7 +491,7 @@ export default function App() {
       clientPhone: client.phone,
       address: client.address,
       neighborhood: client.neighborhood,
-      city: client.city,
+      city: client.city || 'Joinville',
       date: defaultDate,
       startTime: '10:00',
       endTime: '11:30',
@@ -556,7 +521,6 @@ export default function App() {
   const handleToggleSound = () => {
     setSettings((prev) => {
       const updated = { ...prev, alarmSoundEnabled: !prev.alarmSoundEnabled };
-      cloudSync.saveSettingsCloud(updated);
       return updated;
     });
   };
@@ -564,7 +528,6 @@ export default function App() {
   const handleSelectMelody = (melody: AlarmMelody) => {
     setSettings((prev) => {
       const updated = { ...prev, alarmMelody: melody };
-      cloudSync.saveSettingsCloud(updated);
       return updated;
     });
   };
@@ -579,9 +542,6 @@ export default function App() {
     setAppointments(a);
     setQuotes(q);
     setSettings(s);
-    if (currentUser) {
-      cloudSync.uploadLocalDataToCloud(c, a, q, s);
-    }
   };
 
   return (
@@ -689,11 +649,7 @@ export default function App() {
         quotes={quotes}
         settings={settings}
         onRestoreData={handleRestoreData}
-        onManualSync={() => {
-          if (currentUser) {
-            cloudSync.uploadLocalDataToCloud(clients, appointments, quotes, settings);
-          }
-        }}
+        onConnected={(u, token) => { setCurrentUser(u); setGoogleAccessToken(token); initialCloudLoadDoneRef.current = false; setCloudReady(false); }}
       />
 
       {/* Modal: New / Edit Appointment */}
