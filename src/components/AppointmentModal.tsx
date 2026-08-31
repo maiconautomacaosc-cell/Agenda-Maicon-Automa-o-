@@ -16,12 +16,10 @@ import {
   Users,
   AlertTriangle,
   Lock,
-  Ban,
-  Tag,
-  ClipboardList
+  Ban
 } from 'lucide-react';
 import { Appointment, Client, ServiceType, AppointmentStatus } from '../types';
-import { getTodayString, formatDateBR, formatSerialNumber, formatServiceOrder } from '../utils/date';
+import { getTodayString, formatDateBR } from '../utils/date';
 import { getGoogleCalendarUrl, downloadNativeCalendarIcs } from '../utils/calendarSync';
 
 interface AppointmentModalProps {
@@ -75,8 +73,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [durationMinutes, setDurationMinutes] = useState(90);
   const [serviceType, setServiceType] = useState<ServiceType>(initialServiceType || 'instalacao_sobrepor');
   const [lockModel, setLockModel] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [serviceOrder, setServiceOrder] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<Appointment['paymentMethod']>('pix');
@@ -99,8 +95,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setDurationMinutes(initialAppointment.durationMinutes || 90);
       setServiceType(initialAppointment.serviceType);
       setLockModel(initialAppointment.lockModel || '');
-      setSerialNumber(initialAppointment.serialNumber || '');
-      setServiceOrder(initialAppointment.serviceOrder || '');
       setDescription(initialAppointment.description || '');
       setPrice(initialAppointment.price ? String(initialAppointment.price) : '');
       setPaymentMethod(initialAppointment.paymentMethod || 'pix');
@@ -133,8 +127,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       }
       setDate(initialDate || getTodayString());
       setLockModel('');
-      setSerialNumber('');
-      setServiceOrder('');
       setPrice('');
       setPaymentMethod('pix');
       setStatus('pendente');
@@ -159,8 +151,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     setClientPhone(c.phone);
     setAddress(c.address);
     if (c.neighborhood) setNeighborhood(c.neighborhood);
-    if (c.serialNumber) setSerialNumber(c.serialNumber);
-    if (c.serviceOrder) setServiceOrder(c.serviceOrder);
     setShowClientSuggestions(false);
   };
 
@@ -215,18 +205,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
   };
 
-  const handleSerialNumberBlur = () => {
-    if (serialNumber.trim()) {
-      setSerialNumber(formatSerialNumber(serialNumber));
-    }
-  };
-
-  const handleServiceOrderBlur = () => {
-    if (serviceOrder.trim()) {
-      setServiceOrder(formatServiceOrder(serviceOrder));
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName.trim()) {
@@ -240,9 +218,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
     const serviceObj = SERVICE_OPTIONS.find(s => s.type === serviceType);
     const serviceTypeName = serviceObj ? serviceObj.label : 'Serviço de Fechadura';
-
-    const formattedSerial = serialNumber.trim() ? formatSerialNumber(serialNumber) : undefined;
-    const formattedOS = serviceOrder.trim() ? formatServiceOrder(serviceOrder) : undefined;
 
     const newAppt: Appointment = {
       id: initialAppointment ? initialAppointment.id : `appt-${Date.now()}`,
@@ -258,8 +233,9 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       serviceType,
       serviceTypeName: isParticular ? 'Compromisso Particular (Dia Ocupado)' : serviceTypeName,
       lockModel: isParticular ? '' : lockModel.trim(),
-      serialNumber: isParticular ? undefined : formattedSerial,
-      serviceOrder: isParticular ? undefined : formattedOS,
+      // MA e OS nunca são digitados no agendamento. Se já foram gerados na conclusão, apenas preserva.
+      serialNumber: isParticular ? undefined : initialAppointment?.serialNumber,
+      serviceOrder: isParticular ? undefined : initialAppointment?.serviceOrder,
       equipment: initialAppointment?.equipment,
       description: description.trim() || (isParticular ? 'Compromisso Particular / Bloqueio de Agenda' : serviceTypeName),
       price: price ? parseFloat(price.replace(',', '.')) : undefined,
@@ -588,45 +564,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 </div>
               </div>
 
-              {/* SERIAL NUMBER & OS IN APPOINTMENT */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-zinc-850">
-                <div>
-                  <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-cyan-400" />
-                    N° de Série (Fechadura)
-                  </label>
-                  <input
-                    id="input-serial-number"
-                    type="text"
-                    value={serialNumber}
-                    onChange={(e) => setSerialNumber(e.target.value)}
-                    onBlur={handleSerialNumberBlur}
-                    placeholder="Ex: 29 (MA-000029)"
-                    className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-                  />
-                  <p className="text-[10px] text-zinc-400 font-mono mt-0.5">
-                    {serialNumber ? `Formatado: ${formatSerialNumber(serialNumber)}` : 'Ex: 29 ➔ MA-000029'}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
-                    <ClipboardList className="w-3 h-3 text-amber-400" />
-                    OS (Ordem de Serviço)
-                  </label>
-                  <input
-                    id="input-service-order"
-                    type="text"
-                    value={serviceOrder}
-                    onChange={(e) => setServiceOrder(e.target.value)}
-                    onBlur={handleServiceOrderBlur}
-                    placeholder="Ex: 29 (OS-000029)"
-                    className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-amber-500"
-                  />
-                  <p className="text-[10px] text-zinc-400 font-mono mt-0.5">
-                    {serviceOrder ? `Formatado: ${formatServiceOrder(serviceOrder)}` : 'Ex: 29 ➔ OS-000029'}
-                  </p>
-                </div>
+              <div className="pt-1 border-t border-zinc-850">
+                <p className="text-[11px] text-zinc-500">MA e OS são gerados automaticamente somente ao concluir o atendimento.</p>
               </div>
             </div>
           )}
