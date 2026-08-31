@@ -260,6 +260,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       lockModel: isParticular ? '' : lockModel.trim(),
       serialNumber: isParticular ? undefined : formattedSerial,
       serviceOrder: isParticular ? undefined : formattedOS,
+      equipment: initialAppointment?.equipment,
       description: description.trim() || (isParticular ? 'Compromisso Particular / Bloqueio de Agenda' : serviceTypeName),
       price: price ? parseFloat(price.replace(',', '.')) : undefined,
       paymentMethod: isParticular ? 'a_combinar' : paymentMethod,
