@@ -14,6 +14,8 @@ export type ServiceType =
 export interface EquipmentRecord {
   id: string;
   serialNumber: string; // MA-000000
+  serviceType?: ServiceType;
+  serviceTypeName?: string;
   model?: string;
   description?: string;
   createdAt: string;
@@ -48,7 +50,8 @@ export interface Appointment {
   startTime: string;
   endTime?: string;
   durationMinutes: number;
-  serviceType: ServiceType;
+  serviceType: ServiceType; // tipo principal, mantido para compatibilidade e filtros
+  serviceTypes?: ServiceType[]; // um atendimento pode reunir vários tipos de serviço
   serviceTypeName: string;
   description: string;
   lockModel?: string;
