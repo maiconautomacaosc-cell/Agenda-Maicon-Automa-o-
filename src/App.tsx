@@ -95,7 +95,7 @@ export default function App() {
 
   const [isBrandInfoOpen, setIsBrandInfoOpen] = useState(false);
 
-  // Fluxo oficial de conclusão: serviço simples pode terminar sem MA/OS.
+  // Fluxo oficial: OS por atendimento; MA somente para equipamentos identificados.
   const [completionAppointment, setCompletionAppointment] = useState<Appointment | null>(null);
   const [completionSaveClient, setCompletionSaveClient] = useState(true);
 
@@ -118,8 +118,10 @@ export default function App() {
       (a.equipment || []).forEach(eq => maValues.push(extractSequence(eq.serialNumber)));
     });
     return {
-      nextMA: Math.max(0, ...maValues) + 1,
-      nextOS: Math.max(0, ...osValues) + 1,
+      // Também considera o maior número já consumido salvo nas configurações.
+      // Assim, apagar/cancelar um atendimento nunca libera MA ou OS para reutilização.
+      nextMA: Math.max(0, ...maValues, settings.lastSerialSequence || 0) + 1,
+      nextOS: Math.max(0, ...osValues, settings.lastServiceOrderSequence || 0) + 1,
     };
   };
 
@@ -173,7 +175,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.3', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.4', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
         lastCloudUpdatedAtRef.current = updatedAt;
@@ -412,15 +414,17 @@ export default function App() {
   const handleConfirmCompletion = (options: CompletionOptions) => {
     if (!completionAppointment) return;
     const now = new Date().toISOString();
+    // Recalcula no instante da confirmação para não depender de número digitado ou preview antigo.
+    const { nextMA, nextOS } = getNextNumbers();
     const equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
-      serialNumber: `MA-${String(options.serialStart + index).padStart(6, '0')}`,
+      serialNumber: `MA-${String(nextMA + index).padStart(6, '0')}`,
       model: eq.model?.trim() || completionAppointment.lockModel || undefined,
       description: eq.description?.trim() || undefined,
       createdAt: now,
     }));
     const serviceOrder = options.generateServiceOrder
-      ? `OS-${String(options.serviceOrderNumber).padStart(6, '0')}`
+      ? `OS-${String(nextOS).padStart(6, '0')}`
       : completionAppointment.serviceOrder;
     const updated: Appointment = {
       ...completionAppointment,
@@ -463,6 +467,20 @@ export default function App() {
         list[idx] = merged;
         return list;
       });
+    }
+
+    // Consome definitivamente as sequências geradas. Mesmo que o atendimento seja apagado depois,
+    // estes números continuam reservados e nunca serão usados novamente.
+    if (equipment.length || options.generateServiceOrder) {
+      setSettings(prev => ({
+        ...prev,
+        lastSerialSequence: equipment.length
+          ? Math.max(prev.lastSerialSequence || 0, nextMA + equipment.length - 1)
+          : (prev.lastSerialSequence || 0),
+        lastServiceOrderSequence: options.generateServiceOrder
+          ? Math.max(prev.lastServiceOrderSequence || 0, nextOS)
+          : (prev.lastServiceOrderSequence || 0),
+      }));
     }
 
     const tokenToUse = googleAccessToken || getCachedAccessToken();
