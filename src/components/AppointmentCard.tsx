@@ -21,10 +21,14 @@ import {
   Ban,
   Lock,
   Tag,
-  ClipboardList
+  ClipboardList,
+  Eye,
+  X,
+  User,
+  Wrench
 } from 'lucide-react';
 import { Appointment, AppointmentStatus } from '../types';
-import { formatCurrencyBRL } from '../utils/date';
+import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { getGoogleCalendarUrl, downloadNativeCalendarIcs } from '../utils/calendarSync';
 import confetti from 'canvas-confetti';
 
@@ -45,6 +49,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onOpenWhatsApp,
 }) => {
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   const isParticular = appointment.serviceType === 'compromisso_particular';
 
@@ -380,8 +385,17 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             <span className="text-[9px] font-bold uppercase tracking-wider">Ligar</span>
           </a>
 
-          {/* Edit and Options */}
+          {/* Visualizar, editar e excluir */}
           <div className="flex gap-1">
+            <button
+              id={`btn-view-${appointment.id}`}
+              onClick={() => setShowDetails(true)}
+              className="flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/50 transition-colors active:scale-95"
+              title="Visualizar informações do atendimento"
+            >
+              <Eye className="w-3 h-3 mb-0.5" />
+              <span className="text-[8px] font-bold uppercase tracking-wider">Ver</span>
+            </button>
             <button
               id={`btn-edit-${appointment.id}`}
               onClick={() => onEdit(appointment)}
@@ -389,7 +403,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
               title="Editar agendamento"
             >
               <Edit3 className="w-3 h-3 mb-0.5" />
-              <span className="text-[9px] font-bold uppercase tracking-wider">Editar</span>
+              <span className="text-[8px] font-bold uppercase tracking-wider">Editar</span>
             </button>
             <button
               id={`btn-delete-${appointment.id}`}
@@ -403,6 +417,118 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {showDetails && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-3 bg-black/85 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setShowDetails(false)}
+        >
+          <div
+            className="w-full max-w-xl bg-zinc-900 border border-zinc-700 rounded-3xl overflow-hidden shadow-2xl my-auto max-h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Detalhes do atendimento"
+          >
+            <div className="flex items-center justify-between gap-3 p-4 bg-zinc-950 border-b border-zinc-800">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-white font-bold">
+                  <Eye className="w-4 h-4 text-cyan-400" />
+                  <span>Detalhes do atendimento</span>
+                </div>
+                <p className="text-xs text-zinc-500 mt-0.5 truncate">{appointment.clientName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDetails(false)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-4 space-y-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-cyan-400" /> Cliente
+                  </div>
+                  <div className="font-bold text-white">{appointment.clientName}</div>
+                  <div className="text-xs text-zinc-400 mt-1">{appointment.clientPhone}</div>
+                  {appointment.address && <div className="text-xs text-zinc-400 mt-1">{appointment.address}{appointment.city ? ` • ${appointment.city}` : ''}</div>}
+                </div>
+
+                <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-cyan-400" /> Atendimento
+                  </div>
+                  <div className="text-white font-semibold">{formatDateBR(appointment.date)}</div>
+                  <div className="text-xs text-zinc-400 mt-1">{appointment.startTime}{appointment.endTime ? ` às ${appointment.endTime}` : ''} • {appointment.durationMinutes} min</div>
+                  <div className="text-xs text-zinc-400 mt-1">Status: <span className="text-zinc-200 font-semibold">{statusInfo.label}</span></div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2 flex items-center gap-1.5">
+                  <Wrench className="w-3.5 h-3.5 text-cyan-400" /> Serviço
+                </div>
+                <div className="text-white font-semibold">{appointment.serviceTypeName}</div>
+                {appointment.description && <div className="text-xs text-zinc-400 mt-2 whitespace-pre-wrap">{appointment.description}</div>}
+                {appointment.notes && <div className="text-xs text-zinc-400 mt-2"><span className="text-zinc-300 font-semibold">Observações:</span> {appointment.notes}</div>}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2">Identificação</div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between gap-3"><span className="text-zinc-500">OS</span><span className="text-amber-300 font-mono font-bold">{appointment.serviceOrder || 'Não gerada'}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-zinc-500">Equipamentos</span><span className="text-zinc-200 font-bold">{appointment.equipment?.length || 0}</span></div>
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2">Financeiro</div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between gap-3"><span className="text-zinc-500">Valor</span><span className="text-emerald-300 font-mono font-bold">{appointment.price && appointment.price > 0 ? formatCurrencyBRL(appointment.price) : 'Não informado'}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-zinc-500">Pagamento</span><span className="text-zinc-200 text-right">{appointment.paymentMethod ? appointment.paymentMethod.replaceAll('_', ' ') : 'Não informado'}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {appointment.equipment && appointment.equipment.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-cyan-400" /> Equipamentos cadastrados
+                  </div>
+                  {appointment.equipment.map((item, index) => (
+                    <div key={item.id} className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs text-zinc-500">Equipamento {index + 1}</div>
+                          <div className="text-white font-semibold mt-0.5">{item.serviceTypeName || 'Equipamento'}</div>
+                        </div>
+                        <span className="shrink-0 text-xs px-2 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono font-bold">{item.serialNumber}</span>
+                      </div>
+                      {item.model && <div className="text-xs text-zinc-300 mt-2"><span className="text-zinc-500">Modelo / local:</span> {item.model}</div>}
+                      {item.description && <div className="text-xs text-zinc-400 mt-1 whitespace-pre-wrap">{item.description}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-zinc-950 border-t border-zinc-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDetails(false)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold border border-zinc-700"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
