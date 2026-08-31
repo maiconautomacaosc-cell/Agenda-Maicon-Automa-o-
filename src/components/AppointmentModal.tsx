@@ -72,7 +72,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [startTime, setStartTime] = useState('09:00');
   const [durationMinutes, setDurationMinutes] = useState(90);
   const [serviceType, setServiceType] = useState<ServiceType>(initialServiceType || 'instalacao_sobrepor');
-  const [lockModel, setLockModel] = useState('');
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([initialServiceType || 'instalacao_sobrepor']);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<Appointment['paymentMethod']>('pix');
@@ -94,7 +94,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setStartTime(initialAppointment.startTime);
       setDurationMinutes(initialAppointment.durationMinutes || 90);
       setServiceType(initialAppointment.serviceType);
-      setLockModel(initialAppointment.lockModel || '');
+      setServiceTypes(initialAppointment.serviceTypes?.length ? initialAppointment.serviceTypes : [initialAppointment.serviceType]);
       setDescription(initialAppointment.description || '');
       setPrice(initialAppointment.price ? String(initialAppointment.price) : '');
       setPaymentMethod(initialAppointment.paymentMethod || 'pix');
@@ -107,6 +107,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       // Reset form
       const st = initialServiceType || 'instalacao_sobrepor';
       setServiceType(st);
+      setServiceTypes([st]);
       if (st === 'compromisso_particular') {
         setClientName('Compromisso Particular');
         setClientPhone('(11) 99999-9999');
@@ -126,7 +127,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         setDescription('');
       }
       setDate(initialDate || getTodayString());
-      setLockModel('');
       setPrice('');
       setPaymentMethod('pix');
       setStatus('pendente');
@@ -138,7 +138,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isParticular = serviceType === 'compromisso_particular';
+  const isParticular = serviceTypes.includes('compromisso_particular');
 
   // Check if chosen date already has a compromisso_particular
   const existingDayBlocks = existingAppointments.filter(
@@ -155,21 +155,34 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   };
 
   const handleServiceChange = (st: ServiceType) => {
-    setServiceType(st);
-    const found = SERVICE_OPTIONS.find(o => o.type === st);
-    if (found && !initialAppointment) {
-      setDurationMinutes(found.defaultDuration);
-      if (st === 'compromisso_particular') {
-        if (!clientName || clientName.trim() === '') {
-          setClientName('Compromisso Particular');
-        }
-        setStartTime('08:00');
-        setIsAllDayBlocked(true);
-        if (!address) setAddress('Particular');
-        if (!clientPhone) setClientPhone('(11) 99999-9999');
-        if (!description) setDescription('Dia reservado para compromisso particular / indisponível para atendimento');
-      }
+    if (st === 'compromisso_particular') {
+      setServiceType(st);
+      setServiceTypes([st]);
+      const found = SERVICE_OPTIONS.find(o => o.type === st);
+      if (found && !initialAppointment) setDurationMinutes(found.defaultDuration);
+      if (!clientName || clientName.trim() === '') setClientName('Compromisso Particular');
+      setStartTime('08:00');
+      setIsAllDayBlocked(true);
+      if (!address) setAddress('Particular');
+      if (!clientPhone) setClientPhone('(11) 99999-9999');
+      if (!description) setDescription('Dia reservado para compromisso particular / indisponível para atendimento');
+      return;
     }
+
+    setIsAllDayBlocked(false);
+    setServiceTypes(prev => {
+      const withoutParticular = prev.filter(t => t !== 'compromisso_particular');
+      const exists = withoutParticular.includes(st);
+      const next = exists ? withoutParticular.filter(t => t !== st) : [...withoutParticular, st];
+      // Nunca deixa um atendimento técnico sem nenhum tipo marcado.
+      if (next.length === 0) return withoutParticular;
+      setServiceType(next[0]);
+      if (!initialAppointment && !exists) {
+        const found = SERVICE_OPTIONS.find(o => o.type === st);
+        if (found) setDurationMinutes(current => Math.max(current, found.defaultDuration));
+      }
+      return next;
+    });
   };
 
   const handleToggleAllDay = (checked: boolean) => {
@@ -216,8 +229,15 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       return;
     }
 
-    const serviceObj = SERVICE_OPTIONS.find(s => s.type === serviceType);
-    const serviceTypeName = serviceObj ? serviceObj.label : 'Serviço de Fechadura';
+    const selectedTechnicalTypes = serviceTypes.filter(t => t !== 'compromisso_particular');
+    if (!isParticular && selectedTechnicalTypes.length === 0) {
+      alert('Selecione pelo menos um tipo de atendimento.');
+      return;
+    }
+    const serviceTypeName = selectedTechnicalTypes
+      .map(t => SERVICE_OPTIONS.find(s => s.type === t)?.label || 'Outro Serviço')
+      .join(' + ');
+    const primaryServiceType = isParticular ? 'compromisso_particular' : selectedTechnicalTypes[0];
 
     const newAppt: Appointment = {
       id: initialAppointment ? initialAppointment.id : `appt-${Date.now()}`,
@@ -230,9 +250,10 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       startTime,
       endTime: calculateEndTime(),
       durationMinutes,
-      serviceType,
+      serviceType: primaryServiceType,
+      serviceTypes: isParticular ? ['compromisso_particular'] : selectedTechnicalTypes,
       serviceTypeName: isParticular ? 'Compromisso Particular (Dia Ocupado)' : serviceTypeName,
-      lockModel: isParticular ? '' : lockModel.trim(),
+      lockModel: initialAppointment?.lockModel || '',
       // MA e OS nunca são digitados no agendamento. Se já foram gerados na conclusão, apenas preserva.
       serialNumber: isParticular ? undefined : initialAppointment?.serialNumber,
       serviceOrder: isParticular ? undefined : initialAppointment?.serviceOrder,
@@ -325,24 +346,36 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               Tipo de Entrada na Agenda
             </span>
 
-            <div>
-              <select
-                id="select-service-type"
-                value={serviceType}
-                onChange={(e) => handleServiceChange(e.target.value as ServiceType)}
-                className={`w-full p-2.5 rounded-xl text-white font-medium focus:outline-none border ${
-                  isParticular
-                    ? 'bg-purple-950/60 border-purple-600/60 text-purple-200'
-                    : 'bg-zinc-900 border-zinc-800 text-white focus:border-cyan-500'
-                }`}
-              >
-                {SERVICE_OPTIONS.map((opt) => (
-                  <option key={opt.type} value={opt.type}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {SERVICE_OPTIONS.map((opt) => {
+                const selected = serviceTypes.includes(opt.type);
+                const particular = opt.type === 'compromisso_particular';
+                return (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => handleServiceChange(opt.type)}
+                    className={`text-left p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                      selected
+                        ? particular
+                          ? 'bg-purple-950/70 border-purple-500 text-purple-100'
+                          : 'bg-cyan-950/60 border-cyan-500 text-cyan-100'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? 'bg-cyan-500 border-cyan-400 text-black' : 'border-zinc-600'}`}>
+                        {selected && <Check className="w-3 h-3" />}
+                      </span>
+                      {opt.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
+            {!isParticular && (
+              <p className="text-[11px] text-zinc-500">Você pode marcar mais de um tipo no mesmo atendimento. Ex.: 2 instalações sobrepor + 1 embutir continuam sendo uma única visita.</p>
+            )}
 
             {/* If it's a personal commitment */}
             {isParticular && (
@@ -530,22 +563,10 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 space-y-3">
               <span className="font-mono font-bold text-zinc-300 text-xs flex items-center gap-1.5 uppercase tracking-wider">
                 <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
-                Detalhes da Fechadura & Identificação
+                Detalhes do Atendimento
               </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-zinc-300 font-semibold mb-1">Modelo da Fechadura (Opcional)</label>
-                  <input
-                    id="input-lock-model"
-                    type="text"
-                    value={lockModel}
-                    onChange={(e) => setLockModel(e.target.value)}
-                    placeholder="Ex: Intelbras FR 101, Yale YMC 420D"
-                    className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-
+              <div>
                 <div>
                   <label className="block text-zinc-300 font-semibold mb-1">Duração Estimada</label>
                   <select
@@ -565,7 +586,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               </div>
 
               <div className="pt-1 border-t border-zinc-850">
-                <p className="text-[11px] text-zinc-500">MA e OS são gerados automaticamente somente ao concluir o atendimento.</p>
+                <p className="text-[11px] text-zinc-500">Marca/modelo ficam para o cadastro de cada equipamento na conclusão. MA e OS são gerados automaticamente somente ao concluir o atendimento.</p>
               </div>
             </div>
           )}
