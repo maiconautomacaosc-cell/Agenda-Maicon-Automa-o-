@@ -15,6 +15,9 @@ export interface AppSettings {
   autoOpenMapApp: 'google' | 'waze';
   technicianName: string;
   pixKey: string;
+  // Contadores de segurança: números já consumidos nunca voltam a ficar disponíveis.
+  lastSerialSequence?: number;
+  lastServiceOrderSequence?: number;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -24,6 +27,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoOpenMapApp: 'google',
   technicianName: 'Maicon Automação',
   pixKey: 'Maiconautomacaosc@gmail.com',
+  lastSerialSequence: 0,
+  lastServiceOrderSequence: 0,
 };
 
 // Initial realistic demo clients for Maicon Automação
