@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardList, KeyRound, Plus, Trash2, X } from 'lucide-react';
-import { Appointment, EquipmentRecord } from '../types';
+import { Appointment, EquipmentRecord, ServiceType } from '../types';
 
 export interface CompletionOptions {
-  equipment: Array<Pick<EquipmentRecord, 'model' | 'description'>>;
+  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'model' | 'description'>>;
   generateServiceOrder: boolean;
 }
 
@@ -18,6 +18,17 @@ interface Props {
 
 const fmtMA = (n: number) => `MA-${String(n).padStart(6, '0')}`;
 const fmtOS = (n: number) => `OS-${String(n).padStart(6, '0')}`;
+const SERVICE_LABELS: Partial<Record<ServiceType, string>> = {
+  instalacao_sobrepor: 'Instalação Fechadura Sobrepor',
+  instalacao_embutir: 'Instalação Fechadura Embutir (com mortise)',
+  manutencao_preventiva: 'Manutenção Preventiva / Revisão',
+  manutencao_corretiva: 'Manutenção Corretiva / Reparo',
+  troca_bateria_config: 'Troca de Bateria & Reconfiguração',
+  automacao_alexa_google: 'Automação Hub Zigbee / Alexa / Google',
+  orcamento_tecnico: 'Visita Técnica / Orçamento',
+  outro: 'Outro Serviço Personalizado',
+};
+
 
 export const ServiceCompletionModal: React.FC<Props> = ({
   isOpen,
@@ -29,7 +40,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
 }) => {
   const [registerEquipment, setRegisterEquipment] = useState(false);
   const [generateOS, setGenerateOS] = useState(true);
-  const [equipment, setEquipment] = useState<Array<{ model: string; description: string }>>([]);
+  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; model: string; description: string }>>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -49,7 +60,8 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   const toggleEquipment = (value: boolean) => {
     setRegisterEquipment(value);
     if (value && equipment.length === 0) {
-      setEquipment([{ model: appointment.lockModel || '', description: '' }]);
+      const firstType = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular');
+      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, model: '', description: '' }]);
     }
     if (!value) setEquipment([]);
   };
@@ -87,12 +99,24 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                       </div>
                       {equipment.length > 1 && <button type="button" onClick={() => setEquipment(prev => prev.filter((_, j) => j !== i))} className="text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>}
                     </div>
-                    <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Modelo do equipamento (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                    <select
+                      value={item.serviceType || ''}
+                      onChange={e => {
+                        const st = e.target.value as ServiceType;
+                        setEquipment(prev => prev.map((x,j) => j === i ? {...x, serviceType: st, serviceTypeName: SERVICE_LABELS[st]} : x));
+                      }}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
+                    >
+                      {(appointment.serviceTypes || [appointment.serviceType])
+                        .filter(t => t !== 'compromisso_particular')
+                        .map(st => <option key={st} value={st}>{SERVICE_LABELS[st] || appointment.serviceTypeName}</option>)}
+                    </select>
+                    <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Marca / modelo do equipamento (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                     <input value={item.description} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, description:e.target.value} : x))} placeholder="Ex: Apto 302 / porta social (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                   </div>
                 ))}
                 <p className="text-[11px] text-zinc-500">A numeração MA é automática e não pode ser digitada manualmente.</p>
-                <button type="button" onClick={() => setEquipment(prev => [...prev, { model: '', description: '' }])} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
+                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, model: '', description: '' }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
               </div>
             )}
           </section>
