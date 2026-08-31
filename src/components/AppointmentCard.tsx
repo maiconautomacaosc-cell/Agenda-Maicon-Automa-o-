@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Clock, 
   MapPin, 
@@ -421,7 +422,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
         </div>
       )}
 
-      {showDetails && (
+      {showDetails && createPortal(
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-3 bg-black/85 backdrop-blur-sm overflow-y-auto"
           onClick={() => setShowDetails(false)}
@@ -530,7 +531,8 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
