@@ -11,6 +11,14 @@ export type ServiceType =
   | 'compromisso_particular'
   | 'outro';
 
+export interface EquipmentRecord {
+  id: string;
+  serialNumber: string; // MA-000000
+  model?: string;
+  description?: string;
+  createdAt: string;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -18,8 +26,9 @@ export interface Client {
   address: string;
   neighborhood?: string;
   city?: string;
-  serialNumber?: string; // Formato: MA-000029 (prefixo MA- e 6 dígitos)
-  serviceOrder?: string; // Formato: OS-000029 (prefixo OS- e 6 dígitos)
+  serialNumber?: string; // compatibilidade: primeiro/último MA principal
+  serviceOrder?: string; // compatibilidade: OS mais recente
+  equipment?: EquipmentRecord[];
   notes?: string;
   createdAt: string;
 }
@@ -32,38 +41,34 @@ export interface Appointment {
   address: string;
   neighborhood?: string;
   city?: string;
-  serialNumber?: string; // N° de Série
-  serviceOrder?: string; // N° da OS
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:mm
-  endTime?: string; // HH:mm (estimated or duration)
-  durationMinutes: number; // e.g. 60, 90, 120
+  serialNumber?: string; // compatibilidade: primeiro MA do atendimento
+  serviceOrder?: string; // uma OS por atendimento, quando solicitada
+  equipment?: EquipmentRecord[]; // zero, um ou vários equipamentos no mesmo atendimento
+  date: string;
+  startTime: string;
+  endTime?: string;
+  durationMinutes: number;
   serviceType: ServiceType;
   serviceTypeName: string;
   description: string;
-  lockModel?: string; // e.g. Intelbras IFR 1001, Yale YMC 420D, etc.
+  lockModel?: string;
   price?: number;
   paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'faturado' | 'a_combinar';
   status: AppointmentStatus;
   notes?: string;
-  reminderMinutesBefore: number; // 0 (at time), 15, 30, 60, 120, 1440 (1 day)
+  reminderMinutesBefore: number;
   alarmDismissed?: boolean;
   googleEventId?: string;
   googleSyncedAt?: string;
+  syncedToCalendar?: boolean;
   createdAt: string;
   updatedAt: string;
-  export interface Appointment {
-  // ...campos que já existem
-
-  googleEventId?: string;
-  syncedToCalendar?: boolean;
-  }
 }
 
 export type DayOccupancyStatus = 'livre' | 'parcial' | 'ocupado';
 
 export interface DayInfo {
-  date: string; // YYYY-MM-DD
+  date: string;
   dayNumber: number;
   isCurrentMonth: boolean;
   isToday: boolean;
@@ -86,7 +91,7 @@ export interface QuoteItem {
 
 export interface Quote {
   id: string;
-  code: string; // e.g. "ORC-2026-001"
+  code: string;
   clientId?: string;
   clientName: string;
   clientPhone: string;
@@ -103,7 +108,7 @@ export interface Quote {
   warrantyInfo: string;
   notes?: string;
   status: QuoteStatus;
-  date: string; // YYYY-MM-DD
+  date: string;
   createdAt: string;
   updatedAt: string;
 }
