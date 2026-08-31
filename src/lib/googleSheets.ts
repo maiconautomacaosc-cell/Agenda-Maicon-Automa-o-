@@ -85,13 +85,13 @@ export async function saveDatabaseToGoogleSheets(
   await ensureTabs(spreadsheetId, accessToken);
 
   const clientRows = [
-    ['ID','NOME','CONTATO','ENDERECO','BAIRRO','CIDADE','N_SERIE','OS','OBS','CRIADO_EM','JSON'],
-    ...payload.clients.map(c => [c.id,c.name,c.phone,c.address,c.neighborhood || '',c.city || '',c.serialNumber || '',c.serviceOrder || '',c.notes || '',c.createdAt,rowJson(c)]),
+    ['ID','NOME','CONTATO','ENDERECO','BAIRRO','CIDADE','N_SERIE','OS','OBS','CRIADO_EM','JSON','EQUIPAMENTOS'],
+    ...payload.clients.map(c => [c.id,c.name,c.phone,c.address,c.neighborhood || '',c.city || '',c.serialNumber || '',c.serviceOrder || '',c.notes || '',c.createdAt,rowJson(c),(c.equipment || []).map(e => `${e.serialNumber}${e.model ? ` - ${e.model}` : ''}`).join(' | ')]),
   ];
 
   const apptRows = [
-    ['ID','DATA','INICIO','FIM','CLIENTE','CONTATO','ENDERECO','BAIRRO','SERVICO','MODELO','VALOR','STATUS','N_SERIE','OS','GOOGLE_EVENT_ID','ATUALIZADO_EM','JSON'],
-    ...payload.appointments.map(a => [a.id,a.date,a.startTime,a.endTime || '',a.clientName,a.clientPhone,a.address,a.neighborhood || '',a.serviceTypeName,a.lockModel || '',a.price ?? '',a.status,a.serialNumber || '',a.serviceOrder || '',a.googleEventId || '',a.updatedAt,rowJson(a)]),
+    ['ID','DATA','INICIO','FIM','CLIENTE','CONTATO','ENDERECO','BAIRRO','SERVICO','MODELO','VALOR','STATUS','N_SERIE','OS','GOOGLE_EVENT_ID','ATUALIZADO_EM','JSON','EQUIPAMENTOS'],
+    ...payload.appointments.map(a => [a.id,a.date,a.startTime,a.endTime || '',a.clientName,a.clientPhone,a.address,a.neighborhood || '',a.serviceTypeName,a.lockModel || '',a.price ?? '',a.status,a.serialNumber || '',a.serviceOrder || '',a.googleEventId || '',a.updatedAt,rowJson(a),(a.equipment || []).map(e => `${e.serialNumber}${e.model ? ` - ${e.model}` : ''}`).join(' | ')]),
   ];
 
   const quoteRows = [
@@ -150,7 +150,7 @@ export async function loadDatabaseFromGoogleSheets(
   try { settings = config.SETTINGS_JSON ? JSON.parse(config.SETTINGS_JSON) : undefined; } catch {}
 
   return {
-    version: config.VERSION || '3.1',
+    version: config.VERSION || '3.3',
     updatedAt: config.UPDATED_AT || new Date(0).toISOString(),
     clients: parseJsonColumn<Client>(clientRows, 10),
     appointments: parseJsonColumn<Appointment>(apptRows, 16),
