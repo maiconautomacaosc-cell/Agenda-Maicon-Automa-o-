@@ -419,7 +419,9 @@ export default function App() {
     const equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
       serialNumber: `MA-${String(nextMA + index).padStart(6, '0')}`,
-      model: eq.model?.trim() || completionAppointment.lockModel || undefined,
+      serviceType: eq.serviceType,
+      serviceTypeName: eq.serviceTypeName,
+      model: eq.model?.trim() || undefined,
       description: eq.description?.trim() || undefined,
       createdAt: now,
     }));
