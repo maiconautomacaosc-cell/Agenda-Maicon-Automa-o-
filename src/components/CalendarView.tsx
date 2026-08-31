@@ -28,6 +28,7 @@ interface CalendarViewProps {
   onDeleteAppointment: (id: string) => void;
   onStatusChange: (id: string, newStatus: Appointment['status']) => void;
   onOpenWhatsApp: (appt: Appointment) => void;
+  onRetryMainSheetSync?: (appt: Appointment) => void;
   onBlockDay?: (date: string) => void;
 }
 
@@ -40,6 +41,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onDeleteAppointment,
   onStatusChange,
   onOpenWhatsApp,
+  onRetryMainSheetSync,
   onBlockDay,
 }) => {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
@@ -414,6 +416,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onDelete={onDeleteAppointment}
                   onStatusChange={onStatusChange}
                   onOpenWhatsApp={onOpenWhatsApp}
+                  onRetryMainSheetSync={onRetryMainSheetSync}
                 />
               ))}
           </div>
