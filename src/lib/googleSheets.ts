@@ -91,7 +91,7 @@ export async function saveDatabaseToGoogleSheets(
 
   const apptRows = [
     ['ID','DATA','INICIO','FIM','CLIENTE','CONTATO','ENDERECO','BAIRRO','SERVICO','MODELO','VALOR','STATUS','N_SERIE','OS','GOOGLE_EVENT_ID','ATUALIZADO_EM','JSON','EQUIPAMENTOS'],
-    ...payload.appointments.map(a => [a.id,a.date,a.startTime,a.endTime || '',a.clientName,a.clientPhone,a.address,a.neighborhood || '',a.serviceTypeName,a.lockModel || '',a.price ?? '',a.status,a.serialNumber || '',a.serviceOrder || '',a.googleEventId || '',a.updatedAt,rowJson(a),(a.equipment || []).map(e => `${e.serialNumber}${e.model ? ` - ${e.model}` : ''}`).join(' | ')]),
+    ...payload.appointments.map(a => [a.id,a.date,a.startTime,a.endTime || '',a.clientName,a.clientPhone,a.address,a.neighborhood || '',a.serviceTypeName,a.lockModel || '',a.price ?? '',a.status,a.serialNumber || '',a.serviceOrder || '',a.googleEventId || '',a.updatedAt,rowJson(a),(a.equipment || []).map(e => `${e.serialNumber}${e.serviceTypeName ? ` - ${e.serviceTypeName}` : ''}${e.model ? ` - ${e.model}` : ''}`).join(' | ')]),
   ];
 
   const quoteRows = [
