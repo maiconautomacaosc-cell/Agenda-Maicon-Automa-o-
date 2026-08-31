@@ -55,9 +55,15 @@ async function apiFetch(url: string, token: string, init: RequestInit = {}) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error?.message || `Erro ${res.status} ao acessar Google Sheets`);
+    const googleMessage = body?.error?.message || body?.error?.status || '';
+    throw new Error(`Google Sheets ${res.status}${googleMessage ? `: ${googleMessage}` : ''}`);
   }
   return res;
+}
+
+function syncStageError(stage: string, err: unknown): never {
+  const message = err instanceof Error ? err.message : String(err || 'erro desconhecido');
+  throw new Error(`${stage}: ${message}`);
 }
 
 async function getSheetTitles(spreadsheetId: string, token: string): Promise<string[]> {
@@ -67,6 +73,17 @@ async function getSheetTitles(spreadsheetId: string, token: string): Promise<str
   );
   const data = await meta.json();
   return (data.sheets || []).map((s: any) => String(s.properties?.title || '')).filter(Boolean);
+}
+
+
+function quoteSheetTitle(title: string) {
+  // A API do Google Sheets exige aspas em nomes com ponto, espaços, acentos etc.
+  // Também cobre o caso da aba CONFIGURAÇÕES ter um espaço no fim do nome.
+  return `'${title.replace(/'/g, "''")}'`;
+}
+
+function sheetRange(tab: string, range: string) {
+  return `${quoteSheetTitle(tab)}!${range}`;
 }
 
 function normalizeTabTitle(value: string) {
@@ -111,11 +128,12 @@ function rowJson(value: unknown) {
 }
 
 async function replaceValues(spreadsheetId: string, tab: string, values: any[][], token: string) {
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tab + '!A:Z')}`;
+  const fullRange = sheetRange(tab, 'A:Z');
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(fullRange)}`;
   await apiFetch(`${base}:clear`, token, { method: 'POST', body: '{}' });
   await apiFetch(`${base}?valueInputOption=RAW`, token, {
     method: 'PUT',
-    body: JSON.stringify({ range: `${tab}!A:Z`, majorDimension: 'ROWS', values }),
+    body: JSON.stringify({ range: sheetRange(tab, 'A:Z'), majorDimension: 'ROWS', values }),
   });
 }
 
@@ -211,8 +229,8 @@ export async function getOfficialSequences(
   const tabs = await resolveMainTabs(spreadsheetId, accessToken);
 
   const [clientRows, osRows] = await Promise.all([
-    readValues(spreadsheetId, `${tabs.clients}!A2:B`, accessToken),
-    readValues(spreadsheetId, `${tabs.serviceOrders}!A2:A`, accessToken),
+    readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:B'), accessToken),
+    readValues(spreadsheetId, sheetRange(tabs.serviceOrders, 'A2:A'), accessToken),
   ]);
 
   const maNumbers = clientRows.map(r => seq(r[0]));
@@ -247,13 +265,25 @@ export async function syncCompletedAppointmentToMainSheets(
   accessToken: string,
   spreadsheetId = getSpreadsheetId()
 ): Promise<void> {
-  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
-  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  if (!spreadsheetId) throw new Error('Configuração: Planilha Google não configurada.');
 
-  const [clientRows, osRows] = await Promise.all([
-    readValues(spreadsheetId, `${tabs.clients}!A2:B`, accessToken),
-    readValues(spreadsheetId, `${tabs.serviceOrders}!A2:A`, accessToken),
-  ]);
+  let tabs: { clients: string; serviceOrders: string; config: string };
+  try {
+    tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  } catch (err) {
+    syncStageError('Localização das abas CLIENTES/O.S/CONFIGURAÇÕES', err);
+  }
+
+  let clientRows: any[][] = [];
+  let osRows: any[][] = [];
+  try {
+    [clientRows, osRows] = await Promise.all([
+      readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:B'), accessToken),
+      readValues(spreadsheetId, sheetRange(tabs.serviceOrders, 'A2:A'), accessToken),
+    ]);
+  } catch (err) {
+    syncStageError('Leitura da planilha principal', err);
+  }
 
   const existingMA = new Set(clientRows.map(r => String(r[0] || '').trim()).filter(Boolean));
   const existingOS = new Set([
@@ -265,76 +295,79 @@ export async function syncCompletedAppointmentToMainSheets(
   const clientAppendRows = equipment
     .filter(eq => eq.serialNumber && !existingMA.has(eq.serialNumber))
     .map(eq => [
-      eq.serialNumber,                         // A Nº Série
-      appointment.serviceOrder || '',          // B OS
-      appointment.date || '',                  // C Data Instalação
-      appointment.clientName || '',            // D Cliente
-      appointment.clientPhone || '',           // E Contato
-      appointment.address || '',               // F Endereço
-      '',                                       // G Marca (ainda não separada no app)
-      eq.model || '',                           // H Modelo
-      eq.serviceTypeName || appointment.serviceTypeName || '', // I Serviço
-      '',                                       // J Garantia Instalação
-      '',                                       // K Garantia vence
-      'Ativa',                                  // L Status
-      '',                                       // M PDF OS (gerado pelo sistema antigo depois)
-      [eq.description, appointment.notes].filter(Boolean).join(' | '), // N Observações
-      '',                                       // O Foto
-      '',                                       // P Tipo de fornecimento
-      '',                                       // Q Fornecedor
-      '',                                       // R NF / Comprovante
-      '',                                       // S Garantia do Produto
-      '',                                       // T QR Code
+      eq.serialNumber,
+      appointment.serviceOrder || '',
+      appointment.date || '',
+      appointment.clientName || '',
+      appointment.clientPhone || '',
+      appointment.address || '',
+      '',
+      eq.model || '',
+      eq.serviceTypeName || appointment.serviceTypeName || '',
+      '',
+      '',
+      'Ativa',
+      '',
+      [eq.description, appointment.notes].filter(Boolean).join(' | '),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
     ]);
 
   if (clientAppendRows.length) {
-    // A planilha oficial já possui fórmulas pré-preenchidas até várias linhas.
-    // Usar :append faria o Google gravar depois dessas fórmulas (ex.: linha 1001).
-    // Por isso ocupamos as primeiras linhas realmente livres olhando a coluna A.
-    const clientColA = await readValues(spreadsheetId, `${tabs.clients}!A2:A`, accessToken);
-    const usedRows = new Set<number>();
-    clientColA.forEach((r, index) => { if (String(r[0] || '').trim()) usedRows.add(index + 2); });
-    let candidateRow = 2;
-    for (const row of clientAppendRows) {
-      while (usedRows.has(candidateRow)) candidateRow++;
-      // A:J = dados principais. K:L ficam intactas para preservar as fórmulas de garantia/status existentes.
-      await updateValues(spreadsheetId, `${tabs.clients}!A${candidateRow}:J${candidateRow}`, [row.slice(0, 10)], accessToken);
-      // M:T = PDF/observações/foto/fornecimento/fornecedor/NF/garantia produto/QR.
-      await updateValues(spreadsheetId, `${tabs.clients}!M${candidateRow}:T${candidateRow}`, [row.slice(12, 20)], accessToken);
-      usedRows.add(candidateRow);
-      candidateRow++;
+    try {
+      const clientColA = await readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:A'), accessToken);
+      const usedRows = new Set<number>();
+      clientColA.forEach((r, index) => { if (String(r[0] || '').trim()) usedRows.add(index + 2); });
+      let candidateRow = 2;
+      for (const row of clientAppendRows) {
+        while (usedRows.has(candidateRow)) candidateRow++;
+        await updateValues(spreadsheetId, sheetRange(tabs.clients, `A${candidateRow}:J${candidateRow}`), [row.slice(0, 10)], accessToken);
+        await updateValues(spreadsheetId, sheetRange(tabs.clients, `M${candidateRow}:T${candidateRow}`), [row.slice(12, 20)], accessToken);
+        usedRows.add(candidateRow);
+        candidateRow++;
+      }
+    } catch (err) {
+      syncStageError('Gravação na aba CLIENTES', err);
     }
   }
 
   if (appointment.serviceOrder && !existingOS.has(appointment.serviceOrder)) {
-    const serials = equipment.map(eq => eq.serialNumber).filter(Boolean).join(' | ');
-    const serviceNames = equipment.length
-      ? equipment.map(eq => eq.serviceTypeName || appointment.serviceTypeName).filter(Boolean).join(' | ')
-      : appointment.serviceTypeName;
-    const models = equipment.map(eq => eq.model).filter(Boolean).join(' | ');
-    const equipmentSummary = equipment.length
-      ? `${equipment.length} equipamento(s)`
-      : 'Serviço sem equipamento cadastrado';
+    try {
+      const serials = equipment.map(eq => eq.serialNumber).filter(Boolean).join(' | ');
+      const serviceNames = equipment.length
+        ? equipment.map(eq => eq.serviceTypeName || appointment.serviceTypeName).filter(Boolean).join(' | ')
+        : appointment.serviceTypeName;
+      const models = equipment.map(eq => eq.model).filter(Boolean).join(' | ');
+      const equipmentSummary = equipment.length
+        ? `${equipment.length} equipamento(s)`
+        : 'Serviço sem equipamento cadastrado';
 
-    const osRow = [
-      appointment.serviceOrder,                // A N° O.S
-      serials,                                  // B N° Série
-      appointment.date || '',                   // C Data
-      appointment.clientName || '',             // D Cliente
-      appointment.clientPhone || '',            // E Contato
-      serviceNames || appointment.serviceTypeName || '', // F Serviço
-      equipmentSummary,                         // G Equipamento
-      models,                                   // H Marca/Modelo
-      appointment.price ?? '',                  // I Valor
-      paymentLabel(appointment.paymentMethod),  // J Forma de Pagamento
-      'Concluído',                              // K Status
-      '',                                       // L Garantia
-      [appointment.description, appointment.notes].filter(Boolean).join(' | '), // M Observações
-    ];
-    const osColA = await readValues(spreadsheetId, `${tabs.serviceOrders}!A2:A`, accessToken);
-    let osTargetRow = 2;
-    while (String(osColA[osTargetRow - 2]?.[0] || '').trim()) osTargetRow++;
-    await updateValues(spreadsheetId, `${tabs.serviceOrders}!A${osTargetRow}:M${osTargetRow}`, [osRow], accessToken);
+      const osRow = [
+        appointment.serviceOrder,
+        serials,
+        appointment.date || '',
+        appointment.clientName || '',
+        appointment.clientPhone || '',
+        serviceNames || appointment.serviceTypeName || '',
+        equipmentSummary,
+        models,
+        appointment.price ?? '',
+        paymentLabel(appointment.paymentMethod),
+        'Concluído',
+        '',
+        [appointment.description, appointment.notes].filter(Boolean).join(' | '),
+      ];
+      const osColA = await readValues(spreadsheetId, sheetRange(tabs.serviceOrders, 'A2:A'), accessToken);
+      let osTargetRow = 2;
+      while (String(osColA[osTargetRow - 2]?.[0] || '').trim()) osTargetRow++;
+      await updateValues(spreadsheetId, sheetRange(tabs.serviceOrders, `A${osTargetRow}:M${osTargetRow}`), [osRow], accessToken);
+    } catch (err) {
+      syncStageError('Gravação na aba O.S', err);
+    }
   }
 
   const maNumbers = equipment.map(eq => seq(eq.serialNumber)).filter(Boolean);
@@ -343,12 +376,16 @@ export async function syncCompletedAppointmentToMainSheets(
   const nextMA = lastMA + 1;
   const nextOS = lastOS + 1;
 
-  // Mantém compatibilidade com os dois blocos de configuração já existentes na planilha.
-  await Promise.all([
-    // B2 já possui a fórmula que calcula o próximo MA; alteramos somente B1.
-    updateValues(spreadsheetId, `${tabs.config}!B1`, [[formatMA(lastMA)]], accessToken),
-    updateValues(spreadsheetId, `${tabs.config}!D8:D9`, [[nextOS], [formatMA(nextMA)]], accessToken),
-  ]);
+  // A atualização dos contadores não deve desfazer uma gravação de CLIENTES/O.S já concluída.
+  // Se falhar, devolvemos o estágio exato para diagnóstico, mas o reenvio é idempotente e não duplica MA/OS.
+  try {
+    await Promise.all([
+      updateValues(spreadsheetId, sheetRange(tabs.config, 'B1'), [[formatMA(lastMA)]], accessToken),
+      updateValues(spreadsheetId, sheetRange(tabs.config, 'D8:D9'), [[nextOS], [formatMA(nextMA)]], accessToken),
+    ]);
+  } catch (err) {
+    syncStageError('Atualização da aba CONFIGURAÇÕES', err);
+  }
 }
 
 export async function loadDatabaseFromGoogleSheets(
@@ -359,10 +396,10 @@ export async function loadDatabaseFromGoogleSheets(
   await ensureTabs(spreadsheetId, accessToken);
 
   const [clientRows, apptRows, quoteRows, configRows] = await Promise.all([
-    readValues(spreadsheetId, `${TABS.clients}!A:K`, accessToken),
-    readValues(spreadsheetId, `${TABS.appointments}!A:Q`, accessToken),
-    readValues(spreadsheetId, `${TABS.quotes}!A:I`, accessToken),
-    readValues(spreadsheetId, `${TABS.config}!A:B`, accessToken),
+    readValues(spreadsheetId, sheetRange(TABS.clients, 'A:K'), accessToken),
+    readValues(spreadsheetId, sheetRange(TABS.appointments, 'A:Q'), accessToken),
+    readValues(spreadsheetId, sheetRange(TABS.quotes, 'A:I'), accessToken),
+    readValues(spreadsheetId, sheetRange(TABS.config, 'A:B'), accessToken),
   ]);
 
   if (clientRows.length <= 1 && apptRows.length <= 1 && quoteRows.length <= 1) return null;
