@@ -60,18 +60,29 @@ async function apiFetch(url: string, token: string, init: RequestInit = {}) {
   return res;
 }
 
-async function getSheetTitles(spreadsheetId: string, token: string): Promise<Set<string>> {
+async function getSheetTitles(spreadsheetId: string, token: string): Promise<string[]> {
   const meta = await apiFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`,
     token
   );
   const data = await meta.json();
-  return new Set((data.sheets || []).map((s: any) => s.properties?.title).filter(Boolean));
+  return (data.sheets || []).map((s: any) => String(s.properties?.title || '')).filter(Boolean);
+}
+
+function normalizeTabTitle(value: string) {
+  return value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
+function resolveTabTitle(titles: string[], wanted: string): string | null {
+  const exact = titles.find(t => t === wanted);
+  if (exact) return exact;
+  const normalizedWanted = normalizeTabTitle(wanted);
+  return titles.find(t => normalizeTabTitle(t) === normalizedWanted) || null;
 }
 
 async function ensureTabs(spreadsheetId: string, token: string) {
-  const existing = await getSheetTitles(spreadsheetId, token);
-  const missing = Object.values(TABS).filter(t => !existing.has(t));
+  const titles = await getSheetTitles(spreadsheetId, token);
+  const missing = Object.values(TABS).filter(t => !resolveTabTitle(titles, t));
   if (!missing.length) return;
 
   await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`, token, {
@@ -80,12 +91,19 @@ async function ensureTabs(spreadsheetId: string, token: string) {
   });
 }
 
-async function ensureMainTabs(spreadsheetId: string, token: string) {
-  const existing = await getSheetTitles(spreadsheetId, token);
-  const missing = Object.values(MAIN_TABS).filter(t => !existing.has(t));
-  if (missing.length) {
-    throw new Error(`Planilha principal incompleta. Aba(s) não encontrada(s): ${missing.join(', ')}`);
-  }
+async function resolveMainTabs(spreadsheetId: string, token: string) {
+  const titles = await getSheetTitles(spreadsheetId, token);
+  const resolved = {
+    clients: resolveTabTitle(titles, MAIN_TABS.clients),
+    serviceOrders: resolveTabTitle(titles, MAIN_TABS.serviceOrders),
+    config: resolveTabTitle(titles, MAIN_TABS.config),
+  };
+  const missing: string[] = [];
+  if (!resolved.clients) missing.push(MAIN_TABS.clients);
+  if (!resolved.serviceOrders) missing.push(MAIN_TABS.serviceOrders);
+  if (!resolved.config) missing.push(MAIN_TABS.config);
+  if (missing.length) throw new Error(`Planilha principal incompleta. Aba(s) não encontrada(s): ${missing.join(', ')}`);
+  return resolved as { clients: string; serviceOrders: string; config: string };
 }
 
 function rowJson(value: unknown) {
@@ -190,11 +208,11 @@ export async function getOfficialSequences(
   minimumLastOS = 0
 ): Promise<OfficialSequences> {
   if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
-  await ensureMainTabs(spreadsheetId, accessToken);
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
 
   const [clientRows, osRows] = await Promise.all([
-    readValues(spreadsheetId, `${MAIN_TABS.clients}!A2:B`, accessToken),
-    readValues(spreadsheetId, `${MAIN_TABS.serviceOrders}!A2:A`, accessToken),
+    readValues(spreadsheetId, `${tabs.clients}!A2:B`, accessToken),
+    readValues(spreadsheetId, `${tabs.serviceOrders}!A2:A`, accessToken),
   ]);
 
   const maNumbers = clientRows.map(r => seq(r[0]));
@@ -230,11 +248,11 @@ export async function syncCompletedAppointmentToMainSheets(
   spreadsheetId = getSpreadsheetId()
 ): Promise<void> {
   if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
-  await ensureMainTabs(spreadsheetId, accessToken);
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
 
   const [clientRows, osRows] = await Promise.all([
-    readValues(spreadsheetId, `${MAIN_TABS.clients}!A2:B`, accessToken),
-    readValues(spreadsheetId, `${MAIN_TABS.serviceOrders}!A2:A`, accessToken),
+    readValues(spreadsheetId, `${tabs.clients}!A2:B`, accessToken),
+    readValues(spreadsheetId, `${tabs.serviceOrders}!A2:A`, accessToken),
   ]);
 
   const existingMA = new Set(clientRows.map(r => String(r[0] || '').trim()).filter(Boolean));
@@ -270,7 +288,22 @@ export async function syncCompletedAppointmentToMainSheets(
     ]);
 
   if (clientAppendRows.length) {
-    await appendValues(spreadsheetId, `${MAIN_TABS.clients}!A:T`, clientAppendRows, accessToken);
+    // A planilha oficial já possui fórmulas pré-preenchidas até várias linhas.
+    // Usar :append faria o Google gravar depois dessas fórmulas (ex.: linha 1001).
+    // Por isso ocupamos as primeiras linhas realmente livres olhando a coluna A.
+    const clientColA = await readValues(spreadsheetId, `${tabs.clients}!A2:A`, accessToken);
+    const usedRows = new Set<number>();
+    clientColA.forEach((r, index) => { if (String(r[0] || '').trim()) usedRows.add(index + 2); });
+    let candidateRow = 2;
+    for (const row of clientAppendRows) {
+      while (usedRows.has(candidateRow)) candidateRow++;
+      // A:J = dados principais. K:L ficam intactas para preservar as fórmulas de garantia/status existentes.
+      await updateValues(spreadsheetId, `${tabs.clients}!A${candidateRow}:J${candidateRow}`, [row.slice(0, 10)], accessToken);
+      // M:T = PDF/observações/foto/fornecimento/fornecedor/NF/garantia produto/QR.
+      await updateValues(spreadsheetId, `${tabs.clients}!M${candidateRow}:T${candidateRow}`, [row.slice(12, 20)], accessToken);
+      usedRows.add(candidateRow);
+      candidateRow++;
+    }
   }
 
   if (appointment.serviceOrder && !existingOS.has(appointment.serviceOrder)) {
@@ -283,7 +316,7 @@ export async function syncCompletedAppointmentToMainSheets(
       ? `${equipment.length} equipamento(s)`
       : 'Serviço sem equipamento cadastrado';
 
-    await appendValues(spreadsheetId, `${MAIN_TABS.serviceOrders}!A:M`, [[
+    const osRow = [
       appointment.serviceOrder,                // A N° O.S
       serials,                                  // B N° Série
       appointment.date || '',                   // C Data
@@ -297,7 +330,11 @@ export async function syncCompletedAppointmentToMainSheets(
       'Concluído',                              // K Status
       '',                                       // L Garantia
       [appointment.description, appointment.notes].filter(Boolean).join(' | '), // M Observações
-    ]], accessToken);
+    ];
+    const osColA = await readValues(spreadsheetId, `${tabs.serviceOrders}!A2:A`, accessToken);
+    let osTargetRow = 2;
+    while (String(osColA[osTargetRow - 2]?.[0] || '').trim()) osTargetRow++;
+    await updateValues(spreadsheetId, `${tabs.serviceOrders}!A${osTargetRow}:M${osTargetRow}`, [osRow], accessToken);
   }
 
   const maNumbers = equipment.map(eq => seq(eq.serialNumber)).filter(Boolean);
@@ -308,8 +345,9 @@ export async function syncCompletedAppointmentToMainSheets(
 
   // Mantém compatibilidade com os dois blocos de configuração já existentes na planilha.
   await Promise.all([
-    updateValues(spreadsheetId, `${MAIN_TABS.config}!B1:B2`, [[formatMA(lastMA)], [formatMA(nextMA)]], accessToken),
-    updateValues(spreadsheetId, `${MAIN_TABS.config}!D8:D9`, [[nextOS], [formatMA(nextMA)]], accessToken),
+    // B2 já possui a fórmula que calcula o próximo MA; alteramos somente B1.
+    updateValues(spreadsheetId, `${tabs.config}!B1`, [[formatMA(lastMA)]], accessToken),
+    updateValues(spreadsheetId, `${tabs.config}!D8:D9`, [[nextOS], [formatMA(nextMA)]], accessToken),
   ]);
 }
 
