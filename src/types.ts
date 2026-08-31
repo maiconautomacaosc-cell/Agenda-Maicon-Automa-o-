@@ -66,6 +66,9 @@ export interface Appointment {
   syncedToCalendar?: boolean;
   createdAt: string;
   updatedAt: string;
+  // Sincronização com as abas oficiais CLIENTES / O.S da planilha principal.
+  mainSheetSyncStatus?: 'pending' | 'synced' | 'error';
+  mainSheetSyncedAt?: string;
 }
 
 export type DayOccupancyStatus = 'livre' | 'parcial' | 'ocupado';
