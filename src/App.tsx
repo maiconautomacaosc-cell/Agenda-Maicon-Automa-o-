@@ -27,7 +27,7 @@ import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { saveDatabaseToGoogleDrive } from './lib/googleDrive';
-import { getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets } from './lib/googleSheets';
+import { getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -175,9 +175,23 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.4', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.7', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
+
+        // Reenvia automaticamente conclusões que ficaram pendentes (ex.: internet caiu na hora do atendimento).
+        const pending = appointments.filter(a => a.status === 'concluido' && a.mainSheetSyncStatus === 'pending');
+        for (const appt of pending) {
+          try {
+            await syncCompletedAppointmentToMainSheets(appt, googleAccessToken, spreadsheetId);
+            setAppointments(prev => prev.map(a => a.id === appt.id
+              ? { ...a, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString() }
+              : a));
+          } catch (err) {
+            console.warn('Pendência CLIENTES/O.S:', err);
+          }
+        }
+
         lastCloudUpdatedAtRef.current = updatedAt;
         localStorage.setItem('maicon_last_drive_sync', new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
         setSyncStatus('synced');
@@ -212,6 +226,22 @@ export default function App() {
         setCloudReady(true);
       });
   }, [googleAccessToken]);
+
+  // Ao conectar, alinha os contadores locais com a numeração REAL das abas CLIENTES e O.S.
+  useEffect(() => {
+    const spreadsheetId = getSpreadsheetId();
+    if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
+    const local = getNextNumbers();
+    getOfficialSequences(googleAccessToken, spreadsheetId, local.nextMA - 1, local.nextOS - 1)
+      .then(seq => {
+        setSettings(prev => ({
+          ...prev,
+          lastSerialSequence: Math.max(prev.lastSerialSequence || 0, seq.lastMA),
+          lastServiceOrderSequence: Math.max(prev.lastServiceOrderSequence || 0, seq.lastOS),
+        }));
+      })
+      .catch(err => console.warn('Numeração oficial CLIENTES/O.S:', err));
+  }, [googleAccessToken, cloudReady]);
 
   // Mantém aparelhos abertos sincronizados sem precisar apertar botão.
   useEffect(() => {
@@ -411,11 +441,32 @@ export default function App() {
     );
   };
 
-  const handleConfirmCompletion = (options: CompletionOptions) => {
+  const handleConfirmCompletion = async (options: CompletionOptions) => {
     if (!completionAppointment) return;
     const now = new Date().toISOString();
-    // Recalcula no instante da confirmação para não depender de número digitado ou preview antigo.
-    const { nextMA, nextOS } = getNextNumbers();
+    const spreadsheetId = getSpreadsheetId();
+    let tokenToUse = googleAccessToken || getCachedAccessToken();
+    tokenToUse = await ensureValidAccessToken().catch(() => tokenToUse);
+
+    // Parte do maior número já consumido localmente e, quando online, confirma também na planilha principal.
+    const localNext = getNextNumbers();
+    let nextMA = localNext.nextMA;
+    let nextOS = localNext.nextOS;
+    if (tokenToUse && spreadsheetId) {
+      try {
+        const official = await getOfficialSequences(
+          tokenToUse,
+          spreadsheetId,
+          localNext.nextMA - 1,
+          localNext.nextOS - 1
+        );
+        nextMA = official.nextMA;
+        nextOS = official.nextOS;
+      } catch (err) {
+        console.warn('Falha ao conferir sequência oficial; usando contador local:', err);
+      }
+    }
+
     const equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
       serialNumber: `MA-${String(nextMA + index).padStart(6, '0')}`,
@@ -428,14 +479,28 @@ export default function App() {
     const serviceOrder = options.generateServiceOrder
       ? `OS-${String(nextOS).padStart(6, '0')}`
       : completionAppointment.serviceOrder;
-    const updated: Appointment = {
+
+    let updated: Appointment = {
       ...completionAppointment,
       status: 'concluido',
       equipment: [...(completionAppointment.equipment || []), ...equipment],
       serialNumber: completionAppointment.serialNumber || equipment[0]?.serialNumber,
       serviceOrder,
+      mainSheetSyncStatus: (equipment.length || serviceOrder) ? 'pending' : undefined,
       updatedAt: now,
     };
+
+    // Grava imediatamente nas abas oficiais CLIENTES e O.S quando houver conexão.
+    if ((equipment.length || serviceOrder) && tokenToUse && spreadsheetId) {
+      try {
+        await syncCompletedAppointmentToMainSheets(updated, tokenToUse, spreadsheetId);
+        updated = { ...updated, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString() };
+      } catch (err: any) {
+        console.warn('Gravação CLIENTES/O.S pendente:', err);
+        updated = { ...updated, mainSheetSyncStatus: 'pending' };
+        setSyncErrorMessage(`Atendimento salvo. Planilha principal pendente: ${err?.message || 'falha de sincronização'}`);
+      }
+    }
 
     setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
 
@@ -471,8 +536,7 @@ export default function App() {
       });
     }
 
-    // Consome definitivamente as sequências geradas. Mesmo que o atendimento seja apagado depois,
-    // estes números continuam reservados e nunca serão usados novamente.
+    // Números consumidos nunca são reutilizados, mesmo que o agendamento seja apagado depois.
     if (equipment.length || options.generateServiceOrder) {
       setSettings(prev => ({
         ...prev,
@@ -485,11 +549,16 @@ export default function App() {
       }));
     }
 
-    const tokenToUse = googleAccessToken || getCachedAccessToken();
     if (tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
     setCompletionAppointment(null);
+
+    const sheetText = updated.mainSheetSyncStatus === 'synced'
+      ? ' • Planilha atualizada'
+      : updated.mainSheetSyncStatus === 'pending'
+        ? ' • Planilha pendente (tentará novamente)'
+        : '';
     showGoogleNotification(equipment.length || options.generateServiceOrder
-      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}`
+      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${sheetText}`
       : '✅ Serviço simples concluído sem MA e sem OS.');
   };
 
