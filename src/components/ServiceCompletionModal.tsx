@@ -13,7 +13,7 @@ interface Props {
   nextSerialStart: number;
   nextServiceOrder: number;
   onClose: () => void;
-  onConfirm: (options: CompletionOptions) => void;
+  onConfirm: (options: CompletionOptions) => void | Promise<void>;
 }
 
 const fmtMA = (n: number) => `MA-${String(n).padStart(6, '0')}`;
@@ -41,6 +41,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   const [registerEquipment, setRegisterEquipment] = useState(false);
   const [generateOS, setGenerateOS] = useState(true);
   const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; model: string; description: string }>>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -48,6 +49,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
     setGenerateOS(true);
     setEquipment([]);
+    setSaving(false);
   }, [isOpen, appointment?.id]);
 
   const previews = useMemo(
@@ -135,7 +137,20 @@ export const ServiceCompletionModal: React.FC<Props> = ({
             )}
           </section>
 
-          <button type="button" onClick={() => onConfirm({ equipment: registerEquipment ? equipment : [], generateServiceOrder: generateOS })} className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold">Concluir serviço</button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={async () => {
+              if (saving) return;
+              setSaving(true);
+              try {
+                await onConfirm({ equipment: registerEquipment ? equipment : [], generateServiceOrder: generateOS });
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait text-black font-extrabold"
+          >{saving ? 'Salvando na planilha…' : 'Concluir serviço'}</button>
           <p className="text-[11px] text-zinc-500 text-center">OS é sugerida por padrão. MA só é criado quando houver equipamento para identificar.</p>
         </div>
       </div>
