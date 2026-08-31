@@ -79,7 +79,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setPhone('');
     setAddress('');
     setNeighborhood('');
-    setCity('São Paulo');
+    setCity('');
     setSerialNumber('');
     setServiceOrder('');
     setNotes('');
@@ -92,7 +92,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setPhone(client.phone);
     setAddress(client.address);
     setNeighborhood(client.neighborhood || '');
-    setCity(client.city || 'São Paulo');
+    setCity(client.city || '');
     setSerialNumber(client.serialNumber || '');
     setServiceOrder(client.serviceOrder || '');
     setNotes(client.notes || '');
@@ -585,7 +585,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    placeholder="São Paulo"
+                    placeholder="Cidade (opcional)"
                     className="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
