@@ -26,9 +26,19 @@ const SERVICE_LABELS: Partial<Record<ServiceType, string>> = {
   troca_bateria_config: 'Troca de Bateria & Reconfiguração',
   automacao_alexa_google: 'Automação Hub Zigbee / Alexa / Google',
   orcamento_tecnico: 'Visita Técnica / Orçamento',
-  outro: 'Outro Serviço Personalizado',
+  outro: 'Outros / Equipamento diverso',
 };
 
+const EQUIPMENT_SERVICE_OPTIONS: ServiceType[] = [
+  'instalacao_sobrepor',
+  'instalacao_embutir',
+  'manutencao_preventiva',
+  'manutencao_corretiva',
+  'troca_bateria_config',
+  'automacao_alexa_google',
+  'orcamento_tecnico',
+  'outro',
+];
 
 export const ServiceCompletionModal: React.FC<Props> = ({
   isOpen,
@@ -109,9 +119,9 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                       }}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                     >
-                      {(appointment.serviceTypes || [appointment.serviceType])
-                        .filter(t => t !== 'compromisso_particular')
-                        .map(st => <option key={st} value={st}>{SERVICE_LABELS[st] || appointment.serviceTypeName}</option>)}
+                      {EQUIPMENT_SERVICE_OPTIONS.map(st => (
+                        <option key={st} value={st}>{SERVICE_LABELS[st]}</option>
+                      ))}
                     </select>
                     <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Marca / modelo do equipamento (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                     <input value={item.description} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, description:e.target.value} : x))} placeholder="Ex: Apto 302 / porta social (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
