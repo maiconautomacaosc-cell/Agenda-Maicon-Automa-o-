@@ -150,7 +150,7 @@ export async function loadDatabaseFromGoogleSheets(
   try { settings = config.SETTINGS_JSON ? JSON.parse(config.SETTINGS_JSON) : undefined; } catch {}
 
   return {
-    version: config.VERSION || '3.3',
+    version: config.VERSION || '3.4',
     updatedAt: config.UPDATED_AT || new Date(0).toISOString(),
     clients: parseJsonColumn<Client>(clientRows, 10),
     appointments: parseJsonColumn<Appointment>(apptRows, 16),
