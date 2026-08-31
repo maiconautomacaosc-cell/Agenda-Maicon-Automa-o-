@@ -26,7 +26,8 @@ import {
   Eye,
   X,
   User,
-  Wrench
+  Wrench,
+  RefreshCw
 } from 'lucide-react';
 import { Appointment, AppointmentStatus } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
@@ -39,6 +40,7 @@ interface AppointmentCardProps {
   onDelete: (id: string) => void;
   onStatusChange: (id: string, newStatus: AppointmentStatus) => void;
   onOpenWhatsApp: (appt: Appointment) => void;
+  onRetryMainSheetSync?: (appt: Appointment) => void;
   onTriggerAlarmTest?: (appt: Appointment) => void;
 }
 
@@ -48,6 +50,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onDelete,
   onStatusChange,
   onOpenWhatsApp,
+  onRetryMainSheetSync,
 }) => {
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -278,6 +281,30 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             </div>
           </div>
         </div>
+
+        {!isParticular && appointment.status === 'concluido' && appointment.mainSheetSyncStatus !== 'synced' && (appointment.serviceOrder || (appointment.equipment?.length || 0) > 0) && (
+          <div className="rounded-xl border border-amber-700/60 bg-amber-950/35 p-2.5 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-bold text-amber-300">Planilha principal não atualizada</div>
+                <div className="text-[10px] text-amber-100/80 break-words mt-0.5">
+                  {appointment.mainSheetSyncError || 'Sincronização pendente.'}
+                </div>
+              </div>
+            </div>
+            {onRetryMainSheetSync && (
+              <button
+                onClick={() => onRetryMainSheetSync(appointment)}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-amber-600/60 bg-amber-900/50 hover:bg-amber-800/60 py-1.5 px-2 text-[10px] font-bold uppercase tracking-wide text-amber-100 transition-colors active:scale-[0.99]"
+                title="Reenvia os MA e a OS já existentes sem gerar nova numeração"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Reenviar Planilha
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Calendar Sync Options Drawer / Dropdown */}
         {showCalendarOptions && (
