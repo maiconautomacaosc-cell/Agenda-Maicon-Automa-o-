@@ -25,7 +25,7 @@ import {
 } from './utils/storage';
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
-import { GoogleUser, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
+import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { saveDatabaseToGoogleDrive } from './lib/googleDrive';
 import { getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
@@ -45,6 +45,7 @@ import { WhatsAppModal } from './components/WhatsAppModal';
 import { BrandInfoModal } from './components/BrandInfoModal';
 import { AppSplashScreen } from './components/AppSplashScreen';
 import { CloudSyncModal } from './components/CloudSyncModal';
+import { CompletionOptions, ServiceCompletionModal } from './components/ServiceCompletionModal';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<ViewTab>('agenda');
@@ -94,12 +95,52 @@ export default function App() {
 
   const [isBrandInfoOpen, setIsBrandInfoOpen] = useState(false);
 
+  // Fluxo oficial de conclusão: serviço simples pode terminar sem MA/OS.
+  const [completionAppointment, setCompletionAppointment] = useState<Appointment | null>(null);
+  const [completionSaveClient, setCompletionSaveClient] = useState(true);
+
+  const extractSequence = (value?: string) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits ? Number(digits) : 0;
+  };
+
+  const getNextNumbers = () => {
+    const maValues: number[] = [];
+    const osValues: number[] = [];
+    clients.forEach(c => {
+      maValues.push(extractSequence(c.serialNumber));
+      osValues.push(extractSequence(c.serviceOrder));
+      (c.equipment || []).forEach(eq => maValues.push(extractSequence(eq.serialNumber)));
+    });
+    appointments.forEach(a => {
+      maValues.push(extractSequence(a.serialNumber));
+      osValues.push(extractSequence(a.serviceOrder));
+      (a.equipment || []).forEach(eq => maValues.push(extractSequence(eq.serialNumber)));
+    });
+    return {
+      nextMA: Math.max(0, ...maValues) + 1,
+      nextOS: Math.max(0, ...osValues) + 1,
+    };
+  };
+
   // Google account state (sem Firebase)
   useEffect(() => {
     const unsubToken = subscribeGoogleToken(setGoogleAccessToken);
     const unsubUser = subscribeGoogleUser(setCurrentUser);
     validateCachedToken().catch(() => {});
     return () => { unsubToken(); unsubUser(); };
+  }, []);
+
+  // Renova a autorização Google antes de expirar e também quando o app volta ao primeiro plano.
+  useEffect(() => {
+    const renew = () => ensureValidAccessToken().catch(() => null);
+    const interval = setInterval(renew, 10 * 60 * 1000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') renew(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   const lastCloudUpdatedAtRef = useRef<string>('');
@@ -132,7 +173,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.1', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.3', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
         lastCloudUpdatedAtRef.current = updatedAt;
@@ -241,6 +282,21 @@ export default function App() {
   };
 
   const handleSaveAppointment = (appt: Appointment, saveClientToDb: boolean) => {
+    const previous = appointments.find(a => a.id === appt.id);
+    const justCompleted = appt.serviceType !== 'compromisso_particular' && appt.status === 'concluido' && previous?.status !== 'concluido';
+
+    // Ao marcar como concluído, primeiro salva as demais alterações e abre as duas perguntas MA/OS.
+    if (justCompleted) {
+      const pendingVersion: Appointment = { ...appt, status: previous?.status || 'pendente' };
+      setAppointments(prev => {
+        const exists = prev.some(a => a.id === pendingVersion.id);
+        return exists ? prev.map(a => a.id === pendingVersion.id ? pendingVersion : a) : [pendingVersion, ...prev];
+      });
+      setCompletionAppointment(pendingVersion);
+      setCompletionSaveClient(saveClientToDb);
+      return;
+    }
+
     setAppointments((prev) => {
       const exists = prev.some((a) => a.id === appt.id);
       if (exists) {
@@ -333,19 +389,88 @@ export default function App() {
   };
 
   const handleStatusChange = (id: string, newStatus: AppointmentStatus) => {
+    const target = appointments.find(a => a.id === id);
+    if (target && newStatus === 'concluido' && target.status !== 'concluido' && target.serviceType !== 'compromisso_particular') {
+      setCompletionAppointment(target);
+      setCompletionSaveClient(true);
+      return;
+    }
+
     const tokenToUse = googleAccessToken || getCachedAccessToken();
     setAppointments((prev) =>
       prev.map((a) => {
         if (a.id === id) {
           const updated = { ...a, status: newStatus, updatedAt: new Date().toISOString() };
-          if (tokenToUse) {
-            updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
-          }
+          if (tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
           return updated;
         }
         return a;
       })
     );
+  };
+
+  const handleConfirmCompletion = (options: CompletionOptions) => {
+    if (!completionAppointment) return;
+    const now = new Date().toISOString();
+    const equipment = options.equipment.map((eq, index) => ({
+      id: `eq-${Date.now()}-${index}`,
+      serialNumber: `MA-${String(options.serialStart + index).padStart(6, '0')}`,
+      model: eq.model?.trim() || completionAppointment.lockModel || undefined,
+      description: eq.description?.trim() || undefined,
+      createdAt: now,
+    }));
+    const serviceOrder = options.generateServiceOrder
+      ? `OS-${String(options.serviceOrderNumber).padStart(6, '0')}`
+      : completionAppointment.serviceOrder;
+    const updated: Appointment = {
+      ...completionAppointment,
+      status: 'concluido',
+      equipment: [...(completionAppointment.equipment || []), ...equipment],
+      serialNumber: completionAppointment.serialNumber || equipment[0]?.serialNumber,
+      serviceOrder,
+      updatedAt: now,
+    };
+
+    setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
+
+    if (completionSaveClient && updated.clientName) {
+      setClients(prev => {
+        const idx = prev.findIndex(c => c.id === updated.clientId || c.phone === updated.clientPhone || c.name.toLowerCase() === updated.clientName.toLowerCase());
+        if (idx < 0) {
+          const created: Client = {
+            id: updated.clientId || `cli-${Date.now()}`,
+            name: updated.clientName,
+            phone: updated.clientPhone,
+            address: updated.address,
+            neighborhood: updated.neighborhood,
+            city: updated.city || 'Joinville',
+            equipment,
+            serialNumber: equipment[0]?.serialNumber,
+            serviceOrder,
+            notes: `Criado na conclusão do atendimento: ${updated.serviceTypeName}.`,
+            createdAt: now,
+          };
+          return [created, ...prev];
+        }
+        const existing = prev[idx];
+        const merged = {
+          ...existing,
+          equipment: [...(existing.equipment || []), ...equipment],
+          serialNumber: equipment[0]?.serialNumber || existing.serialNumber,
+          serviceOrder: serviceOrder || existing.serviceOrder,
+        };
+        const list = [...prev];
+        list[idx] = merged;
+        return list;
+      });
+    }
+
+    const tokenToUse = googleAccessToken || getCachedAccessToken();
+    if (tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
+    setCompletionAppointment(null);
+    showGoogleNotification(equipment.length || options.generateServiceOrder
+      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}`
+      : '✅ Serviço simples concluído sem MA e sem OS.');
   };
 
   // Quote Actions
@@ -650,6 +775,16 @@ export default function App() {
         settings={settings}
         onRestoreData={handleRestoreData}
         onConnected={(u, token) => { setCurrentUser(u); setGoogleAccessToken(token); initialCloudLoadDoneRef.current = false; setCloudReady(false); }}
+      />
+
+      {/* Modal: conclusão oficial do atendimento (MA e OS opcionais) */}
+      <ServiceCompletionModal
+        isOpen={Boolean(completionAppointment)}
+        appointment={completionAppointment}
+        nextSerialStart={getNextNumbers().nextMA}
+        nextServiceOrder={getNextNumbers().nextOS}
+        onClose={() => setCompletionAppointment(null)}
+        onConfirm={handleConfirmCompletion}
       />
 
       {/* Modal: New / Edit Appointment */}
