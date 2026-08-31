@@ -13,7 +13,7 @@ import {
   RefreshCw,
   User as UserIcon
 } from 'lucide-react';
-import { User } from 'firebase/auth';
+import { GoogleUser } from '../lib/googleAuth';
 import { BrandLogo } from './BrandLogo';
 import { AlarmNotifier } from './AlarmNotifier';
 import { Appointment, ViewTab } from '../types';
@@ -31,7 +31,7 @@ interface HeaderProps {
   onOpenWhatsApp: (appt: Appointment) => void;
   onOpenBrandInfo: () => void;
   onPlayIntroAnimation?: () => void;
-  user: User | null;
+  user: GoogleUser | null;
   googleConnected?: boolean;
   syncStatus: 'synced' | 'syncing' | 'offline' | 'error';
   onOpenCloudSync: () => void;
