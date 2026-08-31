@@ -180,15 +180,18 @@ export default function App() {
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
         // Reenvia automaticamente conclusões que ficaram pendentes (ex.: internet caiu na hora do atendimento).
-        const pending = appointments.filter(a => a.status === 'concluido' && a.mainSheetSyncStatus === 'pending');
+        const pending = appointments.filter(a => a.status === 'concluido' && (a.mainSheetSyncStatus === 'pending' || a.mainSheetSyncStatus === 'error'));
         for (const appt of pending) {
           try {
             await syncCompletedAppointmentToMainSheets(appt, googleAccessToken, spreadsheetId);
             setAppointments(prev => prev.map(a => a.id === appt.id
-              ? { ...a, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString() }
+              ? { ...a, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString(), mainSheetSyncError: undefined }
               : a));
-          } catch (err) {
+          } catch (err: any) {
             console.warn('Pendência CLIENTES/O.S:', err);
+            setAppointments(prev => prev.map(a => a.id === appt.id
+              ? { ...a, mainSheetSyncStatus: 'error', mainSheetSyncError: err?.message || 'Falha de sincronização' }
+              : a));
           }
         }
 
@@ -494,11 +497,11 @@ export default function App() {
     if ((equipment.length || serviceOrder) && tokenToUse && spreadsheetId) {
       try {
         await syncCompletedAppointmentToMainSheets(updated, tokenToUse, spreadsheetId);
-        updated = { ...updated, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString() };
+        updated = { ...updated, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString(), mainSheetSyncError: undefined };
       } catch (err: any) {
         console.warn('Gravação CLIENTES/O.S pendente:', err);
-        updated = { ...updated, mainSheetSyncStatus: 'pending' };
-        setSyncErrorMessage(`Atendimento salvo. Planilha principal pendente: ${err?.message || 'falha de sincronização'}`);
+        updated = { ...updated, mainSheetSyncStatus: 'error', mainSheetSyncError: err?.message || 'Falha de sincronização' };
+        setSyncErrorMessage(`Atendimento salvo. ${err?.message || 'Falha de sincronização com a planilha principal'}`);
       }
     }
 
@@ -554,12 +557,52 @@ export default function App() {
 
     const sheetText = updated.mainSheetSyncStatus === 'synced'
       ? ' • Planilha atualizada'
-      : updated.mainSheetSyncStatus === 'pending'
-        ? ' • Planilha pendente (tentará novamente)'
+      : (updated.mainSheetSyncStatus === 'pending' || updated.mainSheetSyncStatus === 'error')
+        ? ' • Planilha pendente — use Reenviar Planilha'
         : '';
     showGoogleNotification(equipment.length || options.generateServiceOrder
       ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${sheetText}`
       : '✅ Serviço simples concluído sem MA e sem OS.');
+  };
+
+  const handleRetryMainSheetSync = async (appt: Appointment) => {
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      const message = 'Planilha Google não configurada. Abra Nuvem e informe o link/ID da planilha.';
+      setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, mainSheetSyncStatus: 'error', mainSheetSyncError: message } : a));
+      showGoogleNotification(`❌ ${message}`);
+      return;
+    }
+
+    let tokenToUse = googleAccessToken || getCachedAccessToken();
+    tokenToUse = await ensureValidAccessToken().catch(() => tokenToUse);
+    if (!tokenToUse) {
+      const message = 'Conta Google desconectada. Conecte novamente e toque em Reenviar Planilha.';
+      setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, mainSheetSyncStatus: 'error', mainSheetSyncError: message } : a));
+      showGoogleNotification(`❌ ${message}`);
+      return;
+    }
+
+    setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, mainSheetSyncStatus: 'pending', mainSheetSyncError: undefined } : a));
+    showGoogleNotification(`⏳ Reenviando ${appt.serviceOrder || 'atendimento'} para a planilha...`);
+
+    try {
+      // Reutiliza os MA/OS já gerados. NÃO cria nem consome nova numeração.
+      await syncCompletedAppointmentToMainSheets(appt, tokenToUse, spreadsheetId);
+      const syncedAt = new Date().toISOString();
+      setAppointments(prev => prev.map(a => a.id === appt.id
+        ? { ...a, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: syncedAt, mainSheetSyncError: undefined }
+        : a));
+      setSyncErrorMessage(undefined);
+      showGoogleNotification(`✅ ${appt.serviceOrder || 'Atendimento'} enviado para a planilha.`);
+    } catch (err: any) {
+      const message = err?.message || 'Falha ao gravar na planilha principal';
+      setAppointments(prev => prev.map(a => a.id === appt.id
+        ? { ...a, mainSheetSyncStatus: 'error', mainSheetSyncError: message }
+        : a));
+      setSyncErrorMessage(message);
+      showGoogleNotification(`❌ Planilha: ${message}`);
+    }
   };
 
   // Quote Actions
@@ -791,6 +834,7 @@ export default function App() {
             onDeleteAppointment={handleDeleteAppointment}
             onStatusChange={handleStatusChange}
             onOpenWhatsApp={handleOpenWhatsApp}
+            onRetryMainSheetSync={handleRetryMainSheetSync}
             onBlockDay={handleBlockDay}
           />
         )}
@@ -805,6 +849,7 @@ export default function App() {
             onDeleteAppointment={handleDeleteAppointment}
             onStatusChange={handleStatusChange}
             onOpenWhatsApp={handleOpenWhatsApp}
+            onRetryMainSheetSync={handleRetryMainSheetSync}
           />
         )}
 
