@@ -5,8 +5,6 @@ import { Appointment, EquipmentRecord } from '../types';
 export interface CompletionOptions {
   equipment: Array<Pick<EquipmentRecord, 'model' | 'description'>>;
   generateServiceOrder: boolean;
-  serialStart: number;
-  serviceOrderNumber: number;
 }
 
 interface Props {
@@ -30,23 +28,20 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   onConfirm,
 }) => {
   const [registerEquipment, setRegisterEquipment] = useState(false);
-  const [generateOS, setGenerateOS] = useState(false);
+  const [generateOS, setGenerateOS] = useState(true);
   const [equipment, setEquipment] = useState<Array<{ model: string; description: string }>>([]);
-  const [serialStart, setSerialStart] = useState(nextSerialStart);
-  const [serviceOrderNumber, setServiceOrderNumber] = useState(nextServiceOrder);
 
   useEffect(() => {
     if (!isOpen) return;
     setRegisterEquipment(false);
-    setGenerateOS(false);
+    // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
+    setGenerateOS(true);
     setEquipment([]);
-    setSerialStart(nextSerialStart);
-    setServiceOrderNumber(nextServiceOrder);
-  }, [isOpen, appointment?.id, nextSerialStart, nextServiceOrder]);
+  }, [isOpen, appointment?.id]);
 
   const previews = useMemo(
-    () => equipment.map((_, i) => fmtMA(serialStart + i)),
-    [equipment, serialStart]
+    () => equipment.map((_, i) => fmtMA(nextSerialStart + i)),
+    [equipment, nextSerialStart]
   );
 
   if (!isOpen || !appointment) return null;
@@ -86,14 +81,17 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                 {equipment.map((item, i) => (
                   <div key={i} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-sm font-bold text-cyan-300">{previews[i]}</span>
+                      <div>
+                        <span className="font-mono text-sm font-bold text-cyan-300">{previews[i]}</span>
+                        <span className="ml-2 text-[10px] text-zinc-500">automático</span>
+                      </div>
                       {equipment.length > 1 && <button type="button" onClick={() => setEquipment(prev => prev.filter((_, j) => j !== i))} className="text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                     <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Modelo do equipamento (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                     <input value={item.description} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, description:e.target.value} : x))} placeholder="Ex: Apto 302 / porta social (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                   </div>
                 ))}
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2"><span className="text-xs text-zinc-400">Próximo MA</span><input type="number" min="1" value={serialStart} onChange={e => setSerialStart(Math.max(1, Number(e.target.value) || 1))} className="ml-auto w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-right font-mono text-sm text-white" /></div>
+                <p className="text-[11px] text-zinc-500">A numeração MA é automática e não pode ser digitada manualmente.</p>
                 <button type="button" onClick={() => setEquipment(prev => [...prev, { model: '', description: '' }])} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
               </div>
             )}
@@ -105,11 +103,16 @@ export const ServiceCompletionModal: React.FC<Props> = ({
               <button type="button" onClick={() => setGenerateOS(false)} className={`py-3 rounded-xl border text-sm font-bold ${!generateOS ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>Não</button>
               <button type="button" onClick={() => setGenerateOS(true)} className={`py-3 rounded-xl border text-sm font-bold ${generateOS ? 'bg-cyan-500 border-cyan-400 text-black' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>Sim</button>
             </div>
-            {generateOS && <div className="flex items-center gap-2 rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2"><span className="text-xs text-zinc-400">Próxima OS</span><input type="number" min="1" value={serviceOrderNumber} onChange={e => setServiceOrderNumber(Math.max(1, Number(e.target.value) || 1))} className="ml-auto w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-right font-mono text-sm text-white" /><span className="font-mono text-xs text-cyan-300">{fmtOS(serviceOrderNumber)}</span></div>}
+            {generateOS && (
+              <div className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-3 flex items-center justify-between gap-2">
+                <span className="text-xs text-zinc-400">OS automática</span>
+                <span className="font-mono text-sm font-bold text-cyan-300">{fmtOS(nextServiceOrder)}</span>
+              </div>
+            )}
           </section>
 
-          <button type="button" onClick={() => onConfirm({ equipment: registerEquipment ? equipment : [], generateServiceOrder: generateOS, serialStart, serviceOrderNumber })} className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold">Concluir serviço</button>
-          <p className="text-[11px] text-zinc-500 text-center">Serviço simples pode ser concluído sem MA e sem OS.</p>
+          <button type="button" onClick={() => onConfirm({ equipment: registerEquipment ? equipment : [], generateServiceOrder: generateOS })} className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold">Concluir serviço</button>
+          <p className="text-[11px] text-zinc-500 text-center">OS é sugerida por padrão. MA só é criado quando houver equipamento para identificar.</p>
         </div>
       </div>
     </div>
