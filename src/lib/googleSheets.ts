@@ -10,12 +10,25 @@ export interface SheetsDatabasePayload {
   settings?: AppSettings;
 }
 
+export interface OfficialSequences {
+  lastMA: number;
+  lastOS: number;
+  nextMA: number;
+  nextOS: number;
+}
+
 const SHEET_ID_KEY = 'maicon_google_spreadsheet_id';
 const TABS = {
   clients: 'APP_CLIENTES',
   appointments: 'APP_AGENDA',
   quotes: 'APP_ORCAMENTOS',
   config: 'APP_CONFIG',
+};
+
+const MAIN_TABS = {
+  clients: 'CLIENTES',
+  serviceOrders: 'O.S',
+  config: 'CONFIGURAÇÕES',
 };
 
 export function getSpreadsheetId(): string {
@@ -47,13 +60,17 @@ async function apiFetch(url: string, token: string, init: RequestInit = {}) {
   return res;
 }
 
-async function ensureTabs(spreadsheetId: string, token: string) {
+async function getSheetTitles(spreadsheetId: string, token: string): Promise<Set<string>> {
   const meta = await apiFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`,
     token
   );
   const data = await meta.json();
-  const existing = new Set((data.sheets || []).map((s: any) => s.properties?.title));
+  return new Set((data.sheets || []).map((s: any) => s.properties?.title).filter(Boolean));
+}
+
+async function ensureTabs(spreadsheetId: string, token: string) {
+  const existing = await getSheetTitles(spreadsheetId, token);
   const missing = Object.values(TABS).filter(t => !existing.has(t));
   if (!missing.length) return;
 
@@ -61,6 +78,14 @@ async function ensureTabs(spreadsheetId: string, token: string) {
     method: 'POST',
     body: JSON.stringify({ requests: missing.map(title => ({ addSheet: { properties: { title } } })) }),
   });
+}
+
+async function ensureMainTabs(spreadsheetId: string, token: string) {
+  const existing = await getSheetTitles(spreadsheetId, token);
+  const missing = Object.values(MAIN_TABS).filter(t => !existing.has(t));
+  if (missing.length) {
+    throw new Error(`Planilha principal incompleta. Aba(s) não encontrada(s): ${missing.join(', ')}`);
+  }
 }
 
 function rowJson(value: unknown) {
@@ -73,6 +98,23 @@ async function replaceValues(spreadsheetId: string, tab: string, values: any[][]
   await apiFetch(`${base}?valueInputOption=RAW`, token, {
     method: 'PUT',
     body: JSON.stringify({ range: `${tab}!A:Z`, majorDimension: 'ROWS', values }),
+  });
+}
+
+async function updateValues(spreadsheetId: string, range: string, values: any[][], token: string, valueInputOption = 'USER_ENTERED') {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=${valueInputOption}`;
+  await apiFetch(url, token, {
+    method: 'PUT',
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values }),
+  });
+}
+
+async function appendValues(spreadsheetId: string, range: string, values: any[][], token: string) {
+  if (!values.length) return;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  await apiFetch(url, token, {
+    method: 'POST',
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values }),
   });
 }
 
@@ -129,6 +171,148 @@ function parseJsonColumn<T>(rows: any[][], index: number): T[] {
   }).filter(Boolean) as T[];
 }
 
+function seq(value: unknown): number {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits ? Number(digits) : 0;
+}
+
+function formatMA(n: number) { return `MA-${String(n).padStart(6, '0')}`; }
+function formatOS(n: number) { return `OS-${String(n).padStart(6, '0')}`; }
+
+/**
+ * Lê a numeração REAL das abas principais e também respeita o maior número
+ * já consumido localmente. Assim a Agenda nunca volta a usar um MA/OS antigo.
+ */
+export async function getOfficialSequences(
+  accessToken: string,
+  spreadsheetId = getSpreadsheetId(),
+  minimumLastMA = 0,
+  minimumLastOS = 0
+): Promise<OfficialSequences> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+  await ensureMainTabs(spreadsheetId, accessToken);
+
+  const [clientRows, osRows] = await Promise.all([
+    readValues(spreadsheetId, `${MAIN_TABS.clients}!A2:B`, accessToken),
+    readValues(spreadsheetId, `${MAIN_TABS.serviceOrders}!A2:A`, accessToken),
+  ]);
+
+  const maNumbers = clientRows.map(r => seq(r[0]));
+  const osNumbers = [
+    ...clientRows.map(r => seq(r[1])),
+    ...osRows.map(r => seq(r[0])),
+  ];
+
+  const lastMA = Math.max(minimumLastMA, 0, ...maNumbers);
+  const lastOS = Math.max(minimumLastOS, 0, ...osNumbers);
+  return { lastMA, lastOS, nextMA: lastMA + 1, nextOS: lastOS + 1 };
+}
+
+function paymentLabel(value?: Appointment['paymentMethod']) {
+  const labels: Record<string, string> = {
+    pix: 'Pix',
+    cartao_credito: 'Cartão de crédito',
+    cartao_debito: 'Cartão de débito',
+    dinheiro: 'Dinheiro',
+    faturado: 'Faturado',
+    a_combinar: 'A combinar',
+  };
+  return value ? (labels[value] || value) : '';
+}
+
+/**
+ * Grava um atendimento concluído nas abas oficiais CLIENTES e O.S.
+ * É idempotente: antes de inserir, confere os MA/OS já existentes para não duplicar.
+ */
+export async function syncCompletedAppointmentToMainSheets(
+  appointment: Appointment,
+  accessToken: string,
+  spreadsheetId = getSpreadsheetId()
+): Promise<void> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+  await ensureMainTabs(spreadsheetId, accessToken);
+
+  const [clientRows, osRows] = await Promise.all([
+    readValues(spreadsheetId, `${MAIN_TABS.clients}!A2:B`, accessToken),
+    readValues(spreadsheetId, `${MAIN_TABS.serviceOrders}!A2:A`, accessToken),
+  ]);
+
+  const existingMA = new Set(clientRows.map(r => String(r[0] || '').trim()).filter(Boolean));
+  const existingOS = new Set([
+    ...clientRows.map(r => String(r[1] || '').trim()),
+    ...osRows.map(r => String(r[0] || '').trim()),
+  ].filter(Boolean));
+
+  const equipment = appointment.equipment || [];
+  const clientAppendRows = equipment
+    .filter(eq => eq.serialNumber && !existingMA.has(eq.serialNumber))
+    .map(eq => [
+      eq.serialNumber,                         // A Nº Série
+      appointment.serviceOrder || '',          // B OS
+      appointment.date || '',                  // C Data Instalação
+      appointment.clientName || '',            // D Cliente
+      appointment.clientPhone || '',           // E Contato
+      appointment.address || '',               // F Endereço
+      '',                                       // G Marca (ainda não separada no app)
+      eq.model || '',                           // H Modelo
+      eq.serviceTypeName || appointment.serviceTypeName || '', // I Serviço
+      '',                                       // J Garantia Instalação
+      '',                                       // K Garantia vence
+      'Ativa',                                  // L Status
+      '',                                       // M PDF OS (gerado pelo sistema antigo depois)
+      [eq.description, appointment.notes].filter(Boolean).join(' | '), // N Observações
+      '',                                       // O Foto
+      '',                                       // P Tipo de fornecimento
+      '',                                       // Q Fornecedor
+      '',                                       // R NF / Comprovante
+      '',                                       // S Garantia do Produto
+      '',                                       // T QR Code
+    ]);
+
+  if (clientAppendRows.length) {
+    await appendValues(spreadsheetId, `${MAIN_TABS.clients}!A:T`, clientAppendRows, accessToken);
+  }
+
+  if (appointment.serviceOrder && !existingOS.has(appointment.serviceOrder)) {
+    const serials = equipment.map(eq => eq.serialNumber).filter(Boolean).join(' | ');
+    const serviceNames = equipment.length
+      ? equipment.map(eq => eq.serviceTypeName || appointment.serviceTypeName).filter(Boolean).join(' | ')
+      : appointment.serviceTypeName;
+    const models = equipment.map(eq => eq.model).filter(Boolean).join(' | ');
+    const equipmentSummary = equipment.length
+      ? `${equipment.length} equipamento(s)`
+      : 'Serviço sem equipamento cadastrado';
+
+    await appendValues(spreadsheetId, `${MAIN_TABS.serviceOrders}!A:M`, [[
+      appointment.serviceOrder,                // A N° O.S
+      serials,                                  // B N° Série
+      appointment.date || '',                   // C Data
+      appointment.clientName || '',             // D Cliente
+      appointment.clientPhone || '',            // E Contato
+      serviceNames || appointment.serviceTypeName || '', // F Serviço
+      equipmentSummary,                         // G Equipamento
+      models,                                   // H Marca/Modelo
+      appointment.price ?? '',                  // I Valor
+      paymentLabel(appointment.paymentMethod),  // J Forma de Pagamento
+      'Concluído',                              // K Status
+      '',                                       // L Garantia
+      [appointment.description, appointment.notes].filter(Boolean).join(' | '), // M Observações
+    ]], accessToken);
+  }
+
+  const maNumbers = equipment.map(eq => seq(eq.serialNumber)).filter(Boolean);
+  const lastMA = Math.max(0, ...maNumbers, ...clientRows.map(r => seq(r[0])));
+  const lastOS = Math.max(seq(appointment.serviceOrder), ...clientRows.map(r => seq(r[1])), ...osRows.map(r => seq(r[0])));
+  const nextMA = lastMA + 1;
+  const nextOS = lastOS + 1;
+
+  // Mantém compatibilidade com os dois blocos de configuração já existentes na planilha.
+  await Promise.all([
+    updateValues(spreadsheetId, `${MAIN_TABS.config}!B1:B2`, [[formatMA(lastMA)], [formatMA(nextMA)]], accessToken),
+    updateValues(spreadsheetId, `${MAIN_TABS.config}!D8:D9`, [[nextOS], [formatMA(nextMA)]], accessToken),
+  ]);
+}
+
 export async function loadDatabaseFromGoogleSheets(
   accessToken: string,
   spreadsheetId = getSpreadsheetId()
@@ -150,7 +334,7 @@ export async function loadDatabaseFromGoogleSheets(
   try { settings = config.SETTINGS_JSON ? JSON.parse(config.SETTINGS_JSON) : undefined; } catch {}
 
   return {
-    version: config.VERSION || '3.4',
+    version: config.VERSION || '3.7',
     updatedAt: config.UPDATED_AT || new Date(0).toISOString(),
     clients: parseJsonColumn<Client>(clientRows, 10),
     appointments: parseJsonColumn<Appointment>(apptRows, 16),
