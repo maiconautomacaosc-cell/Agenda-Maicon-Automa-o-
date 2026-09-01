@@ -252,8 +252,10 @@ async function ensureOriginalProductSerialColumn(spreadsheetId: string, clientsT
 }
 
 /**
- * Lê a numeração REAL das abas principais e também respeita o maior número
- * já consumido localmente. Assim a Agenda nunca volta a usar um MA/OS antigo.
+ * Lê a numeração REAL das abas principais e reconcilia com registros locais.
+ * Um número local só eleva a sequência quando estiver próximo do número oficial.
+ * Isso mantém pendências recentes seguras, mas ignora saltos corrompidos como
+ * MA-001000 quando a planilha oficial ainda está na faixa de MA-000040.
  */
 export async function getOfficialSequences(
   accessToken: string,
@@ -275,8 +277,19 @@ export async function getOfficialSequences(
     ...osRows.map(r => seq(r[0])),
   ];
 
-  const lastMA = Math.max(minimumLastMA, 0, ...maNumbers);
-  const lastOS = Math.max(minimumLastOS, 0, ...osNumbers);
+  const sheetLastMA = Math.max(0, ...maNumbers);
+  const sheetLastOS = Math.max(0, ...osNumbers);
+
+  // Proteção contra contador local corrompido. Até 100 números de diferença é
+  // aceito para cobrir atendimentos pendentes/offline; acima disso prevalece a planilha.
+  const MAX_LOCAL_SEQUENCE_GAP = 100;
+  const reconcile = (official: number, localFloor: number) => {
+    if (localFloor <= official) return official;
+    return localFloor - official <= MAX_LOCAL_SEQUENCE_GAP ? localFloor : official;
+  };
+
+  const lastMA = reconcile(sheetLastMA, Math.max(0, minimumLastMA));
+  const lastOS = reconcile(sheetLastOS, Math.max(0, minimumLastOS));
   return { lastMA, lastOS, nextMA: lastMA + 1, nextOS: lastOS + 1 };
 }
 
