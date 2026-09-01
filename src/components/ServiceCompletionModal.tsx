@@ -11,8 +11,9 @@ export interface CompletionOptions {
 interface Props {
   isOpen: boolean;
   appointment: Appointment | null;
-  nextSerialStart: number;
-  nextServiceOrder: number;
+  nextSerialStart?: number;
+  nextServiceOrder?: number;
+  numberingLoading?: boolean;
   onClose: () => void;
   onConfirm: (options: CompletionOptions) => void | Promise<void>;
 }
@@ -46,6 +47,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   appointment,
   nextSerialStart,
   nextServiceOrder,
+  numberingLoading = false,
   onClose,
   onConfirm,
 }) => {
@@ -66,7 +68,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   }, [isOpen, appointment?.id]);
 
   const previews = useMemo(
-    () => equipment.map((_, i) => fmtMA(nextSerialStart + i)),
+    () => equipment.map((_, i) => nextSerialStart != null ? fmtMA(nextSerialStart + i) : ''),
     [equipment, nextSerialStart]
   );
 
@@ -109,7 +111,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                   <div key={i} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-mono text-sm font-bold text-cyan-300">{previews[i]}</span>
+                        <span className="font-mono text-sm font-bold text-cyan-300">{previews[i] || (numberingLoading ? 'consultando...' : 'indisponível')}</span>
                         <span className="ml-2 text-[10px] text-zinc-500">automático</span>
                       </div>
                       {equipment.length > 1 && <button type="button" onClick={() => setEquipment(prev => prev.filter((_, j) => j !== i))} className="text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>}
@@ -169,14 +171,14 @@ export const ServiceCompletionModal: React.FC<Props> = ({
             {generateOS && (
               <div className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-3 flex items-center justify-between gap-2">
                 <span className="text-xs text-zinc-400">OS automática</span>
-                <span className="font-mono text-sm font-bold text-cyan-300">{fmtOS(nextServiceOrder)}</span>
+                <span className="font-mono text-sm font-bold text-cyan-300">{nextServiceOrder != null ? fmtOS(nextServiceOrder) : (numberingLoading ? 'consultando...' : 'indisponível')}</span>
               </div>
             )}
           </section>
 
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || numberingLoading}
             onClick={async () => {
               if (saving) return;
               setSaving(true);
@@ -187,7 +189,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
               }
             }}
             className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait text-black font-extrabold"
-          >{saving ? 'Salvando na planilha…' : 'Concluir serviço'}</button>
+          >{saving ? 'Salvando na planilha…' : numberingLoading ? 'Consultando numeração…' : 'Concluir serviço'}</button>
           <p className="text-[11px] text-zinc-500 text-center">OS é sugerida por padrão. MA só é criado quando houver equipamento para identificar.</p>
         </div>
       </div>
