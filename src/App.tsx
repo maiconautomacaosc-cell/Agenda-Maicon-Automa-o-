@@ -104,7 +104,7 @@ export default function App() {
     return digits ? Number(digits) : 0;
   };
 
-  const getNextNumbers = () => {
+  const getRecordSequenceFloor = () => {
     const maValues: number[] = [];
     const osValues: number[] = [];
     clients.forEach(c => {
@@ -118,10 +118,18 @@ export default function App() {
       (a.equipment || []).forEach(eq => maValues.push(extractSequence(eq.serialNumber)));
     });
     return {
-      // Também considera o maior número já consumido salvo nas configurações.
-      // Assim, apagar/cancelar um atendimento nunca libera MA ou OS para reutilização.
-      nextMA: Math.max(0, ...maValues, settings.lastSerialSequence || 0) + 1,
-      nextOS: Math.max(0, ...osValues, settings.lastServiceOrderSequence || 0) + 1,
+      lastMA: Math.max(0, ...maValues),
+      lastOS: Math.max(0, ...osValues),
+    };
+  };
+
+  const getNextNumbers = () => {
+    const records = getRecordSequenceFloor();
+    return {
+      // Offline ainda respeita o contador persistente. Quando a planilha oficial está
+      // disponível, ela faz a reconciliação e elimina saltos anormais (ex.: 001000).
+      nextMA: Math.max(records.lastMA, settings.lastSerialSequence || 0) + 1,
+      nextOS: Math.max(records.lastOS, settings.lastServiceOrderSequence || 0) + 1,
     };
   };
 
@@ -175,7 +183,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.7', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.8.1', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -234,13 +242,15 @@ export default function App() {
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
     if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
-    const local = getNextNumbers();
-    getOfficialSequences(googleAccessToken, spreadsheetId, local.nextMA - 1, local.nextOS - 1)
+    const records = getRecordSequenceFloor();
+    getOfficialSequences(googleAccessToken, spreadsheetId, records.lastMA, records.lastOS)
       .then(seq => {
+        // A planilha principal é a referência quando está acessível. Aqui substituímos
+        // contadores antigos/corrompidos em vez de mantê-los com Math.max().
         setSettings(prev => ({
           ...prev,
-          lastSerialSequence: Math.max(prev.lastSerialSequence || 0, seq.lastMA),
-          lastServiceOrderSequence: Math.max(prev.lastServiceOrderSequence || 0, seq.lastOS),
+          lastSerialSequence: seq.lastMA,
+          lastServiceOrderSequence: seq.lastOS,
         }));
       })
       .catch(err => console.warn('Numeração oficial CLIENTES/O.S:', err));
@@ -457,11 +467,12 @@ export default function App() {
     let nextOS = localNext.nextOS;
     if (tokenToUse && spreadsheetId) {
       try {
+        const records = getRecordSequenceFloor();
         const official = await getOfficialSequences(
           tokenToUse,
           spreadsheetId,
-          localNext.nextMA - 1,
-          localNext.nextOS - 1
+          records.lastMA,
+          records.lastOS
         );
         nextMA = official.nextMA;
         nextOS = official.nextOS;
