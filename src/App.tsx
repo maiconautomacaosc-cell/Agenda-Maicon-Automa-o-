@@ -98,6 +98,8 @@ export default function App() {
   // Fluxo oficial: OS por atendimento; MA somente para equipamentos identificados.
   const [completionAppointment, setCompletionAppointment] = useState<Appointment | null>(null);
   const [completionSaveClient, setCompletionSaveClient] = useState(true);
+  const [completionOfficialNumbers, setCompletionOfficialNumbers] = useState<{ nextMA: number; nextOS: number } | null>(null);
+  const [completionNumberingLoading, setCompletionNumberingLoading] = useState(false);
 
   const extractSequence = (value?: string) => {
     const digits = String(value || '').replace(/\D/g, '');
@@ -452,6 +454,52 @@ export default function App() {
       })
     );
   };
+
+  // Ao abrir a finalização, busca a numeração oficial ANTES de mostrar a prévia.
+  // Assim a tela não exibe contadores locais antigos enquanto a gravação usa a planilha correta.
+  useEffect(() => {
+    if (!completionAppointment) {
+      setCompletionOfficialNumbers(null);
+      setCompletionNumberingLoading(false);
+      return;
+    }
+
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      const local = getNextNumbers();
+      setCompletionOfficialNumbers(local);
+      setCompletionNumberingLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCompletionOfficialNumbers(null);
+    setCompletionNumberingLoading(true);
+
+    (async () => {
+      try {
+        let token = googleAccessToken || getCachedAccessToken();
+        token = await ensureValidAccessToken().catch(() => token);
+        if (!token) throw new Error('Conta Google desconectada');
+        const official = await getOfficialSequences(token, spreadsheetId, 0, 0);
+        if (!cancelled) {
+          setCompletionOfficialNumbers({ nextMA: official.nextMA, nextOS: official.nextOS });
+          setSettings(prev => ({
+            ...prev,
+            lastSerialSequence: official.lastMA,
+            lastServiceOrderSequence: official.lastOS,
+          }));
+        }
+      } catch (err) {
+        console.warn('Prévia da numeração oficial:', err);
+        if (!cancelled) setCompletionOfficialNumbers(null);
+      } finally {
+        if (!cancelled) setCompletionNumberingLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [completionAppointment?.id, googleAccessToken]);
 
   const handleConfirmCompletion = async (options: CompletionOptions) => {
     if (!completionAppointment) return;
@@ -962,8 +1010,9 @@ export default function App() {
       <ServiceCompletionModal
         isOpen={Boolean(completionAppointment)}
         appointment={completionAppointment}
-        nextSerialStart={getNextNumbers().nextMA}
-        nextServiceOrder={getNextNumbers().nextOS}
+        nextSerialStart={completionOfficialNumbers?.nextMA}
+        nextServiceOrder={completionOfficialNumbers?.nextOS}
+        numberingLoading={completionNumberingLoading}
         onClose={() => setCompletionAppointment(null)}
         onConfirm={handleConfirmCompletion}
       />
