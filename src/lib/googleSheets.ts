@@ -280,16 +280,16 @@ export async function getOfficialSequences(
   const sheetLastMA = Math.max(0, ...maNumbers);
   const sheetLastOS = Math.max(0, ...osNumbers);
 
-  // Proteção contra contador local corrompido. Até 100 números de diferença é
-  // aceito para cobrir atendimentos pendentes/offline; acima disso prevalece a planilha.
-  const MAX_LOCAL_SEQUENCE_GAP = 100;
-  const reconcile = (official: number, localFloor: number) => {
-    if (localFloor <= official) return official;
-    return localFloor - official <= MAX_LOCAL_SEQUENCE_GAP ? localFloor : official;
-  };
+  // A planilha oficial é a fonte de verdade da numeração.
+  // Contadores locais podem ter sido contaminados por testes antigos (ex.: 001000)
+  // e não podem mais elevar a sequência quando a planilha principal está acessível.
+  // Os parâmetros minimumLastMA/minimumLastOS são mantidos apenas por compatibilidade
+  // com chamadas antigas desta função.
+  void minimumLastMA;
+  void minimumLastOS;
 
-  const lastMA = reconcile(sheetLastMA, Math.max(0, minimumLastMA));
-  const lastOS = reconcile(sheetLastOS, Math.max(0, minimumLastOS));
+  const lastMA = sheetLastMA;
+  const lastOS = sheetLastOS;
   return { lastMA, lastOS, nextMA: lastMA + 1, nextOS: lastOS + 1 };
 }
 
