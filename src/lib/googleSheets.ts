@@ -277,8 +277,24 @@ export async function getOfficialSequences(
     ...osRows.map(r => seq(r[0])),
   ];
 
-  const sheetLastMA = Math.max(0, ...maNumbers);
-  const sheetLastOS = Math.max(0, ...osNumbers);
+  // Ignora saltos claramente acidentais de testes antigos. Exemplo real: a sequência
+  // estava na faixa 0000XX e alguns testes gravaram 00100X. Não apagamos essas linhas
+  // da planilha; apenas impedimos que elas passem a comandar a próxima numeração.
+  const highestPlausibleSequence = (values: number[]) => {
+    const sorted = Array.from(new Set(values.filter(n => Number.isFinite(n) && n > 0))).sort((a, b) => a - b);
+    if (!sorted.length) return 0;
+    let last = sorted[0];
+    for (let i = 1; i < sorted.length; i += 1) {
+      const current = sorted[i];
+      const hugeJump = current - last >= 250 && current >= Math.max(1000, last * 3);
+      if (hugeJump) break;
+      last = current;
+    }
+    return last;
+  };
+
+  const sheetLastMA = highestPlausibleSequence(maNumbers);
+  const sheetLastOS = highestPlausibleSequence(osNumbers);
 
   // A planilha oficial é a fonte de verdade da numeração.
   // Contadores locais podem ter sido contaminados por testes antigos (ex.: 001000)
