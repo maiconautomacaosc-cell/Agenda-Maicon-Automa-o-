@@ -541,9 +541,23 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                         <span className="shrink-0 text-xs px-2 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono font-bold">{item.serialNumber}</span>
                       </div>
                       {item.model && <div className="text-xs text-zinc-300 mt-2"><span className="text-zinc-500">Modelo / local:</span> {item.model}</div>}
+                      {item.manufacturerSerialNumber && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Série original:</span> <span className="font-mono">{item.manufacturerSerialNumber}</span></div>}
                       {item.description && <div className="text-xs text-zinc-400 mt-1 whitespace-pre-wrap">{item.description}</div>}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {appointment.photoUrls && appointment.photoUrls.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Fotos do atendimento</div>
+                  <div className="flex flex-wrap gap-2">
+                    {appointment.photoUrls.map((url, index) => (
+                      <a key={url} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-cyan-300 hover:border-cyan-700">
+                        <ExternalLink className="w-3.5 h-3.5" /> Foto {index + 1}
+                      </a>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
