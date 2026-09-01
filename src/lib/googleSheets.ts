@@ -215,6 +215,42 @@ function seq(value: unknown): number {
 function formatMA(n: number) { return `MA-${String(n).padStart(6, '0')}`; }
 function formatOS(n: number) { return `OS-${String(n).padStart(6, '0')}`; }
 
+function normalizeHeader(value: unknown) {
+  return String(value || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function columnNumberToLetter(columnNumber: number) {
+  let n = columnNumber;
+  let result = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    result = String.fromCharCode(65 + rem) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
+}
+
+async function ensureOriginalProductSerialColumn(spreadsheetId: string, clientsTab: string, token: string): Promise<string> {
+  const headerRows = await readValues(spreadsheetId, sheetRange(clientsTab, 'A1:AZ1'), token);
+  const headers = headerRows[0] || [];
+  const wanted = new Set([
+    'NSERIEORIGINAL',
+    'NSERIEORIGINALPRODUTO',
+    'NUMERODESERIEORIGINAL',
+    'SERIEORIGINAL',
+    'SERIEORIGINALPRODUTO',
+  ]);
+  const existingIndex = headers.findIndex(h => wanted.has(normalizeHeader(h)));
+  if (existingIndex >= 0) return columnNumberToLetter(existingIndex + 1);
+
+  // U e V já são usados pelos filtros da planilha atual. A partir de W usamos a primeira coluna vazia.
+  let targetIndex = 22; // W, índice base zero
+  while (targetIndex < headers.length && String(headers[targetIndex] || '').trim()) targetIndex++;
+  const letter = columnNumberToLetter(targetIndex + 1);
+  await updateValues(spreadsheetId, sheetRange(clientsTab, `${letter}1`), [['Nº Série Original Produto']], token);
+  return letter;
+}
+
 /**
  * Lê a numeração REAL das abas principais e também respeita o maior número
  * já consumido localmente. Assim a Agenda nunca volta a usar um MA/OS antigo.
@@ -292,41 +328,55 @@ export async function syncCompletedAppointmentToMainSheets(
   ].filter(Boolean));
 
   const equipment = appointment.equipment || [];
-  const clientAppendRows = equipment
-    .filter(eq => eq.serialNumber && !existingMA.has(eq.serialNumber))
-    .map(eq => [
-      eq.serialNumber,
-      appointment.serviceOrder || '',
-      appointment.date || '',
-      appointment.clientName || '',
-      appointment.clientPhone || '',
-      appointment.address || '',
-      '',
-      eq.model || '',
-      eq.serviceTypeName || appointment.serviceTypeName || '',
-      '',
-      '',
-      'Ativa',
-      '',
-      [eq.description, appointment.notes].filter(Boolean).join(' | '),
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-    ]);
+  let originalSerialColumn = 'W';
+  try {
+    originalSerialColumn = await ensureOriginalProductSerialColumn(spreadsheetId, tabs.clients, accessToken);
+  } catch (err) {
+    syncStageError('Preparação da coluna Nº Série Original Produto', err);
+  }
 
-  if (clientAppendRows.length) {
+  const clientAppendItems = equipment
+    .filter(eq => eq.serialNumber && !existingMA.has(eq.serialNumber))
+    .map(eq => ({
+      equipment: eq,
+      row: [
+        eq.serialNumber,
+        appointment.serviceOrder || '',
+        appointment.date || '',
+        appointment.clientName || '',
+        appointment.clientPhone || '',
+        appointment.address || '',
+        '',
+        eq.model || '',
+        eq.serviceTypeName || appointment.serviceTypeName || '',
+        '',
+        '',
+        'Ativa',
+        '',
+        [eq.description, appointment.notes].filter(Boolean).join(' | '),
+        (eq.photoUrls || appointment.photoUrls || []).join(' | '),
+        '',
+        '',
+        '',
+        '',
+        '',
+      ],
+    }));
+
+  if (clientAppendItems.length) {
     try {
       const clientColA = await readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:A'), accessToken);
       const usedRows = new Set<number>();
       clientColA.forEach((r, index) => { if (String(r[0] || '').trim()) usedRows.add(index + 2); });
       let candidateRow = 2;
-      for (const row of clientAppendRows) {
+      for (const item of clientAppendItems) {
+        const row = item.row;
         while (usedRows.has(candidateRow)) candidateRow++;
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `A${candidateRow}:J${candidateRow}`), [row.slice(0, 10)], accessToken);
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `M${candidateRow}:T${candidateRow}`), [row.slice(12, 20)], accessToken);
+        if (item.equipment.manufacturerSerialNumber) {
+          await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${candidateRow}`), [[item.equipment.manufacturerSerialNumber]], accessToken);
+        }
         usedRows.add(candidateRow);
         candidateRow++;
       }
