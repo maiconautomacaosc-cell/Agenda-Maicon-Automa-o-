@@ -224,3 +224,99 @@ export async function listDriveBackups(accessToken: string): Promise<DriveFileIn
   const data = await res.json();
   return data.files || [];
 }
+
+const ATTENDANCE_PHOTO_FOLDER = 'Maicon Automação - Fotos de Atendimentos';
+
+function escapeDriveQuery(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+async function findOrCreateAttendancePhotoFolder(accessToken: string): Promise<string> {
+  const query = encodeURIComponent(
+    `name = '${escapeDriveQuery(ATTENDANCE_PHOTO_FOLDER)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+  );
+  const search = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&pageSize=1`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!search.ok) {
+    const err = await search.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${search.status} ao localizar pasta de fotos`);
+  }
+  const found = await search.json();
+  if (found.files?.[0]?.id) return found.files[0].id;
+
+  const create = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: ATTENDANCE_PHOTO_FOLDER,
+      mimeType: 'application/vnd.google-apps.folder',
+      description: 'Fotos registradas ao concluir atendimentos na Agenda Maicon Automação',
+    }),
+  });
+  if (!create.ok) {
+    const err = await create.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${create.status} ao criar pasta de fotos`);
+  }
+  const created = await create.json();
+  return created.id;
+}
+
+/**
+ * Envia fotos selecionadas na finalização do atendimento para uma pasta própria no Drive.
+ * Retorna links privados do Drive; nenhum compartilhamento público é criado.
+ */
+export async function uploadAppointmentPhotos(
+  files: File[],
+  accessToken: string,
+  reference: string
+): Promise<string[]> {
+  if (!files.length) return [];
+  const folderId = await findOrCreateAttendancePhotoFolder(accessToken);
+  const safeRef = String(reference || 'ATENDIMENTO').replace(/[^a-zA-Z0-9_-]+/g, '_');
+  const urls: string[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const extFromName = file.name.includes('.') ? `.${file.name.split('.').pop()}` : '';
+    const extension = extFromName || (file.type === 'image/png' ? '.png' : '.jpg');
+    const name = `${safeRef}_${String(i + 1).padStart(2, '0')}${extension}`;
+
+    const metadataRes = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        parents: [folderId],
+        description: `Foto do atendimento ${reference} - Maicon Automação`,
+      }),
+    });
+    if (!metadataRes.ok) {
+      const err = await metadataRes.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Erro ${metadataRes.status} ao criar arquivo de foto`);
+    }
+    const created = await metadataRes.json();
+
+    const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(created.id)}?uploadType=media`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+    if (!uploadRes.ok) {
+      const err = await uploadRes.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Erro ${uploadRes.status} ao enviar foto`);
+    }
+    urls.push(`https://drive.google.com/file/d/${created.id}/view`);
+  }
+
+  return urls;
+}
