@@ -242,8 +242,7 @@ export default function App() {
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
     if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
-    const records = getRecordSequenceFloor();
-    getOfficialSequences(googleAccessToken, spreadsheetId, records.lastMA, records.lastOS)
+    getOfficialSequences(googleAccessToken, spreadsheetId, 0, 0)
       .then(seq => {
         // A planilha principal é a referência quando está acessível. Aqui substituímos
         // contadores antigos/corrompidos em vez de mantê-los com Math.max().
@@ -461,23 +460,32 @@ export default function App() {
     let tokenToUse = googleAccessToken || getCachedAccessToken();
     tokenToUse = await ensureValidAccessToken().catch(() => tokenToUse);
 
-    // Parte do maior número já consumido localmente e, quando online, confirma também na planilha principal.
+    // Quando a planilha principal está configurada, ela é obrigatoriamente a fonte
+    // da numeração. Se não for possível consultá-la, NÃO geramos MA/OS localmente,
+    // evitando novos saltos como MA-001002 / OS-001002.
     const localNext = getNextNumbers();
     let nextMA = localNext.nextMA;
     let nextOS = localNext.nextOS;
-    if (tokenToUse && spreadsheetId) {
+    if (spreadsheetId) {
+      if (!tokenToUse) {
+        setSyncErrorMessage('Não foi possível conferir a numeração oficial. Reconecte sua conta Google em Nuvem e tente finalizar novamente. Nenhum MA/OS foi gerado.');
+        return;
+      }
       try {
-        const records = getRecordSequenceFloor();
-        const official = await getOfficialSequences(
-          tokenToUse,
-          spreadsheetId,
-          records.lastMA,
-          records.lastOS
-        );
+        const official = await getOfficialSequences(tokenToUse, spreadsheetId, 0, 0);
         nextMA = official.nextMA;
         nextOS = official.nextOS;
-      } catch (err) {
-        console.warn('Falha ao conferir sequência oficial; usando contador local:', err);
+
+        // Corrige imediatamente qualquer contador local antigo/corrompido.
+        setSettings(prev => ({
+          ...prev,
+          lastSerialSequence: official.lastMA,
+          lastServiceOrderSequence: official.lastOS,
+        }));
+      } catch (err: any) {
+        console.warn('Falha ao conferir sequência oficial:', err);
+        setSyncErrorMessage(`Não foi possível conferir a numeração oficial da planilha. ${err?.message || 'Falha de leitura'} Nenhum MA/OS foi gerado.`);
+        return;
       }
     }
 
