@@ -26,7 +26,7 @@ import {
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
-import { saveDatabaseToGoogleDrive } from './lib/googleDrive';
+import { saveDatabaseToGoogleDrive, uploadAppointmentPhotos } from './lib/googleDrive';
 import { getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
@@ -470,12 +470,13 @@ export default function App() {
       }
     }
 
-    const equipment = options.equipment.map((eq, index) => ({
+    let equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
       serialNumber: `MA-${String(nextMA + index).padStart(6, '0')}`,
       serviceType: eq.serviceType,
       serviceTypeName: eq.serviceTypeName,
       model: eq.model?.trim() || undefined,
+      manufacturerSerialNumber: eq.manufacturerSerialNumber?.trim() || undefined,
       description: eq.description?.trim() || undefined,
       createdAt: now,
     }));
@@ -483,12 +484,38 @@ export default function App() {
       ? `OS-${String(nextOS).padStart(6, '0')}`
       : completionAppointment.serviceOrder;
 
+    // Fotos são opcionais. Quando selecionadas, sobem para uma pasta própria no Google Drive.
+    // Se o upload falhar, o atendimento continua sendo concluído normalmente e o erro fica registrado.
+    let uploadedPhotoUrls: string[] = [];
+    let photoUploadError: string | undefined;
+    if (options.photos?.length) {
+      if (!tokenToUse) {
+        photoUploadError = 'Fotos não enviadas: conecte sua conta Google e tente novamente em uma próxima edição.';
+      } else {
+        try {
+          uploadedPhotoUrls = await uploadAppointmentPhotos(
+            options.photos,
+            tokenToUse,
+            serviceOrder || completionAppointment.id
+          );
+          if (uploadedPhotoUrls.length) {
+            equipment = equipment.map(eq => ({ ...eq, photoUrls: uploadedPhotoUrls }));
+          }
+        } catch (err: any) {
+          photoUploadError = err?.message || 'Falha ao enviar fotos ao Google Drive';
+          console.warn('Falha no upload de fotos:', err);
+        }
+      }
+    }
+
     let updated: Appointment = {
       ...completionAppointment,
       status: 'concluido',
       equipment: [...(completionAppointment.equipment || []), ...equipment],
       serialNumber: completionAppointment.serialNumber || equipment[0]?.serialNumber,
       serviceOrder,
+      photoUrls: uploadedPhotoUrls.length ? uploadedPhotoUrls : completionAppointment.photoUrls,
+      photoUploadError,
       mainSheetSyncStatus: (equipment.length || serviceOrder) ? 'pending' : undefined,
       updatedAt: now,
     };
@@ -555,13 +582,14 @@ export default function App() {
     if (tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
     setCompletionAppointment(null);
 
+    const photoText = uploadedPhotoUrls.length ? ` • ${uploadedPhotoUrls.length} foto(s) no Drive` : (photoUploadError ? ' • Fotos pendentes' : '');
     const sheetText = updated.mainSheetSyncStatus === 'synced'
       ? ' • Planilha atualizada'
       : (updated.mainSheetSyncStatus === 'pending' || updated.mainSheetSyncStatus === 'error')
         ? ' • Planilha pendente — use Reenviar Planilha'
         : '';
     showGoogleNotification(equipment.length || options.generateServiceOrder
-      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${sheetText}`
+      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${photoText}${sheetText}`
       : '✅ Serviço simples concluído sem MA e sem OS.');
   };
 
