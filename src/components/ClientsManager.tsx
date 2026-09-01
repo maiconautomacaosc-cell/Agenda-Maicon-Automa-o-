@@ -16,12 +16,10 @@ import {
   KeyRound,
   FileText,
   Tag,
-  ClipboardList,
-  Sparkles,
-  Hash
+  ClipboardList
 } from 'lucide-react';
 import { Client, Appointment } from '../types';
-import { formatCurrencyBRL, formatDateBR, formatSerialNumber, formatServiceOrder } from '../utils/date';
+import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { openWhatsApp } from '../utils/whatsapp';
 
 interface ClientsManagerProps {
@@ -53,25 +51,8 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [address, setAddress] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [serviceOrder, setServiceOrder] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Helper to suggest next sequence number
-  const getNextSequenceNumber = () => {
-    let max = 0;
-    clients.forEach(c => {
-      if (c.serialNumber) {
-        const num = parseInt(c.serialNumber.replace(/\D/g, ''), 10);
-        if (!isNaN(num) && num > max) max = num;
-      }
-      if (c.serviceOrder) {
-        const num = parseInt(c.serviceOrder.replace(/\D/g, ''), 10);
-        if (!isNaN(num) && num > max) max = num;
-      }
-    });
-    return max > 0 ? max + 1 : 1;
-  };
 
   const openNewClientModal = () => {
     setEditingClient(null);
@@ -80,8 +61,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setAddress('');
     setNeighborhood('');
     setCity('');
-    setSerialNumber('');
-    setServiceOrder('');
     setNotes('');
     setIsModalOpen(true);
   };
@@ -93,8 +72,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setAddress(client.address);
     setNeighborhood(client.neighborhood || '');
     setCity(client.city || '');
-    setSerialNumber(client.serialNumber || '');
-    setServiceOrder(client.serviceOrder || '');
     setNotes(client.notes || '');
     setIsModalOpen(true);
   };
@@ -110,23 +87,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setPhone(formatted.trim());
   };
 
-  const handleSerialNumberBlur = () => {
-    if (serialNumber.trim()) {
-      setSerialNumber(formatSerialNumber(serialNumber));
-    }
-  };
-
-  const handleServiceOrderBlur = () => {
-    if (serviceOrder.trim()) {
-      setServiceOrder(formatServiceOrder(serviceOrder));
-    }
-  };
-
-  const handleAutoFillNextNumber = () => {
-    const nextNum = getNextSequenceNumber();
-    setSerialNumber(formatSerialNumber(String(nextNum)));
-    setServiceOrder(formatServiceOrder(String(nextNum)));
-  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,9 +95,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
       return;
     }
 
-    const formattedSerial = serialNumber.trim() ? formatSerialNumber(serialNumber) : undefined;
-    const formattedOS = serviceOrder.trim() ? formatServiceOrder(serviceOrder) : undefined;
-
     const newClient: Client = {
       id: editingClient ? editingClient.id : `cli-${Date.now()}`,
       name: name.trim(),
@@ -145,8 +102,9 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
       address: address.trim() || 'A combinar',
       neighborhood: neighborhood.trim(),
       city: city.trim(),
-      serialNumber: formattedSerial,
-      serviceOrder: formattedOS,
+      serialNumber: editingClient?.serialNumber,
+      serviceOrder: editingClient?.serviceOrder,
+      equipment: editingClient?.equipment,
       notes: notes.trim(),
       createdAt: editingClient ? editingClient.createdAt : new Date().toISOString(),
     };
@@ -178,7 +136,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                 Banco de Clientes
               </h2>
               <p className="text-xs text-zinc-400 font-mono">
-                {clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''} com N° Série e OS
+                {clients.length} cliente{clients.length !== 1 ? 's' : ''} cadastrado{clients.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -486,76 +444,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                 />
               </div>
 
-              {/* SERIAL NUMBER & OS FIELDS */}
-              <div className="p-3 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-bold text-zinc-200 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-                    <Tag className="w-3.5 h-3.5 text-cyan-400" />
-                    Identificação & Controle
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAutoFillNextNumber}
-                    className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono font-semibold flex items-center gap-1 bg-cyan-950/60 px-2 py-0.5 rounded-lg border border-cyan-800/50 cursor-pointer"
-                    title="Preenche com o próximo número sequencial disponível"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>Sugerir N°</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* N° DE SÉRIE */}
-                  <div>
-                    <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
-                      <Tag className="w-3 h-3 text-cyan-400" />
-                      N° de Série
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={serialNumber}
-                        onChange={(e) => setSerialNumber(e.target.value)}
-                        onBlur={handleSerialNumberBlur}
-                        placeholder="Ex: 29 (MA-000029)"
-                        className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-                      />
-                    </div>
-                    <p className="text-[10px] text-zinc-400 font-mono mt-1">
-                      {serialNumber ? (
-                        <span className="text-cyan-300">Formato: {formatSerialNumber(serialNumber)}</span>
-                      ) : (
-                        <span>Ex: digite 29 ➔ <b>MA-000029</b></span>
-                      )}
-                    </p>
-                  </div>
-
-                  {/* OS (ORDEM DE SERVIÇO) */}
-                  <div>
-                    <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
-                      <ClipboardList className="w-3 h-3 text-amber-400" />
-                      OS (Ordem de Serviço)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={serviceOrder}
-                        onChange={(e) => setServiceOrder(e.target.value)}
-                        onBlur={handleServiceOrderBlur}
-                        placeholder="Ex: 29 (OS-000029)"
-                        className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    <p className="text-[10px] text-zinc-400 font-mono mt-1">
-                      {serviceOrder ? (
-                        <span className="text-amber-300">Formato: {formatServiceOrder(serviceOrder)}</span>
-                      ) : (
-                        <span>Ex: digite 29 ➔ <b>OS-000029</b></span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
               <div>
                 <label className="block text-zinc-300 font-semibold mb-1">Endereço Completo</label>
