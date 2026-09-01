@@ -17,7 +17,9 @@ export interface EquipmentRecord {
   serviceType?: ServiceType;
   serviceTypeName?: string;
   model?: string;
+  manufacturerSerialNumber?: string; // número de série original do fabricante/produto
   description?: string;
+  photoUrls?: string[];
   createdAt: string;
 }
 
@@ -59,6 +61,8 @@ export interface Appointment {
   paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'faturado' | 'a_combinar';
   status: AppointmentStatus;
   notes?: string;
+  photoUrls?: string[]; // fotos gerais registradas na finalização do atendimento
+  photoUploadError?: string;
   reminderMinutesBefore: number;
   alarmDismissed?: boolean;
   googleEventId?: string;
