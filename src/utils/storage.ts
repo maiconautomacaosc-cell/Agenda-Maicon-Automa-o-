@@ -263,6 +263,17 @@ export function loadAppointments(): Appointment[] {
 
 export function saveAppointments(appts: Appointment[]): void {
   try {
+    const currentRaw = localStorage.getItem(STORAGE_KEYS.APPOINTMENTS);
+    // Guarda sempre uma cópia da última agenda não vazia antes de substituí-la.
+    // É uma rede de segurança contra sincronização acidental com uma nuvem vazia.
+    if (currentRaw) {
+      try {
+        const current = JSON.parse(currentRaw) as Appointment[];
+        if (Array.isArray(current) && current.length > 0) {
+          localStorage.setItem('maicon_appointments_last_nonempty_backup', currentRaw);
+        }
+      } catch {}
+    }
     localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(appts));
   } catch (err) {
     console.error('Failed to save appointments:', err);
