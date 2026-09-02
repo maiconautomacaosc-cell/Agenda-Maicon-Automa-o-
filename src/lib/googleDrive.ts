@@ -20,6 +20,7 @@ export interface DriveFileInfo {
 
 const DRIVE_FILE_NAME = 'agenda_maicon_database.json';
 const DRIVE_BACKUP_PREFIX = 'backup_agenda_maicon_';
+const DRIVE_BACKUP_KEEP = 30;
 
 /**
  * Searches for the primary database file in Google Drive
@@ -157,10 +158,12 @@ export async function loadDatabaseFromGoogleDrive(
  */
 export async function createDriveBackupSnapshot(
   data: DatabasePayload,
-  accessToken: string
+  accessToken: string,
+  reason: string = 'automatico'
 ): Promise<{ fileId: string; name: string }> {
   const dateFormatted = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const fileName = `${DRIVE_BACKUP_PREFIX}${dateFormatted}.json`;
+  const safeReason = reason.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 35) || 'automatico';
+  const fileName = `${DRIVE_BACKUP_PREFIX}${dateFormatted}_${safeReason}.json`;
   const jsonContent = JSON.stringify(data, null, 2);
 
   const boundary = '-------314159265358979323846';
@@ -198,6 +201,11 @@ export async function createDriveBackupSnapshot(
   }
 
   const created = await res.json();
+
+  // Mantém um histórico rolante. O backup principal continua separado e é sobrescrito,
+  // mas os snapshots não são substituídos até ultrapassar o limite de segurança.
+  pruneDriveBackups(accessToken, DRIVE_BACKUP_KEEP).catch(() => null);
+
   return {
     fileId: created.id,
     name: created.name,
@@ -209,7 +217,7 @@ export async function createDriveBackupSnapshot(
  */
 export async function listDriveBackups(accessToken: string): Promise<DriveFileInfo[]> {
   const query = encodeURIComponent(`name contains '${DRIVE_BACKUP_PREFIX}' and trashed = false`);
-  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=createdTime desc&pageSize=10&fields=files(id,name,modifiedTime,size,webViewLink)`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&orderBy=createdTime desc&pageSize=100&fields=files(id,name,createdTime,modifiedTime,size,webViewLink)`;
 
   const res = await fetch(url, {
     headers: {
@@ -223,6 +231,24 @@ export async function listDriveBackups(accessToken: string): Promise<DriveFileIn
 
   const data = await res.json();
   return data.files || [];
+}
+
+
+/**
+ * Removes only the oldest automatic snapshots, preserving the newest history.
+ * The primary database file is never touched here.
+ */
+export async function pruneDriveBackups(accessToken: string, keep: number = DRIVE_BACKUP_KEEP): Promise<void> {
+  const backups = await listDriveBackups(accessToken);
+  const extras = backups.slice(Math.max(1, keep));
+  for (const file of extras) {
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch {}
+  }
 }
 
 const ATTENDANCE_PHOTO_FOLDER = 'Maicon Automação - Fotos de Atendimentos';
