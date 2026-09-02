@@ -158,6 +158,21 @@ export default function App() {
   const lastCloudUpdatedAtRef = useRef<string>('');
   const initialCloudLoadDoneRef = useRef(false);
 
+  // Proteção contra perda de agenda: a nuvem nunca deve apagar registros locais
+  // apenas porque APP_AGENDA/APP_CLIENTES vieram vazias ou desatualizadas.
+  const mergeByIdLatest = <T extends { id: string; updatedAt?: string; createdAt?: string }>(local: T[], remote: T[]): T[] => {
+    const map = new Map<string, T>();
+    for (const item of local || []) map.set(item.id, item);
+    for (const item of remote || []) {
+      const previous = map.get(item.id);
+      if (!previous) { map.set(item.id, item); continue; }
+      const prevTime = Date.parse(previous.updatedAt || previous.createdAt || '') || 0;
+      const nextTime = Date.parse(item.updatedAt || item.createdAt || '') || 0;
+      if (nextTime >= prevTime) map.set(item.id, item);
+    }
+    return Array.from(map.values());
+  };
+
   // Sync to localStorage
   useEffect(() => {
     saveClients(clients);
@@ -185,7 +200,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.8.1', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.8.4', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -227,10 +242,12 @@ export default function App() {
       .then((data) => {
         if (!data) { setCloudReady(true); return; }
         lastCloudUpdatedAtRef.current = data.updatedAt || '';
-        setClients(data.clients || []);
-        setAppointments(data.appointments || []);
-        setQuotes(data.quotes || []);
-        if (data.settings) setSettings(data.settings);
+        // Faz união segura em vez de substituir tudo. Isso impede uma aba APP_AGENDA
+        // vazia/desatualizada de zerar os agendamentos já existentes no aparelho.
+        setClients(prev => mergeByIdLatest(prev, data.clients || []));
+        setAppointments(prev => mergeByIdLatest(prev, data.appointments || []));
+        setQuotes(prev => mergeByIdLatest(prev, data.quotes || []));
+        if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
         setSyncStatus('synced');
         setCloudReady(true);
       })
@@ -266,22 +283,25 @@ export default function App() {
         const data = await loadDatabaseFromGoogleSheets(googleAccessToken, spreadsheetId);
         if (!data?.updatedAt || data.updatedAt <= lastCloudUpdatedAtRef.current) return;
         lastCloudUpdatedAtRef.current = data.updatedAt;
-        setClients(data.clients || []);
-        setAppointments(data.appointments || []);
-        setQuotes(data.quotes || []);
-        if (data.settings) setSettings(data.settings);
+        setClients(prev => mergeByIdLatest(prev, data.clients || []));
+        setAppointments(prev => mergeByIdLatest(prev, data.appointments || []));
+        setQuotes(prev => mergeByIdLatest(prev, data.quotes || []));
+        if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
       } catch {}
     }, 30000);
     return () => clearInterval(interval);
   }, [googleAccessToken, cloudReady]);
 
   const handleRestoreData = (data: { clients: Client[]; appointments: Appointment[]; quotes: Quote[]; settings?: AppSettings }) => {
-    setClients(data.clients);
-    saveClients(data.clients);
-    setAppointments(data.appointments);
-    saveAppointments(data.appointments);
-    setQuotes(data.quotes);
-    saveQuotes(data.quotes);
+    const safeClients = mergeByIdLatest(clients, data.clients || []);
+    const safeAppointments = mergeByIdLatest(appointments, data.appointments || []);
+    const safeQuotes = mergeByIdLatest(quotes, data.quotes || []);
+    setClients(safeClients);
+    saveClients(safeClients);
+    setAppointments(safeAppointments);
+    saveAppointments(safeAppointments);
+    setQuotes(safeQuotes);
+    saveQuotes(safeQuotes);
     if (data.settings) {
       setSettings(data.settings);
       saveSettings(data.settings);
