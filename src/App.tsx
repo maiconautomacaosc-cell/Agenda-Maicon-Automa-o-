@@ -26,7 +26,7 @@ import {
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
-import { saveDatabaseToGoogleDrive, uploadAppointmentPhotos } from './lib/googleDrive';
+import { createDriveBackupSnapshot, saveDatabaseToGoogleDrive, uploadAppointmentPhotos } from './lib/googleDrive';
 import { getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
@@ -200,7 +200,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.8.4', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.8.5', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -308,6 +308,39 @@ export default function App() {
     }
   };
 
+  // Backup de segurança por alteração da agenda. O arquivo principal do Drive é atualizado
+  // e também é criado um snapshot histórico independente. Assim, um erro futuro não
+  // substitui todas as cópias anteriores de uma vez.
+  const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
+    const payload = {
+      version: '3.8.5',
+      updatedAt: new Date().toISOString(),
+      clients,
+      appointments: nextAppointments,
+      quotes,
+      settings,
+    };
+
+    // O backup do Drive independe da Planilha principal estar configurada.
+    // Renova o token antes de gravar para reduzir falhas silenciosas após horas com o app aberto.
+    (async () => {
+      let token = googleAccessToken || getCachedAccessToken();
+      token = await ensureValidAccessToken().catch(() => token);
+      if (!token) return;
+
+      const results = await Promise.allSettled([
+        saveDatabaseToGoogleDrive(payload, token),
+        createDriveBackupSnapshot(payload, token, reason),
+      ]);
+      const ok = results.some(r => r.status === 'fulfilled');
+      if (ok) {
+        localStorage.setItem('maicon_last_drive_backup', new Date().toISOString());
+      } else {
+        console.warn('Backup de segurança do Drive não concluído:', results);
+      }
+    })();
+  };
+
   // Appointment Actions
   const handleOpenNewAppointment = (date?: string) => {
     setEditingAppointment(null);
@@ -356,7 +389,9 @@ export default function App() {
       const pendingVersion: Appointment = { ...appt, status: previous?.status || 'pendente' };
       setAppointments(prev => {
         const exists = prev.some(a => a.id === pendingVersion.id);
-        return exists ? prev.map(a => a.id === pendingVersion.id ? pendingVersion : a) : [pendingVersion, ...prev];
+        const updated = exists ? prev.map(a => a.id === pendingVersion.id ? pendingVersion : a) : [pendingVersion, ...prev];
+        backupAgendaMutation(updated, exists ? 'agendamento-editado' : 'agendamento-criado');
+        return updated;
       });
       setCompletionAppointment(pendingVersion);
       setCompletionSaveClient(saveClientToDb);
@@ -365,10 +400,11 @@ export default function App() {
 
     setAppointments((prev) => {
       const exists = prev.some((a) => a.id === appt.id);
-      if (exists) {
-        return prev.map((a) => (a.id === appt.id ? appt : a));
-      }
-      return [appt, ...prev];
+      const updated = exists
+        ? prev.map((a) => (a.id === appt.id ? appt : a))
+        : [appt, ...prev];
+      backupAgendaMutation(updated, exists ? 'agendamento-editado' : 'agendamento-criado');
+      return updated;
     });
 
     // Automatic Google Calendar Sync
@@ -447,9 +483,13 @@ export default function App() {
       }
     }
 
+    // Antes da exclusão, grava também uma cópia contendo o registro que será removido.
+    // Isso permite recuperar uma exclusão acidental.
+    backupAgendaMutation(appointments, 'antes-de-excluir');
     setAppointments((prev) => {
       const updated = prev.filter((a) => a.id !== id);
       saveAppointments(updated);
+      backupAgendaMutation(updated, 'agendamento-excluido');
       return updated;
     });
   };
@@ -619,7 +659,11 @@ export default function App() {
       }
     }
 
-    setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
+    setAppointments(prev => {
+      const next = prev.map(a => a.id === updated.id ? updated : a);
+      backupAgendaMutation(next, 'atendimento-concluido');
+      return next;
+    });
 
     if (completionSaveClient && updated.clientName) {
       setClients(prev => {
