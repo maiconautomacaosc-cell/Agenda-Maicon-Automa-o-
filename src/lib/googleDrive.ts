@@ -468,3 +468,39 @@ export async function ensureClientDriveStructure(
     subfolders,
   };
 }
+
+/** Envia um Blob para uma pasta específica do Google Drive e retorna o link do arquivo. */
+export async function uploadBlobToDriveFolder(
+  blob: Blob,
+  fileName: string,
+  folderId: string,
+  accessToken: string,
+  description?: string
+): Promise<{ fileId: string; url: string }> {
+  const metadataRes = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: fileName, parents: [folderId], description }),
+  });
+  if (!metadataRes.ok) {
+    const err = await metadataRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${metadataRes.status} ao criar arquivo no Drive`);
+  }
+  const created = await metadataRes.json();
+  const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(created.id)}?uploadType=media`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': blob.type || 'application/octet-stream',
+    },
+    body: blob,
+  });
+  if (!uploadRes.ok) {
+    const err = await uploadRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${uploadRes.status} ao enviar arquivo ao Drive`);
+  }
+  return { fileId: created.id, url: `https://drive.google.com/file/d/${created.id}/view` };
+}
