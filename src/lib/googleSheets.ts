@@ -257,6 +257,25 @@ async function ensureOriginalProductSerialColumn(spreadsheetId: string, clientsT
  * Isso mantém pendências recentes seguras, mas ignora saltos corrompidos como
  * MA-001000 quando a planilha oficial ainda está na faixa de MA-000040.
  */
+
+export async function getClientsRootFolderId(
+  accessToken: string,
+  spreadsheetId = getSpreadsheetId()
+): Promise<string> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  const rows = await readValues(spreadsheetId, sheetRange(tabs.config, 'A1:F40'), accessToken);
+  for (const row of rows) {
+    for (let i = 0; i < row.length - 1; i++) {
+      if (normalizeHeader(row[i]) === 'PASTACLIENTES') {
+        const value = String(row[i + 1] || '').trim();
+        if (value) return value;
+      }
+    }
+  }
+  throw new Error('PASTA_CLIENTES não encontrada na aba CONFIGURAÇÕES.');
+}
+
 export async function getOfficialSequences(
   accessToken: string,
   spreadsheetId = getSpreadsheetId(),

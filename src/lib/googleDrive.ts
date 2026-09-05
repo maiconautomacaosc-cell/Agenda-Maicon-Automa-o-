@@ -298,10 +298,11 @@ async function findOrCreateAttendancePhotoFolder(accessToken: string): Promise<s
 export async function uploadAppointmentPhotos(
   files: File[],
   accessToken: string,
-  reference: string
+  reference: string,
+  destinationFolderId?: string
 ): Promise<string[]> {
   if (!files.length) return [];
-  const folderId = await findOrCreateAttendancePhotoFolder(accessToken);
+  const folderId = destinationFolderId || await findOrCreateAttendancePhotoFolder(accessToken);
   const safeRef = String(reference || 'ATENDIMENTO').replace(/[^a-zA-Z0-9_-]+/g, '_');
   const urls: string[] = [];
 
@@ -345,4 +346,125 @@ export async function uploadAppointmentPhotos(
   }
 
   return urls;
+}
+
+
+export interface ClientDriveStructure {
+  folderId: string;
+  folderName: string;
+  folderUrl: string;
+  subfolders: Record<string, string>;
+}
+
+const CLIENT_SUBFOLDERS = [
+  '01 - Ordem de Serviço',
+  '02 - Garantia',
+  '03 - Fotos Antes',
+  '04 - Fotos Depois',
+  '05 - Orçamentos',
+  '06 - Documentos',
+];
+
+function normalizeDriveName(value: string) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+}
+
+function safeDriveFolderName(value: string) {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function listChildFolders(parentId: string, accessToken: string): Promise<Array<{id:string;name:string}>> {
+  const query = encodeURIComponent(`'${escapeDriveQuery(parentId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&pageSize=1000`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${res.status} ao listar pastas do cliente`);
+  }
+  const data = await res.json();
+  return data.files || [];
+}
+
+async function createDriveFolder(name: string, parentId: string, accessToken: string, description?: string): Promise<string> {
+  const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+      description,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${res.status} ao criar pasta ${name}`);
+  }
+  const created = await res.json();
+  return created.id;
+}
+
+/**
+ * Cria/reutiliza a pasta principal do cliente dentro da PASTA_CLIENTES da planilha
+ * e garante a estrutura padrão usada por OS, garantia, fotos, orçamento e documentos.
+ */
+export async function ensureClientDriveStructure(
+  accessToken: string,
+  rootFolderId: string,
+  clientName: string,
+  reference?: string
+): Promise<ClientDriveStructure> {
+  const cleanClientName = safeDriveFolderName(clientName) || 'Cliente';
+  const cleanReference = safeDriveFolderName(reference || 'CLIENTE');
+  const targetName = `${cleanReference} - ${cleanClientName}`;
+  const normalizedClient = normalizeDriveName(cleanClientName);
+  const normalizedTarget = normalizeDriveName(targetName);
+
+  const rootChildren = await listChildFolders(rootFolderId, accessToken);
+  let clientFolder = rootChildren.find(f => normalizeDriveName(f.name) === normalizedTarget);
+  if (!clientFolder) {
+    // Reaproveita uma pasta anterior do mesmo cliente, mesmo que o prefixo MA/OS seja diferente.
+    clientFolder = rootChildren.find(f => {
+      const n = normalizeDriveName(f.name);
+      return n === normalizedClient || n.endsWith(` - ${normalizedClient}`);
+    });
+  }
+
+  let folderId = clientFolder?.id;
+  let folderName = clientFolder?.name || targetName;
+  if (!folderId) {
+    folderId = await createDriveFolder(
+      targetName,
+      rootFolderId,
+      accessToken,
+      `Pasta do cliente ${clientName} - Maicon Automação`
+    );
+    folderName = targetName;
+  }
+
+  const existingSubs = await listChildFolders(folderId, accessToken);
+  const subfolders: Record<string, string> = {};
+  for (const subName of CLIENT_SUBFOLDERS) {
+    const existing = existingSubs.find(f => normalizeDriveName(f.name) === normalizeDriveName(subName));
+    subfolders[subName] = existing?.id || await createDriveFolder(subName, folderId, accessToken);
+  }
+
+  return {
+    folderId,
+    folderName,
+    folderUrl: `https://drive.google.com/drive/folders/${folderId}`,
+    subfolders,
+  };
 }
