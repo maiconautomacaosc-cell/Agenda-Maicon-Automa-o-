@@ -83,58 +83,336 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   };
 
   const capture = async () => {
-    if (!documentRef.current) throw new Error('Área do orçamento não encontrada.');
-    await document.fonts?.ready;
+    // Geração por Canvas 2D: mais confiável no Android/Brave/Chrome do que
+    // converter o DOM para SVG/foreignObject.
+    const width = 1080;
+    const margin = 56;
+    const contentWidth = width - margin * 2;
+    const itemRowHeight = 74;
+    const itemsHeight = Math.max(1, quote.items.length) * itemRowHeight;
+    const notesExtra = quote.notes ? 120 : 0;
+    const height = 1540 + itemsHeight + notesExtra;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas indisponível.');
 
-    const source = documentRef.current;
-    const rect = source.getBoundingClientRect();
-    const clone = source.cloneNode(true) as HTMLElement;
-    const sourceNodes = [source, ...Array.from(source.querySelectorAll<HTMLElement>('*'))];
-    const cloneNodes = [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('*'))];
+    const CYAN = '#16b9db';
+    const BLUE = '#1570c8';
+    const DARK = '#0b1016';
+    const TEXT = '#111827';
+    const MUTED = '#64748b';
+    const LIGHT = '#f3f7fa';
+    const BORDER = '#d8e1e8';
 
-    sourceNodes.forEach((node, index) => {
-      const target = cloneNodes[index];
-      if (!target) return;
-      const computed = window.getComputedStyle(node);
-      for (const property of Array.from(computed)) {
-        target.style.setProperty(property, computed.getPropertyValue(property), computed.getPropertyPriority(property));
+    const roundedRect = (x: number, y: number, w: number, h: number, r = 22) => {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.arcTo(x + w, y, x + w, y + h, rr);
+      ctx.arcTo(x + w, y + h, x, y + h, rr);
+      ctx.arcTo(x, y + h, x, y, rr);
+      ctx.arcTo(x, y, x + w, y, rr);
+      ctx.closePath();
+    };
+
+    const fillRound = (x: number, y: number, w: number, h: number, fill: string, r = 22) => {
+      ctx.fillStyle = fill;
+      roundedRect(x, y, w, h, r);
+      ctx.fill();
+    };
+
+    const strokeRound = (x: number, y: number, w: number, h: number, stroke: string, r = 22) => {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      roundedRect(x, y, w, h, r);
+      ctx.stroke();
+    };
+
+    const wrapText = (
+      text: string,
+      x: number,
+      y: number,
+      maxWidth: number,
+      lineHeight: number,
+      maxLines = 4
+    ) => {
+      const words = String(text || '').split(/\s+/).filter(Boolean);
+      if (!words.length) return y;
+      let line = '';
+      let lineNo = 0;
+      for (let i = 0; i < words.length; i += 1) {
+        const test = line ? `${line} ${words[i]}` : words[i];
+        if (ctx.measureText(test).width > maxWidth && line) {
+          ctx.fillText(line, x, y + lineNo * lineHeight);
+          lineNo += 1;
+          line = words[i];
+          if (lineNo >= maxLines - 1) {
+            const rest = [line, ...words.slice(i + 1)].join(' ');
+            let clipped = rest;
+            while (clipped.length > 3 && ctx.measureText(`${clipped}…`).width > maxWidth) {
+              clipped = clipped.slice(0, -1);
+            }
+            ctx.fillText(`${clipped}…`, x, y + lineNo * lineHeight);
+            return y + (lineNo + 1) * lineHeight;
+          }
+        } else {
+          line = test;
+        }
       }
-    });
+      ctx.fillText(line, x, y + lineNo * lineHeight);
+      return y + (lineNo + 1) * lineHeight;
+    };
 
-    clone.style.width = `${Math.ceil(rect.width)}px`;
-    clone.style.height = `${Math.ceil(source.scrollHeight)}px`;
-    clone.style.maxWidth = 'none';
-    clone.style.margin = '0';
-    clone.style.transform = 'none';
+    const label = (text: string, x: number, y: number) => {
+      ctx.fillStyle = MUTED;
+      ctx.font = '700 21px Arial, sans-serif';
+      ctx.fillText(text.toUpperCase(), x, y);
+    };
 
-    const serialized = new XMLSerializer().serializeToString(clone);
-    const width = Math.ceil(rect.width);
-    const height = Math.ceil(source.scrollHeight);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject x="0" y="0" width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${serialized}</div></foreignObject></svg>`;
-    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    const value = (text: string, x: number, y: number, size = 30) => {
+      ctx.fillStyle = TEXT;
+      ctx.font = `700 ${size}px Arial, sans-serif`;
+      ctx.fillText(text, x, y);
+    };
+
+    const loadImage = (src: string) =>
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Falha ao carregar a logo.'));
+        image.src = src;
+      });
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    // Cabeçalho
+    ctx.fillStyle = DARK;
+    ctx.fillRect(0, 0, width, 270);
+    const grad = ctx.createLinearGradient(690, 0, 980, 260);
+    grad.addColorStop(0, BLUE);
+    grad.addColorStop(1, CYAN);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(770, 0);
+    ctx.lineTo(1010, 0);
+    ctx.lineTo(855, 270);
+    ctx.lineTo(675, 270);
+    ctx.closePath();
+    ctx.fill();
 
     try {
-      const image = new Image();
-      image.decoding = 'sync';
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error('Falha ao renderizar o orçamento.'));
-        image.src = url;
-      });
-      const scale = Math.min(2.2, Math.max(1.8, window.devicePixelRatio || 1));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas indisponível.');
+      const logo = await loadImage(MAICON_LOGO);
+      const maxW = 470;
+      const maxH = 210;
+      const ratio = Math.min(maxW / logo.width, maxH / logo.height);
+      const logoW = logo.width * ratio;
+      const logoH = logo.height * ratio;
+      ctx.drawImage(logo, margin, 28, logoW, logoH);
+    } catch (error) {
+      console.warn(error);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      return canvas;
-    } finally {
-      URL.revokeObjectURL(url);
+      ctx.font = '900 42px Arial, sans-serif';
+      ctx.fillText('MAICON', margin, 95);
+      ctx.fillStyle = CYAN;
+      ctx.fillText('AUTOMAÇÃO', margin, 145);
     }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'right';
+    ctx.font = '700 24px Arial, sans-serif';
+    ctx.fillText('TECNOLOGIA PARA UM', width - margin, 82);
+    ctx.fillText('DIA A DIA MAIS SEGURO', width - margin, 116);
+    ctx.fillStyle = CYAN;
+    ctx.fillRect(width - margin - 180, 136, 180, 6);
+    ctx.textAlign = 'left';
+
+    // Título
+    ctx.fillStyle = TEXT;
+    ctx.font = '900 66px Arial, sans-serif';
+    ctx.fillText('ORÇAMENTO', margin, 355);
+    ctx.fillStyle = CYAN;
+    ctx.fillRect(margin, 378, 190, 6);
+    ctx.fillStyle = MUTED;
+    ctx.font = '600 24px Arial, sans-serif';
+    ctx.fillText('SOLUÇÕES EM FECHADURAS ELETRÔNICAS', margin, 416);
+
+    // Dados do cliente
+    const cardY = 462;
+    const gap = 20;
+    const leftW = 600;
+    const rightW = contentWidth - leftW - gap;
+    fillRound(margin, cardY, leftW, 250, LIGHT, 24);
+    strokeRound(margin, cardY, leftW, 250, BORDER, 24);
+    fillRound(margin + leftW + gap, cardY, rightW, 250, LIGHT, 24);
+    strokeRound(margin + leftW + gap, cardY, rightW, 250, BORDER, 24);
+
+    label('Cliente', margin + 28, cardY + 42);
+    value(quote.clientName || 'Cliente', margin + 28, cardY + 82, 28);
+    label('Contato', margin + 28, cardY + 125);
+    value(quote.clientPhone || 'Não informado', margin + 28, cardY + 164, 27);
+    label('Endereço', margin + 28, cardY + 207);
+    ctx.fillStyle = TEXT;
+    ctx.font = '700 23px Arial, sans-serif';
+    wrapText(quote.address || 'A combinar', margin + 150, cardY + 207, leftW - 180, 27, 2);
+    ctx.fillStyle = MUTED;
+    ctx.font = '500 20px Arial, sans-serif';
+    ctx.fillText(
+      [quote.neighborhood && `Bairro: ${quote.neighborhood}`, quote.city && `Cidade: ${quote.city}`]
+        .filter(Boolean)
+        .join('  |  ') || ' ',
+      margin + 28,
+      cardY + 238
+    );
+
+    const rx = margin + leftW + gap + 26;
+    label('Data', rx, cardY + 42);
+    value(formatDateBR(quote.date), rx, cardY + 78, 26);
+    label('Validade', rx, cardY + 122);
+    value(`${quote.validityDays} dias`, rx, cardY + 158, 26);
+    ctx.fillStyle = MUTED;
+    ctx.font = '500 19px Arial, sans-serif';
+    ctx.fillText(`Até ${formatDateBR(validUntil)}`, rx, cardY + 186);
+    label('Nº do orçamento', rx, cardY + 222);
+    value(quote.code, rx + 200, cardY + 222, 24);
+
+    // Tabela
+    let y = 752;
+    const colItem = 78;
+    const colValue = 190;
+    const colWarranty = 190;
+    fillRound(margin, y, contentWidth, 62, DARK, 18);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 21px Arial, sans-serif';
+    ctx.fillText('ITEM', margin + 18, y + 39);
+    ctx.fillText('DESCRIÇÃO DO SERVIÇO / PRODUTO', margin + colItem + 20, y + 39);
+    ctx.fillText('GARANTIA', margin + contentWidth - colValue - colWarranty + 25, y + 39);
+    ctx.textAlign = 'right';
+    ctx.fillText('VALOR', margin + contentWidth - 22, y + 39);
+    ctx.textAlign = 'left';
+    y += 62;
+
+    quote.items.forEach((item, index) => {
+      ctx.fillStyle = index % 2 === 0 ? '#ffffff' : '#f9fbfc';
+      ctx.fillRect(margin, y, contentWidth, itemRowHeight);
+      ctx.strokeStyle = BORDER;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(margin, y, contentWidth, itemRowHeight);
+      ctx.fillStyle = TEXT;
+      ctx.font = '700 22px Arial, sans-serif';
+      ctx.fillText(String(index + 1), margin + 30, y + 44);
+      ctx.font = '600 22px Arial, sans-serif';
+      wrapText(item.description, margin + colItem + 20, y + 30, contentWidth - colItem - colValue - colWarranty - 45, 26, 2);
+      ctx.fillStyle = MUTED;
+      ctx.font = '600 20px Arial, sans-serif';
+      ctx.fillText(quote.warrantyInfo || '—', margin + contentWidth - colValue - colWarranty + 25, y + 43);
+      ctx.fillStyle = TEXT;
+      ctx.textAlign = 'right';
+      ctx.font = '800 22px Arial, sans-serif';
+      ctx.fillText(formatCurrencyBRL(item.total), margin + contentWidth - 22, y + 44);
+      ctx.textAlign = 'left';
+      y += itemRowHeight;
+    });
+
+    // Total
+    y += 22;
+    fillRound(margin + contentWidth - 370, y, 370, 72, LIGHT, 16);
+    ctx.fillStyle = TEXT;
+    ctx.font = '800 26px Arial, sans-serif';
+    ctx.fillText('TOTAL', margin + contentWidth - 345, y + 46);
+    fillRound(margin + contentWidth - 225, y, 225, 72, CYAN, 16);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = '900 30px Arial, sans-serif';
+    ctx.fillText(formatCurrencyBRL(quote.totalAmount), margin + contentWidth - 112, y + 46);
+    ctx.textAlign = 'left';
+
+    // Condições e inclusões
+    y += 112;
+    const half = (contentWidth - gap) / 2;
+    const infoH = quote.notes ? 320 : 250;
+    fillRound(margin, y, half, infoH, LIGHT, 24);
+    fillRound(margin + half + gap, y, half, infoH, LIGHT, 24);
+
+    ctx.fillStyle = TEXT;
+    ctx.font = '900 25px Arial, sans-serif';
+    ctx.fillText('INCLUSO NO SERVIÇO', margin + 28, y + 48);
+    ctx.fillStyle = CYAN;
+    ctx.font = '700 21px Arial, sans-serif';
+    ['✓  Mão de obra especializada', '✓  Configuração e testes', '✓  Orientação de uso', '✓  Suporte técnico'].forEach((line, i) => {
+      ctx.fillText(line, margin + 28, y + 90 + i * 38);
+    });
+
+    const rightX = margin + half + gap + 28;
+    ctx.fillStyle = TEXT;
+    ctx.font = '900 25px Arial, sans-serif';
+    ctx.fillText('CONDIÇÕES DE PAGAMENTO', rightX, y + 48);
+    ctx.fillStyle = TEXT;
+    ctx.font = '600 21px Arial, sans-serif';
+    wrapText(quote.paymentTerms || 'A combinar', rightX, y + 85, half - 56, 28, 3);
+    ctx.fillStyle = TEXT;
+    ctx.font = '900 23px Arial, sans-serif';
+    ctx.fillText('GARANTIA', rightX, y + 150);
+    ctx.font = '600 20px Arial, sans-serif';
+    wrapText(quote.warrantyInfo || 'Conforme serviço contratado.', rightX, y + 182, half - 56, 27, 3);
+    if (quote.notes) {
+      ctx.fillStyle = TEXT;
+      ctx.font = '900 23px Arial, sans-serif';
+      ctx.fillText('OBSERVAÇÕES', rightX, y + 248);
+      ctx.fillStyle = MUTED;
+      ctx.font = '500 18px Arial, sans-serif';
+      wrapText(quote.notes, rightX, y + 278, half - 56, 24, 4);
+    }
+
+    // Benefícios
+    y += infoH + 48;
+    ctx.fillStyle = TEXT;
+    ctx.font = '900 22px Arial, sans-serif';
+    const benefits = [
+      ['MAIS SEGURANÇA', 'Controle de acesso na sua mão.'],
+      ['MAIS PRATICIDADE', 'Sem chaves, mais comodidade.'],
+      ['SOLUÇÃO SOB MEDIDA', 'Ideal para residências e empresas.'],
+      ['SUPORTE SEMPRE', 'Conte comigo após a instalação.'],
+    ];
+    const bw = contentWidth / 4;
+    benefits.forEach(([title, desc], i) => {
+      const bx = margin + bw * i;
+      ctx.fillStyle = CYAN;
+      ctx.beginPath();
+      ctx.arc(bx + bw / 2, y + 28, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = TEXT;
+      ctx.font = '900 19px Arial, sans-serif';
+      ctx.fillText(title, bx + bw / 2, y + 72);
+      ctx.fillStyle = MUTED;
+      ctx.font = '500 17px Arial, sans-serif';
+      wrapText(desc, bx + 15, y + 105, bw - 30, 22, 2);
+      ctx.textAlign = 'left';
+    });
+
+    // Rodapé
+    const footerY = height - 150;
+    ctx.fillStyle = DARK;
+    ctx.fillRect(0, footerY, width, 150);
+    ctx.fillStyle = '#26d366';
+    ctx.font = '900 31px Arial, sans-serif';
+    ctx.fillText('WhatsApp', margin, footerY + 55);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 31px Arial, sans-serif';
+    ctx.fillText('(47) 93388-6303', margin, footerY + 98);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 26px Arial, sans-serif';
+    ctx.fillText('JOINVILLE - SC', width - margin, footerY + 62);
+    ctx.fillStyle = '#aab4bf';
+    ctx.font = '500 19px Arial, sans-serif';
+    ctx.fillText('ATENDIMENTO EM TODA A REGIÃO', width - margin, footerY + 98);
+    ctx.textAlign = 'left';
+
+    return canvas;
   };
 
   const buildPdfBlob = async (canvas: HTMLCanvasElement) => {
