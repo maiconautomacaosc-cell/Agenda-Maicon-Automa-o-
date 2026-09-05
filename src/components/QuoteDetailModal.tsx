@@ -165,6 +165,47 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
       return y + (lineNo + 1) * lineHeight;
     };
 
+    const wrapTextCentered = (
+      text: string,
+      centerX: number,
+      y: number,
+      maxWidth: number,
+      lineHeight: number,
+      maxLines = 2
+    ) => {
+      const words = String(text || '').split(/\s+/).filter(Boolean);
+      if (!words.length) return y;
+      const lines: string[] = [];
+      let line = '';
+      for (let i = 0; i < words.length; i += 1) {
+        const test = line ? `${line} ${words[i]}` : words[i];
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line);
+          line = words[i];
+          if (lines.length >= maxLines - 1) {
+            const rest = [line, ...words.slice(i + 1)].join(' ');
+            let clipped = rest;
+            while (clipped.length > 3 && ctx.measureText(`${clipped}…`).width > maxWidth) {
+              clipped = clipped.slice(0, -1);
+            }
+            lines.push(`${clipped}…`);
+            break;
+          }
+        } else {
+          line = test;
+        }
+      }
+      if (lines.length < maxLines && line && lines[lines.length - 1] !== line && !lines.some(l => l.endsWith('…'))) {
+        lines.push(line);
+      }
+      ctx.textAlign = 'center';
+      lines.slice(0, maxLines).forEach((ln, idx) => {
+        ctx.fillText(ln, centerX, y + idx * lineHeight);
+      });
+      ctx.textAlign = 'left';
+      return y + Math.min(lines.length, maxLines) * lineHeight;
+    };
+
     const label = (text: string, x: number, y: number) => {
       ctx.fillStyle = MUTED;
       ctx.font = '700 21px Arial, sans-serif';
@@ -405,8 +446,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
       ctx.fillText(title, bx + bw / 2, y + 72);
       ctx.fillStyle = MUTED;
       ctx.font = '500 17px Arial, sans-serif';
-      wrapText(desc, bx + 15, y + 105, bw - 30, 22, 2);
-      ctx.textAlign = 'left';
+      wrapTextCentered(desc, bx + bw / 2, y + 105, bw - 30, 22, 2);
     });
 
     // Rodapé
