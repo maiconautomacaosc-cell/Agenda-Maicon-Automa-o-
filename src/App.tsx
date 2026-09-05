@@ -97,7 +97,6 @@ export default function App() {
 
   // Fluxo oficial: OS por atendimento; MA somente para equipamentos identificados.
   const [completionAppointment, setCompletionAppointment] = useState<Appointment | null>(null);
-  const [completionSaveClient, setCompletionSaveClient] = useState(true);
   const [completionOfficialNumbers, setCompletionOfficialNumbers] = useState<{ nextMA: number; nextOS: number } | null>(null);
   const [completionNumberingLoading, setCompletionNumberingLoading] = useState(false);
 
@@ -380,7 +379,7 @@ export default function App() {
     setIsAppointmentModalOpen(true);
   };
 
-  const handleSaveAppointment = (appt: Appointment, saveClientToDb: boolean) => {
+  const handleSaveAppointment = (appt: Appointment, _saveClientToDb: boolean) => {
     const previous = appointments.find(a => a.id === appt.id);
     const justCompleted = appt.serviceType !== 'compromisso_particular' && appt.status === 'concluido' && previous?.status !== 'concluido';
 
@@ -394,7 +393,6 @@ export default function App() {
         return updated;
       });
       setCompletionAppointment(pendingVersion);
-      setCompletionSaveClient(saveClientToDb);
       return;
     }
 
@@ -499,7 +497,6 @@ export default function App() {
     const target = appointments.find(a => a.id === id);
     if (target && newStatus === 'concluido' && target.status !== 'concluido' && target.serviceType !== 'compromisso_particular') {
       setCompletionAppointment(target);
-      setCompletionSaveClient(true);
       return;
     }
 
@@ -695,7 +692,7 @@ export default function App() {
       return next;
     });
 
-    if (completionSaveClient && updated.clientName) {
+    if (updated.serviceType !== 'compromisso_particular' && updated.clientName) {
       setClients(prev => {
         const idx = prev.findIndex(c => c.id === updated.clientId || c.phone === updated.clientPhone || c.name.toLowerCase() === updated.clientName.toLowerCase());
         if (idx < 0) {
