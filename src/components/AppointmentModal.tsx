@@ -79,7 +79,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [status, setStatus] = useState<AppointmentStatus>('pendente');
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState(60);
   const [notes, setNotes] = useState('');
-  const [saveClientToDb, setSaveClientToDb] = useState(true);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [isAllDayBlocked, setIsAllDayBlocked] = useState(false);
@@ -270,7 +269,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    onSaveAppointment(newAppt, !isParticular && saveClientToDb);
+    // Todo agendamento técnico cadastra/atualiza o cliente automaticamente.
+    onSaveAppointment(newAppt, !isParticular);
     onClose();
   };
 
@@ -542,17 +542,9 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 </div>
 
                 {!initialAppointment && (
-                  <label className="flex items-center gap-2 cursor-pointer pt-1">
-                    <input
-                      type="checkbox"
-                      checked={saveClientToDb}
-                      onChange={(e) => setSaveClientToDb(e.target.checked)}
-                      className="rounded bg-zinc-900 border-zinc-700 text-cyan-500 focus:ring-0 w-4 h-4"
-                    />
-                    <span className="text-zinc-300 text-[11px]">
-                      Salvar automaticamente no banco de dados de clientes para futuros agendamentos
-                    </span>
-                  </label>
+                  <div className="pt-1 text-[11px] text-cyan-300/90">
+                    ✓ Este cliente será cadastrado automaticamente na lista de Clientes ao salvar o agendamento.
+                  </div>
                 )}
               </>
             )}
