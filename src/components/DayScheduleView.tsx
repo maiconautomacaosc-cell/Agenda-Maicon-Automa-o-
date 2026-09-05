@@ -29,6 +29,7 @@ interface DayScheduleViewProps {
   onStatusChange: (id: string, newStatus: AppointmentStatus) => void;
   onOpenWhatsApp: (appt: Appointment) => void;
   onRetryMainSheetSync?: (appt: Appointment) => void;
+  onReserveMa?: (appt: Appointment) => void | Promise<void>;
 }
 
 export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
@@ -41,6 +42,7 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
   onStatusChange,
   onOpenWhatsApp,
   onRetryMainSheetSync,
+  onReserveMa,
 }) => {
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
@@ -267,6 +269,7 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
               onStatusChange={onStatusChange}
               onOpenWhatsApp={onOpenWhatsApp}
               onRetryMainSheetSync={onRetryMainSheetSync}
+              onReserveMa={onReserveMa}
             />
           ))
         )}
