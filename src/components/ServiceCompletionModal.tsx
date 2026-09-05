@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Camera, CheckCircle2, ClipboardList, KeyRound, Plus, Trash2, X } from 'lucide-react';
-import { Appointment, EquipmentRecord, ServiceType } from '../types';
+import { Appointment, EquipmentRecord, ProductSupplyType, ServiceType, WarrantyPeriod } from '../types';
 
 export interface CompletionOptions {
-  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'model' | 'manufacturerSerialNumber' | 'description'>>;
+  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'model' | 'manufacturerSerialNumber' | 'description' | 'productSupplyType' | 'supplier' | 'invoiceProof' | 'productWarranty'>>;
   photos: File[];
   generateServiceOrder: boolean;
+  installationWarranty: WarrantyPeriod;
 }
 
 interface Props {
@@ -31,6 +32,10 @@ const SERVICE_LABELS: Partial<Record<ServiceType, string>> = {
   outro: 'Outros / Equipamento diverso',
 };
 
+
+const WARRANTY_OPTIONS: WarrantyPeriod[] = ['Sem garantia', '1 Mês', '3 Meses', '6 Meses', '12 Meses', '24 Meses', '36 Meses'];
+const SUPPLY_OPTIONS: ProductSupplyType[] = ['Produto do cliente', 'Produto vendido'];
+
 const EQUIPMENT_SERVICE_OPTIONS: ServiceType[] = [
   'instalacao_sobrepor',
   'instalacao_embutir',
@@ -53,7 +58,8 @@ export const ServiceCompletionModal: React.FC<Props> = ({
 }) => {
   const [registerEquipment, setRegisterEquipment] = useState(false);
   const [generateOS, setGenerateOS] = useState(true);
-  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; model: string; manufacturerSerialNumber: string; description: string }>>([]);
+  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; model: string; manufacturerSerialNumber: string; description: string; productSupplyType: ProductSupplyType; supplier: string; invoiceProof: string; productWarranty: WarrantyPeriod }>>([]);
+  const [installationWarranty, setInstallationWarranty] = useState<WarrantyPeriod>('3 Meses');
   const [photos, setPhotos] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -63,6 +69,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
     setGenerateOS(true);
     setEquipment([]);
+    setInstallationWarranty('3 Meses');
     setPhotos([]);
     setSaving(false);
   }, [isOpen, appointment?.id]);
@@ -78,7 +85,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     setRegisterEquipment(value);
     if (value && equipment.length === 0) {
       const firstType = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular');
-      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, model: '', manufacturerSerialNumber: '', description: '' }]);
+      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]);
     }
     if (!value) setEquipment([]);
   };
@@ -131,12 +138,51 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                     <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Marca / modelo do equipamento (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                     <input value={item.manufacturerSerialNumber} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, manufacturerSerialNumber:e.target.value} : x))} placeholder="Nº de série original do produto (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                     <input value={item.description} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, description:e.target.value} : x))} placeholder="Ex: Apto 302 / porta social (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <label className="text-[11px] text-zinc-400">
+                        Tipo de fornecimento
+                        <select value={item.productSupplyType} onChange={e => {
+                          const value = e.target.value as ProductSupplyType;
+                          setEquipment(prev => prev.map((x,j) => j === i ? {
+                            ...x,
+                            productSupplyType: value,
+                            supplier: value === 'Produto vendido' ? x.supplier : '',
+                            invoiceProof: value === 'Produto vendido' ? x.invoiceProof : '',
+                            productWarranty: value === 'Produto vendido' ? (x.productWarranty === 'Sem garantia' ? '12 Meses' : x.productWarranty) : 'Sem garantia',
+                          } : x));
+                        }} className="mt-1 w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500">
+                          {SUPPLY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-[11px] text-zinc-400">
+                        Garantia do produto
+                        <select value={item.productWarranty} disabled={item.productSupplyType !== 'Produto vendido'} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, productWarranty:e.target.value as WarrantyPeriod} : x))} className="mt-1 w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 disabled:opacity-40">
+                          {WARRANTY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    {item.productSupplyType === 'Produto vendido' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input value={item.supplier} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, supplier:e.target.value} : x))} placeholder="Fornecedor (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                        <input value={item.invoiceProof} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, invoiceProof:e.target.value} : x))} placeholder="NF / comprovante (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                      </div>
+                    )}
+
                   </div>
                 ))}
                 <p className="text-[11px] text-zinc-500">A numeração MA é automática e não pode ser digitada manualmente.</p>
-                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, model: '', manufacturerSerialNumber: '', description: '' }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
+                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
               </div>
             )}
+          </section>
+
+          <section className="space-y-3 border-t border-zinc-800 pt-4">
+            <div className="text-sm font-bold text-white">Garantia da instalação / mão de obra</div>
+            <select value={installationWarranty} onChange={e => setInstallationWarranty(e.target.value as WarrantyPeriod)} className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-3 text-sm text-white outline-none focus:border-cyan-500">
+              {WARRANTY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+            <p className="text-[11px] text-zinc-500">Essa garantia será gravada na planilha e ficará vinculada ao atendimento/OS.</p>
           </section>
 
           <section className="space-y-3 border-t border-zinc-800 pt-4">
@@ -183,7 +229,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
               if (saving) return;
               setSaving(true);
               try {
-                await onConfirm({ equipment: registerEquipment ? equipment : [], photos, generateServiceOrder: generateOS });
+                await onConfirm({ equipment: registerEquipment ? equipment : [], photos, generateServiceOrder: generateOS, installationWarranty });
               } finally {
                 setSaving(false);
               }

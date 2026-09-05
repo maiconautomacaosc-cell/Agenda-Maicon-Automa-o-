@@ -516,6 +516,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between gap-3"><span className="text-zinc-500">OS</span><span className="text-amber-300 font-mono font-bold">{appointment.serviceOrder || 'Não gerada'}</span></div>
                     <div className="flex justify-between gap-3"><span className="text-zinc-500">Equipamentos</span><span className="text-zinc-200 font-bold">{appointment.equipment?.length || 0}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-zinc-500">Garantia instalação</span><span className="text-zinc-200 font-bold text-right">{appointment.installationWarranty || 'Não informada'}</span></div>
                   </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
@@ -543,6 +544,10 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                       </div>
                       {item.model && <div className="text-xs text-zinc-300 mt-2"><span className="text-zinc-500">Modelo / local:</span> {item.model}</div>}
                       {item.manufacturerSerialNumber && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Série original:</span> <span className="font-mono">{item.manufacturerSerialNumber}</span></div>}
+                      {item.productSupplyType && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Fornecimento:</span> {item.productSupplyType}</div>}
+                      {item.productWarranty && item.productSupplyType === 'Produto vendido' && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Garantia produto:</span> {item.productWarranty}</div>}
+                      {item.supplier && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Fornecedor:</span> {item.supplier}</div>}
+                      {item.invoiceProof && <div className="text-xs text-zinc-300 mt-1 break-all"><span className="text-zinc-500">NF / comprovante:</span> {item.invoiceProof}</div>}
                       {item.description && <div className="text-xs text-zinc-400 mt-1 whitespace-pre-wrap">{item.description}</div>}
                     </div>
                   ))}
