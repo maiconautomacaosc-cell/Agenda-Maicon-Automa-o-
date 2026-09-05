@@ -199,7 +199,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.8.8', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.8.9', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -312,7 +312,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '3.8.8',
+      version: '3.8.9',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -382,15 +382,6 @@ export default function App() {
   const normalizeClientName = (value?: string) =>
     (value || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ');
 
-  const normalizeClientPhone = (value?: string) => (value || '').replace(/\D/g, '');
-
-  // Telefones fictícios/placeholder nunca podem ser usados para identificar um cliente.
-  // Isso evita que um agendamento novo seja "fundido" com outro cliente por ambos estarem sem telefone.
-  const hasUsableClientPhone = (value?: string) => {
-    const digits = normalizeClientPhone(value);
-    return digits.length >= 10 && !['11999999999', '00000000000', '47000000000'].includes(digits);
-  };
-
   const upsertClientFromAppointment = (
     prev: Client[],
     appt: Appointment,
@@ -399,24 +390,14 @@ export default function App() {
     const cleanName = appt.clientName.trim();
     if (!cleanName || appt.serviceType === 'compromisso_particular') return prev;
 
-    const nameKey = normalizeClientName(cleanName);
-    const phoneKey = normalizeClientPhone(appt.clientPhone);
-
-    // Só considera clientId quando ele realmente já existe no banco.
-    // Um agendamento digitado manualmente recebe um ID novo e deve virar um novo cliente.
-    let existingIndex = appt.clientId
+    // REGRA DE IDENTIDADE DO CLIENTE:
+    // somente o ID interno identifica um cadastro já existente.
+    // Telefone NÃO é chave e nomes iguais também podem pertencer a pessoas diferentes.
+    // Quando o cliente é digitado diretamente no agendamento, o modal gera um novo clientId,
+    // portanto nasce um cadastro novo sem herdar MA, OS, valores ou histórico de outro cliente.
+    const existingIndex = appt.clientId
       ? prev.findIndex(c => c.id === appt.clientId)
       : -1;
-
-    if (existingIndex < 0 && hasUsableClientPhone(appt.clientPhone)) {
-      existingIndex = prev.findIndex(c =>
-        hasUsableClientPhone(c.phone) && normalizeClientPhone(c.phone) === phoneKey
-      );
-    }
-
-    if (existingIndex < 0) {
-      existingIndex = prev.findIndex(c => normalizeClientName(c.name) === nameKey);
-    }
 
     if (existingIndex >= 0) {
       const current = prev[existingIndex];
@@ -428,8 +409,10 @@ export default function App() {
         address: appt.address || current.address,
         neighborhood: appt.neighborhood || current.neighborhood,
         city: appt.city || current.city || 'Joinville',
-        serialNumber: appt.serialNumber || current.serialNumber,
-        serviceOrder: appt.serviceOrder || current.serviceOrder,
+        // MA/OS só entram por conclusão/extra. Um simples agendamento nunca puxa
+        // identificação técnica de outro atendimento.
+        serialNumber: extra?.serialNumber || current.serialNumber,
+        serviceOrder: extra?.serviceOrder || current.serviceOrder,
         ...extra,
       };
       const next = [...prev];
@@ -444,8 +427,8 @@ export default function App() {
       address: appt.address || 'A combinar',
       neighborhood: appt.neighborhood,
       city: appt.city || 'Joinville',
-      serialNumber: appt.serialNumber,
-      serviceOrder: appt.serviceOrder,
+      // Cadastro criado pelo agendamento começa limpo: sem MA e sem OS.
+      // Esses campos só são adicionados depois, se o atendimento for concluído gerando números.
       notes: `Criado automaticamente pelo agendamento: ${appt.serviceTypeName || 'Atendimento técnico'}.`,
       createdAt: new Date().toISOString(),
       ...extra,
@@ -852,9 +835,11 @@ export default function App() {
     // Auto-create client if requested
     if (saveClientToDb && quote.clientName) {
       setClients((prev) => {
-        const existing = prev.find(
-          (c) => c.name.toLowerCase() === quote.clientName.toLowerCase() || c.phone === quote.clientPhone
-        );
+        // Telefone nunca identifica cliente. Prioriza ID selecionado e, em orçamento digitado
+        // sem seleção, usa apenas nome exato como prevenção simples de duplicidade.
+        const existing = quote.clientId
+          ? prev.find((c) => c.id === quote.clientId)
+          : prev.find((c) => normalizeClientName(c.name) === normalizeClientName(quote.clientName));
         if (!existing) {
           const newClient: Client = {
             id: quote.clientId || `cli-${Date.now()}`,
