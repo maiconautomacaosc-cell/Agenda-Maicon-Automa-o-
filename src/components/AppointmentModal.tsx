@@ -68,6 +68,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [clientPhone, setClientPhone] = useState('');
   const [address, setAddress] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('Joinville');
   const [date, setDate] = useState(initialDate || getTodayString());
   const [startTime, setStartTime] = useState('09:00');
   const [durationMinutes, setDurationMinutes] = useState(90);
@@ -89,6 +90,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setClientPhone(initialAppointment.clientPhone);
       setAddress(initialAppointment.address);
       setNeighborhood(initialAppointment.neighborhood || '');
+      setCity(initialAppointment.city || 'Joinville');
       setDate(initialAppointment.date);
       setStartTime(initialAppointment.startTime);
       setDurationMinutes(initialAppointment.durationMinutes || 90);
@@ -120,6 +122,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         setClientPhone('');
         setAddress('');
         setNeighborhood('');
+        setCity('Joinville');
         setStartTime('09:00');
         setDurationMinutes(90);
         setIsAllDayBlocked(false);
@@ -150,6 +153,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     setClientPhone(c.phone);
     setAddress(c.address);
     if (c.neighborhood) setNeighborhood(c.neighborhood);
+    setCity(c.city || 'Joinville');
     setShowClientSuggestions(false);
   };
 
@@ -245,6 +249,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       clientPhone: clientPhone.trim() || (isParticular ? 'Particular' : ''),
       address: address.trim() || (isParticular ? 'Compromisso Particular' : 'A combinar'),
       neighborhood: neighborhood.trim(),
+      city: city.trim() || 'Joinville',
       date,
       startTime,
       endTime: calculateEndTime(),
@@ -493,7 +498,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
             {!isParticular && (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
                       <Phone className="w-3 h-3 text-zinc-400" />
@@ -505,7 +510,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                       required
                       value={clientPhone}
                       onChange={(e) => handlePhoneChange(e.target.value)}
-                      placeholder="(11) 98765-4321"
+                      placeholder="(47) 99999-9999"
                       className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
                     />
                   </div>
@@ -513,14 +518,29 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   <div>
                     <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-zinc-400" />
-                      Bairro / Cidade
+                      Bairro
                     </label>
                     <input
                       id="input-neighborhood"
                       type="text"
                       value={neighborhood}
                       onChange={(e) => setNeighborhood(e.target.value)}
-                      placeholder="Ex: Moema, São Paulo"
+                      placeholder="Ex: Costa e Silva"
+                      className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-cyan-400" />
+                      Cidade
+                    </label>
+                    <input
+                      id="input-city"
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Ex: Joinville"
                       className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
