@@ -91,9 +91,17 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 bg-black/85 backdrop-blur-sm overflow-y-auto">
-      <div className="w-full max-w-lg rounded-3xl bg-zinc-900 border border-zinc-700 shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-950">
+    <div
+      className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm overflow-y-auto overscroll-contain"
+      style={{
+        paddingTop: 'max(12px, env(safe-area-inset-top))',
+        paddingRight: 'max(12px, env(safe-area-inset-right))',
+        paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(12px, env(safe-area-inset-left))',
+      }}
+    >
+      <div className="w-full max-w-lg mx-auto rounded-3xl bg-zinc-900 border border-zinc-700 shadow-2xl overflow-hidden">
+        <div className="sticky top-0 z-20 flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur-md">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             <div>
@@ -101,7 +109,14 @@ export const ServiceCompletionModal: React.FC<Props> = ({
               <p className="text-xs text-zinc-400">{appointment.clientName}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl text-zinc-400 hover:bg-zinc-800"><X className="w-5 h-5" /></button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar conclusão do atendimento"
+            className="shrink-0 min-w-11 min-h-11 flex items-center justify-center rounded-xl text-zinc-300 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 active:bg-zinc-700"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-4 space-y-5">
