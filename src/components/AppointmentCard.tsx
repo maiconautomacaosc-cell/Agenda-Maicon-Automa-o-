@@ -557,7 +557,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                 </div>
               )}
 
-              {(appointment.serviceOrderPdfUrl || appointment.warrantyUrl || appointment.driveFolderUrl) && (
+              {(appointment.serviceOrderPdfUrl || appointment.warrantyUrl || appointment.driveFolderUrl || (appointment.status === 'concluido' && (appointment.serviceOrder || (appointment.equipment?.length || 0) > 0))) && (
                 <div className="space-y-2">
                   <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Documentos do atendimento</div>
                   <div className="flex flex-wrap gap-2">
@@ -581,7 +581,20 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                         <FolderOpen className="w-4 h-4" /> Pasta do cliente
                       </a>
                     )}
+                    {appointment.status === 'concluido' && onRetryMainSheetSync && (appointment.serviceOrder || (appointment.equipment?.length || 0) > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => onRetryMainSheetSync(appointment)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-blue-800 bg-blue-950/40 px-3 py-2 text-xs font-bold text-blue-300 hover:border-blue-600 transition-colors"
+                        title="Atualiza o MA/OS já existente na planilha sem gerar nova numeração"
+                      >
+                        <RefreshCw className="w-4 h-4" /> Sincronizar Planilha
+                      </button>
+                    )}
                   </div>
+                  {appointment.mainSheetSyncStatus === 'synced' && appointment.mainSheetSyncedAt && (
+                    <div className="text-[10px] text-emerald-400">Planilha sincronizada. O botão pode ser usado novamente para atualizar PDF/QR sem criar novo MA ou OS.</div>
+                  )}
                   {appointment.serviceOrderPdfError && <div className="text-xs text-rose-300">OS PDF: {appointment.serviceOrderPdfError}</div>}
                 </div>
               )}
