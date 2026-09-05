@@ -57,6 +57,7 @@ export interface Appointment {
   serialNumber?: string; // compatibilidade: primeiro MA do atendimento
   serviceOrder?: string; // uma OS por atendimento, quando solicitada
   equipment?: EquipmentRecord[]; // zero, um ou vários equipamentos no mesmo atendimento
+  reservedSerialNumbers?: string[]; // MA reservado antecipadamente para gerar/imprimir o QR antes da visita
   date: string;
   startTime: string;
   endTime?: string;
