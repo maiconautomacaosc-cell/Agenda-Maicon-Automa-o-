@@ -567,7 +567,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                       </a>
                     )}
                     {appointment.warrantyUrl && (
-                      <a href={appointment.warrantyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-xs font-bold text-emerald-300 hover:border-emerald-600">
+                      <a href={appointment.warrantyUrl} target="_self" className="inline-flex items-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-xs font-bold text-emerald-300 hover:border-emerald-600">
                         <ShieldCheck className="w-4 h-4" /> Abrir garantia
                       </a>
                     )}
