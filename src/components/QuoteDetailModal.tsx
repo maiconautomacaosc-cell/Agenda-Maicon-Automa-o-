@@ -88,7 +88,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
     const width = 1080;
     const margin = 56;
     const contentWidth = width - margin * 2;
-    const itemRowHeight = 74;
+    const itemRowHeight = 90;
     const itemsHeight = Math.max(1, quote.items.length) * itemRowHeight;
     const notesExtra = quote.notes ? 120 : 0;
     const height = 1540 + itemsHeight + notesExtra;
@@ -275,14 +275,23 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
     ctx.fillStyle = MUTED;
     ctx.font = '500 19px Arial, sans-serif';
     ctx.fillText(`Até ${formatDateBR(validUntil)}`, rx, cardY + 186);
-    label('Nº do orçamento', rx, cardY + 222);
-    value(quote.code, rx + 200, cardY + 222, 24);
+    label('Nº do orçamento', rx, cardY + 214);
+    // O código fica em uma linha própria para nunca ultrapassar a caixa.
+    ctx.fillStyle = TEXT;
+    let quoteCodeSize = 24;
+    const quoteCodeMaxWidth = rightW - 52;
+    do {
+      ctx.font = `800 ${quoteCodeSize}px Arial, sans-serif`;
+      if (ctx.measureText(quote.code).width <= quoteCodeMaxWidth) break;
+      quoteCodeSize -= 1;
+    } while (quoteCodeSize > 17);
+    ctx.fillText(quote.code, rx, cardY + 244);
 
     // Tabela
     let y = 752;
     const colItem = 78;
-    const colValue = 190;
-    const colWarranty = 190;
+    const colValue = 165;
+    const colWarranty = 240;
     fillRound(margin, y, contentWidth, 62, DARK, 18);
     ctx.fillStyle = '#ffffff';
     ctx.font = '800 21px Arial, sans-serif';
@@ -306,8 +315,15 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
       ctx.font = '600 22px Arial, sans-serif';
       wrapText(item.description, margin + colItem + 20, y + 30, contentWidth - colItem - colValue - colWarranty - 45, 26, 2);
       ctx.fillStyle = MUTED;
-      ctx.font = '600 20px Arial, sans-serif';
-      ctx.fillText(quote.warrantyInfo || '—', margin + contentWidth - colValue - colWarranty + 25, y + 43);
+      ctx.font = '600 18px Arial, sans-serif';
+      wrapText(
+        quote.warrantyInfo || '—',
+        margin + contentWidth - colValue - colWarranty + 18,
+        y + 30,
+        colWarranty - 32,
+        23,
+        2
+      );
       ctx.fillStyle = TEXT;
       ctx.textAlign = 'right';
       ctx.font = '800 22px Arial, sans-serif';
