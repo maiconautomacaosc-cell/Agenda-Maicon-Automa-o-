@@ -26,8 +26,8 @@ import {
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
-import { createDriveBackupSnapshot, saveDatabaseToGoogleDrive, uploadAppointmentPhotos } from './lib/googleDrive';
-import { getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
+import { createDriveBackupSnapshot, ensureClientDriveStructure, saveDatabaseToGoogleDrive, uploadAppointmentPhotos } from './lib/googleDrive';
+import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -200,7 +200,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.8.5', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.8.6', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -313,7 +313,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '3.8.5',
+      version: '3.8.6',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -431,8 +431,9 @@ export default function App() {
         });
     }
 
-    // Auto-create / update client if requested
-    if (saveClientToDb && appt.clientName) {
+    // Todo agendamento técnico com cliente é registrado/atualizado automaticamente.
+    // O botão 'Cadastrar Novo Cliente' continua existindo para cadastros avulsos.
+    if (appt.serviceType !== 'compromisso_particular' && appt.clientName) {
       setClients((prev) => {
         const existingIndex = prev.findIndex(
           (c) => (appt.clientId && c.id === appt.clientId) || c.name.toLowerCase() === appt.clientName.toLowerCase() || c.phone === appt.clientPhone
@@ -611,7 +612,32 @@ export default function App() {
       ? `OS-${String(nextOS).padStart(6, '0')}`
       : completionAppointment.serviceOrder;
 
-    // Fotos são opcionais. Quando selecionadas, sobem para uma pasta própria no Google Drive.
+    // Prepara a pasta do cliente no Drive. A raiz vem de PASTA_CLIENTES na aba CONFIGURAÇÕES.
+    // A mesma pasta é reaproveitada em atendimentos futuros do mesmo cliente.
+    let driveFolderId = completionAppointment.driveFolderId;
+    let driveFolderUrl = completionAppointment.driveFolderUrl;
+    let driveFolderError: string | undefined;
+    let photosAfterFolderId: string | undefined;
+    if (tokenToUse && spreadsheetId && completionAppointment.clientName) {
+      try {
+        const rootFolderId = await getClientsRootFolderId(tokenToUse, spreadsheetId);
+        const reference = equipment[0]?.serialNumber || serviceOrder || 'CLIENTE';
+        const driveStructure = await ensureClientDriveStructure(
+          tokenToUse,
+          rootFolderId,
+          completionAppointment.clientName,
+          reference
+        );
+        driveFolderId = driveStructure.folderId;
+        driveFolderUrl = driveStructure.folderUrl;
+        photosAfterFolderId = driveStructure.subfolders['04 - Fotos Depois'];
+      } catch (err: any) {
+        driveFolderError = err?.message || 'Falha ao criar/localizar pasta do cliente no Drive';
+        console.warn('Pasta do cliente no Drive pendente:', err);
+      }
+    }
+
+    // Fotos são opcionais. Preferencialmente são salvas em 04 - Fotos Depois dentro da pasta do cliente.
     // Se o upload falhar, o atendimento continua sendo concluído normalmente e o erro fica registrado.
     let uploadedPhotoUrls: string[] = [];
     let photoUploadError: string | undefined;
@@ -623,7 +649,8 @@ export default function App() {
           uploadedPhotoUrls = await uploadAppointmentPhotos(
             options.photos,
             tokenToUse,
-            serviceOrder || completionAppointment.id
+            serviceOrder || completionAppointment.id,
+            photosAfterFolderId
           );
           if (uploadedPhotoUrls.length) {
             equipment = equipment.map(eq => ({ ...eq, photoUrls: uploadedPhotoUrls }));
@@ -643,6 +670,9 @@ export default function App() {
       serviceOrder,
       photoUrls: uploadedPhotoUrls.length ? uploadedPhotoUrls : completionAppointment.photoUrls,
       photoUploadError,
+      driveFolderId,
+      driveFolderUrl,
+      driveFolderError,
       mainSheetSyncStatus: (equipment.length || serviceOrder) ? 'pending' : undefined,
       updatedAt: now,
     };
@@ -680,6 +710,8 @@ export default function App() {
             serialNumber: equipment[0]?.serialNumber,
             serviceOrder,
             notes: `Criado na conclusão do atendimento: ${updated.serviceTypeName}.`,
+            driveFolderId: updated.driveFolderId,
+            driveFolderUrl: updated.driveFolderUrl,
             createdAt: now,
           };
           return [created, ...prev];
@@ -690,6 +722,8 @@ export default function App() {
           equipment: [...(existing.equipment || []), ...equipment],
           serialNumber: equipment[0]?.serialNumber || existing.serialNumber,
           serviceOrder: serviceOrder || existing.serviceOrder,
+          driveFolderId: updated.driveFolderId || existing.driveFolderId,
+          driveFolderUrl: updated.driveFolderUrl || existing.driveFolderUrl,
         };
         const list = [...prev];
         list[idx] = merged;
@@ -714,13 +748,14 @@ export default function App() {
     setCompletionAppointment(null);
 
     const photoText = uploadedPhotoUrls.length ? ` • ${uploadedPhotoUrls.length} foto(s) no Drive` : (photoUploadError ? ' • Fotos pendentes' : '');
+    const folderText = updated.driveFolderUrl ? ' • Pasta do cliente criada' : (updated.driveFolderError ? ' • Pasta do Drive pendente' : '');
     const sheetText = updated.mainSheetSyncStatus === 'synced'
       ? ' • Planilha atualizada'
       : (updated.mainSheetSyncStatus === 'pending' || updated.mainSheetSyncStatus === 'error')
         ? ' • Planilha pendente — use Reenviar Planilha'
         : '';
     showGoogleNotification(equipment.length || options.generateServiceOrder
-      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${photoText}${sheetText}`
+      ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${photoText}${folderText}${sheetText}`
       : '✅ Serviço simples concluído sem MA e sem OS.');
   };
 

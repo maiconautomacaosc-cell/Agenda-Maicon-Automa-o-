@@ -34,6 +34,8 @@ export interface Client {
   serviceOrder?: string; // compatibilidade: OS mais recente
   equipment?: EquipmentRecord[];
   notes?: string;
+  driveFolderId?: string;
+  driveFolderUrl?: string;
   createdAt: string;
 }
 
@@ -63,6 +65,9 @@ export interface Appointment {
   notes?: string;
   photoUrls?: string[]; // fotos gerais registradas na finalização do atendimento
   photoUploadError?: string;
+  driveFolderId?: string;
+  driveFolderUrl?: string;
+  driveFolderError?: string;
   reminderMinutesBefore: number;
   alarmDismissed?: boolean;
   googleEventId?: string;
