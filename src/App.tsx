@@ -199,7 +199,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.8.6', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.8.8', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -312,7 +312,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '3.8.6',
+      version: '3.8.8',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -379,6 +379,80 @@ export default function App() {
     setIsAppointmentModalOpen(true);
   };
 
+  const normalizeClientName = (value?: string) =>
+    (value || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ');
+
+  const normalizeClientPhone = (value?: string) => (value || '').replace(/\D/g, '');
+
+  // Telefones fictícios/placeholder nunca podem ser usados para identificar um cliente.
+  // Isso evita que um agendamento novo seja "fundido" com outro cliente por ambos estarem sem telefone.
+  const hasUsableClientPhone = (value?: string) => {
+    const digits = normalizeClientPhone(value);
+    return digits.length >= 10 && !['11999999999', '00000000000', '47000000000'].includes(digits);
+  };
+
+  const upsertClientFromAppointment = (
+    prev: Client[],
+    appt: Appointment,
+    extra?: Partial<Client>
+  ): Client[] => {
+    const cleanName = appt.clientName.trim();
+    if (!cleanName || appt.serviceType === 'compromisso_particular') return prev;
+
+    const nameKey = normalizeClientName(cleanName);
+    const phoneKey = normalizeClientPhone(appt.clientPhone);
+
+    // Só considera clientId quando ele realmente já existe no banco.
+    // Um agendamento digitado manualmente recebe um ID novo e deve virar um novo cliente.
+    let existingIndex = appt.clientId
+      ? prev.findIndex(c => c.id === appt.clientId)
+      : -1;
+
+    if (existingIndex < 0 && hasUsableClientPhone(appt.clientPhone)) {
+      existingIndex = prev.findIndex(c =>
+        hasUsableClientPhone(c.phone) && normalizeClientPhone(c.phone) === phoneKey
+      );
+    }
+
+    if (existingIndex < 0) {
+      existingIndex = prev.findIndex(c => normalizeClientName(c.name) === nameKey);
+    }
+
+    if (existingIndex >= 0) {
+      const current = prev[existingIndex];
+      const merged: Client = {
+        ...current,
+        // Se o agendamento foi feito para um cliente já existente, mantém o ID do cadastro.
+        name: cleanName || current.name,
+        phone: appt.clientPhone.trim() || current.phone,
+        address: appt.address || current.address,
+        neighborhood: appt.neighborhood || current.neighborhood,
+        city: appt.city || current.city || 'Joinville',
+        serialNumber: appt.serialNumber || current.serialNumber,
+        serviceOrder: appt.serviceOrder || current.serviceOrder,
+        ...extra,
+      };
+      const next = [...prev];
+      next[existingIndex] = merged;
+      return next;
+    }
+
+    const created: Client = {
+      id: appt.clientId || `cli-${Date.now()}`,
+      name: cleanName,
+      phone: appt.clientPhone.trim(),
+      address: appt.address || 'A combinar',
+      neighborhood: appt.neighborhood,
+      city: appt.city || 'Joinville',
+      serialNumber: appt.serialNumber,
+      serviceOrder: appt.serviceOrder,
+      notes: `Criado automaticamente pelo agendamento: ${appt.serviceTypeName || 'Atendimento técnico'}.`,
+      createdAt: new Date().toISOString(),
+      ...extra,
+    };
+    return [created, ...prev];
+  };
+
   const handleSaveAppointment = (appt: Appointment, _saveClientToDb: boolean) => {
     const previous = appointments.find(a => a.id === appt.id);
     const justCompleted = appt.serviceType !== 'compromisso_particular' && appt.status === 'concluido' && previous?.status !== 'concluido';
@@ -429,40 +503,11 @@ export default function App() {
         });
     }
 
-    // Todo agendamento técnico com cliente é registrado/atualizado automaticamente.
-    // O botão 'Cadastrar Novo Cliente' continua existindo para cadastros avulsos.
-    if (appt.serviceType !== 'compromisso_particular' && appt.clientName) {
+    // Todo agendamento técnico digitado diretamente também entra no Banco de Clientes.
+    if (appt.serviceType !== 'compromisso_particular' && appt.clientName.trim()) {
       setClients((prev) => {
-        const existingIndex = prev.findIndex(
-          (c) => (appt.clientId && c.id === appt.clientId) || c.name.toLowerCase() === appt.clientName.toLowerCase() || c.phone === appt.clientPhone
-        );
-        if (existingIndex >= 0) {
-          const updatedClient: Client = {
-            ...prev[existingIndex],
-            serialNumber: appt.serialNumber || prev[existingIndex].serialNumber,
-            serviceOrder: appt.serviceOrder || prev[existingIndex].serviceOrder,
-            address: appt.address || prev[existingIndex].address,
-            neighborhood: appt.neighborhood || prev[existingIndex].neighborhood,
-          };
-          const updatedList = [...prev];
-          updatedList[existingIndex] = updatedClient;
-          saveClients(updatedList);
-          return updatedList;
-        }
-
-        const newClient: Client = {
-          id: appt.clientId || `cli-${Date.now()}`,
-          name: appt.clientName,
-          phone: appt.clientPhone,
-          address: appt.address,
-          neighborhood: appt.neighborhood,
-          city: appt.city || 'Joinville',
-          serialNumber: appt.serialNumber,
-          serviceOrder: appt.serviceOrder,
-          notes: `Fechadura: ${appt.lockModel || 'Digital'}. Criado via agendamento.`,
-          createdAt: new Date().toISOString(),
-        };
-        const updatedList = [newClient, ...prev];
+        const updatedList = upsertClientFromAppointment(prev, appt);
+        // Grava imediatamente também no localStorage; o useEffect e a nuvem continuam como camadas extras.
         saveClients(updatedList);
         return updatedList;
       });
@@ -692,39 +737,24 @@ export default function App() {
       return next;
     });
 
-    if (updated.serviceType !== 'compromisso_particular' && updated.clientName) {
+    // Segunda garantia de cadastro: ao concluir, confirma que o cliente existe no Banco de Clientes.
+    if (updated.serviceType !== 'compromisso_particular' && updated.clientName.trim()) {
       setClients(prev => {
-        const idx = prev.findIndex(c => c.id === updated.clientId || c.phone === updated.clientPhone || c.name.toLowerCase() === updated.clientName.toLowerCase());
-        if (idx < 0) {
-          const created: Client = {
-            id: updated.clientId || `cli-${Date.now()}`,
-            name: updated.clientName,
-            phone: updated.clientPhone,
-            address: updated.address,
-            neighborhood: updated.neighborhood,
-            city: updated.city || 'Joinville',
-            equipment,
-            serialNumber: equipment[0]?.serialNumber,
-            serviceOrder,
-            notes: `Criado na conclusão do atendimento: ${updated.serviceTypeName}.`,
-            driveFolderId: updated.driveFolderId,
-            driveFolderUrl: updated.driveFolderUrl,
-            createdAt: now,
-          };
-          return [created, ...prev];
-        }
-        const existing = prev[idx];
-        const merged = {
-          ...existing,
-          equipment: [...(existing.equipment || []), ...equipment],
-          serialNumber: equipment[0]?.serialNumber || existing.serialNumber,
-          serviceOrder: serviceOrder || existing.serviceOrder,
-          driveFolderId: updated.driveFolderId || existing.driveFolderId,
-          driveFolderUrl: updated.driveFolderUrl || existing.driveFolderUrl,
-        };
-        const list = [...prev];
-        list[idx] = merged;
-        return list;
+        const currentById = prev.find(c => c.id === updated.clientId);
+        const previousEquipment = currentById?.equipment || [];
+        const equipmentBySerial = new Map(previousEquipment.map(eq => [eq.serialNumber, eq]));
+        for (const eq of equipment) equipmentBySerial.set(eq.serialNumber, eq);
+
+        const next = upsertClientFromAppointment(prev, updated, {
+          equipment: Array.from(equipmentBySerial.values()),
+          serialNumber: equipment[0]?.serialNumber || updated.serialNumber,
+          serviceOrder: serviceOrder || updated.serviceOrder,
+          driveFolderId: updated.driveFolderId,
+          driveFolderUrl: updated.driveFolderUrl,
+          notes: `Cadastro confirmado na conclusão: ${updated.serviceTypeName}.`,
+        });
+        saveClients(next);
+        return next;
       });
     }
 
