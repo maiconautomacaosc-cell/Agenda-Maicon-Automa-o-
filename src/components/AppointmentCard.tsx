@@ -27,7 +27,8 @@ import {
   X,
   User,
   Wrench,
-  RefreshCw
+  RefreshCw,
+  FolderOpen
 } from 'lucide-react';
 import { Appointment, AppointmentStatus } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
@@ -545,6 +546,15 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                       {item.description && <div className="text-xs text-zinc-400 mt-1 whitespace-pre-wrap">{item.description}</div>}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {appointment.driveFolderUrl && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Pasta do cliente</div>
+                  <a href={appointment.driveFolderUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-amber-300 hover:border-amber-700">
+                    <FolderOpen className="w-4 h-4" /> Abrir pasta no Google Drive
+                  </a>
                 </div>
               )}
 
