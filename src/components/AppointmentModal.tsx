@@ -242,7 +242,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       id: initialAppointment ? initialAppointment.id : `appt-${Date.now()}`,
       clientId: selectedClientId || (isParticular ? 'cli-particular' : `cli-${Date.now()}`),
       clientName: clientName.trim(),
-      clientPhone: clientPhone.trim() || (isParticular ? 'Particular' : '(11) 99999-9999'),
+      clientPhone: clientPhone.trim() || (isParticular ? 'Particular' : ''),
       address: address.trim() || (isParticular ? 'Compromisso Particular' : 'A combinar'),
       neighborhood: neighborhood.trim(),
       date,
