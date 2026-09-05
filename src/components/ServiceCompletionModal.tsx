@@ -62,26 +62,35 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   const [installationWarranty, setInstallationWarranty] = useState<WarrantyPeriod>('3 Meses');
   const [photos, setPhotos] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const reservedSerialNumbers = appointment?.reservedSerialNumbers || [];
+  const reservedCount = reservedSerialNumbers.length;
 
   useEffect(() => {
     if (!isOpen) return;
-    setRegisterEquipment(false);
+    const reserved = appointment?.reservedSerialNumbers || [];
+    setRegisterEquipment(reserved.length > 0);
     // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
     setGenerateOS(true);
-    setEquipment([]);
+    const firstType = (appointment?.serviceTypes || [appointment?.serviceType]).find(t => t && t !== 'compromisso_particular') as ServiceType | undefined;
+    setEquipment(reserved.map(() => ({ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente' as ProductSupplyType, supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' as WarrantyPeriod })));
     setInstallationWarranty('3 Meses');
     setPhotos([]);
     setSaving(false);
   }, [isOpen, appointment?.id]);
 
   const previews = useMemo(
-    () => equipment.map((_, i) => nextSerialStart != null ? fmtMA(nextSerialStart + i) : ''),
-    [equipment, nextSerialStart]
+    () => equipment.map((_, i) => {
+      if (i < reservedSerialNumbers.length) return reservedSerialNumbers[i];
+      const extraIndex = i - reservedSerialNumbers.length;
+      return nextSerialStart != null ? fmtMA(nextSerialStart + extraIndex) : '';
+    }),
+    [equipment, nextSerialStart, reservedSerialNumbers.join('|')]
   );
 
   if (!isOpen || !appointment) return null;
 
   const toggleEquipment = (value: boolean) => {
+    if (!value && reservedCount > 0) return;
     setRegisterEquipment(value);
     if (value && equipment.length === 0) {
       const firstType = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular');
@@ -123,9 +132,15 @@ export const ServiceCompletionModal: React.FC<Props> = ({
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-bold text-white"><KeyRound className="w-4 h-4 text-cyan-400" />Cadastrar equipamento?</div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => toggleEquipment(false)} className={`py-3 rounded-xl border text-sm font-bold ${!registerEquipment ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>Não</button>
+              <button type="button" disabled={reservedCount > 0} onClick={() => toggleEquipment(false)} className={`py-3 rounded-xl border text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed ${!registerEquipment ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>Não</button>
               <button type="button" onClick={() => toggleEquipment(true)} className={`py-3 rounded-xl border text-sm font-bold ${registerEquipment ? 'bg-cyan-500 border-cyan-400 text-black' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}>Sim</button>
             </div>
+
+            {reservedCount > 0 && (
+              <div className="rounded-xl border border-cyan-800/60 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
+                {reservedCount === 1 ? 'Este atendimento já possui 1 MA reservado. Ele será reutilizado na conclusão, sem gerar outro número.' : `Este atendimento já possui ${reservedCount} MAs reservados. Eles serão reutilizados na conclusão, sem gerar outros números.`}
+              </div>
+            )}
 
             {registerEquipment && (
               <div className="space-y-2">
@@ -134,9 +149,9 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="font-mono text-sm font-bold text-cyan-300">{previews[i] || (numberingLoading ? 'consultando...' : 'indisponível')}</span>
-                        <span className="ml-2 text-[10px] text-zinc-500">automático</span>
+                        <span className="ml-2 text-[10px] text-zinc-500">{i < reservedCount ? 'MA reservado' : 'automático'}</span>
                       </div>
-                      {equipment.length > 1 && <button type="button" onClick={() => setEquipment(prev => prev.filter((_, j) => j !== i))} className="text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>}
+                      {equipment.length > 1 && i >= reservedCount && <button type="button" onClick={() => setEquipment(prev => prev.filter((_, j) => j !== i))} className="text-rose-400 p-1"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                     <select
                       value={item.serviceType || ''}
