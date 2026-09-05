@@ -76,6 +76,9 @@ export interface Appointment {
   driveFolderId?: string;
   driveFolderUrl?: string;
   driveFolderError?: string;
+  serviceOrderPdfUrl?: string;
+  serviceOrderPdfError?: string;
+  warrantyUrl?: string;
   reminderMinutesBefore: number;
   alarmDismissed?: boolean;
   googleEventId?: string;
