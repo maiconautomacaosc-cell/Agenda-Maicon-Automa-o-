@@ -340,6 +340,13 @@ function paymentLabel(value?: Appointment['paymentMethod']) {
   return value ? (labels[value] || value) : '';
 }
 
+function qrImageFormula(warrantyUrl?: string) {
+  const url = String(warrantyUrl || '').trim();
+  if (!url) return '';
+  const qrUrl = `https://quickchart.io/qr?size=300&text=${encodeURIComponent(url)}`;
+  return `=IMAGE("${qrUrl}")`;
+}
+
 /**
  * Grava um atendimento concluído nas abas oficiais CLIENTES e O.S.
  * É idempotente: antes de inserir, confere os MA/OS já existentes para não duplicar.
@@ -400,16 +407,22 @@ export async function syncCompletedAppointmentToMainSheets(
         appointment.installationWarranty || '',
         '',
         'Ativa',
-        '',
+        appointment.serviceOrderPdfUrl || '',
         [eq.description, appointment.notes].filter(Boolean).join(' | '),
         (eq.photoUrls || appointment.photoUrls || []).join(' | '),
         eq.productSupplyType || '',
         eq.supplier || '',
         eq.invoiceProof || '',
         eq.productWarranty || '',
-        '',
+        qrImageFormula(appointment.warrantyUrl),
       ],
     }));
+
+  const rowByMA = new Map<string, number>();
+  clientRows.forEach((r, index) => {
+    const ma = String(r[0] || '').trim();
+    if (ma) rowByMA.set(ma, index + 2);
+  });
 
   if (clientAppendItems.length) {
     try {
@@ -425,12 +438,32 @@ export async function syncCompletedAppointmentToMainSheets(
         if (item.equipment.manufacturerSerialNumber) {
           await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${candidateRow}`), [[item.equipment.manufacturerSerialNumber]], accessToken);
         }
+        rowByMA.set(item.equipment.serialNumber, candidateRow);
         usedRows.add(candidateRow);
         candidateRow++;
       }
     } catch (err) {
       syncStageError('Gravação na aba CLIENTES', err);
     }
+  }
+
+  // M (PDF OS) e T (QR Code) também são atualizados em registros que já existiam.
+  // Isso permite corrigir um atendimento anterior usando apenas "Reenviar Planilha", sem duplicar MA/OS.
+  try {
+    for (const eq of equipment) {
+      const ma = String(eq.serialNumber || '').trim();
+      const targetRow = rowByMA.get(ma);
+      if (!ma || !targetRow) continue;
+      if (appointment.serviceOrderPdfUrl) {
+        await updateValues(spreadsheetId, sheetRange(tabs.clients, `M${targetRow}`), [[appointment.serviceOrderPdfUrl]], accessToken);
+      }
+      const qrFormula = qrImageFormula(appointment.warrantyUrl);
+      if (qrFormula) {
+        await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[qrFormula]], accessToken);
+      }
+    }
+  } catch (err) {
+    syncStageError('Atualização dos links PDF/QR na aba CLIENTES', err);
   }
 
   if (appointment.serviceOrder && !existingOS.has(appointment.serviceOrder)) {
