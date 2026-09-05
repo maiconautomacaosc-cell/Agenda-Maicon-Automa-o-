@@ -27,7 +27,7 @@ import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { createDriveBackupSnapshot, ensureClientDriveStructure, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
-import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
+import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -624,9 +624,11 @@ export default function App() {
       }
     }
 
+    const reservedSerialNumbers = completionAppointment.reservedSerialNumbers || [];
+    let extraMaIndex = 0;
     let equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
-      serialNumber: `MA-${String(nextMA + index).padStart(6, '0')}`,
+      serialNumber: reservedSerialNumbers[index] || `MA-${String(nextMA + extraMaIndex++).padStart(6, '0')}`,
       serviceType: eq.serviceType,
       serviceTypeName: eq.serviceTypeName,
       model: eq.model?.trim() || undefined,
@@ -776,7 +778,7 @@ export default function App() {
       setSettings(prev => ({
         ...prev,
         lastSerialSequence: equipment.length
-          ? Math.max(prev.lastSerialSequence || 0, nextMA + equipment.length - 1)
+          ? Math.max(prev.lastSerialSequence || 0, ...equipment.map(eq => extractSequence(eq.serialNumber)))
           : (prev.lastSerialSequence || 0),
         lastServiceOrderSequence: options.generateServiceOrder
           ? Math.max(prev.lastServiceOrderSequence || 0, nextOS)
@@ -797,6 +799,50 @@ export default function App() {
     showGoogleNotification(equipment.length || options.generateServiceOrder
       ? `✅ Serviço concluído${equipment.length ? ` • ${equipment.length} MA gerado(s)` : ''}${options.generateServiceOrder ? ` • ${serviceOrder}` : ''}${photoText}${folderText}${sheetText}`
       : '✅ Serviço simples concluído sem MA e sem OS.');
+  };
+
+  const handleReserveMaForAppointment = async (appt: Appointment) => {
+    if (appt.status === 'concluido' || appt.status === 'cancelado' || appt.serviceType === 'compromisso_particular') return;
+
+    const spreadsheetId = getSpreadsheetId();
+    if (!spreadsheetId) {
+      showGoogleNotification('❌ Configure a planilha em Nuvem antes de reservar o MA.');
+      return;
+    }
+
+    let tokenToUse = googleAccessToken || getCachedAccessToken();
+    tokenToUse = await ensureValidAccessToken().catch(() => tokenToUse);
+    if (!tokenToUse) {
+      showGoogleNotification('❌ Conecte sua conta Google em Nuvem antes de reservar o MA.');
+      return;
+    }
+
+    showGoogleNotification('⏳ Reservando próximo MA oficial...');
+    try {
+      const reserved = await reserveSerialNumberForAppointment(appt, tokenToUse, spreadsheetId);
+      const now = new Date().toISOString();
+      const nextAppointment: Appointment = {
+        ...appt,
+        reservedSerialNumbers: [...(appt.reservedSerialNumbers || []), reserved.serialNumber],
+        warrantyUrl: reserved.warrantyUrl,
+        updatedAt: now,
+      };
+
+      setAppointments(prev => {
+        const next = prev.map(a => a.id === appt.id ? nextAppointment : a);
+        backupAgendaMutation(next, 'ma-reservado-antes-visita');
+        return next;
+      });
+      setSettings(prev => ({
+        ...prev,
+        lastSerialSequence: Math.max(prev.lastSerialSequence || 0, extractSequence(reserved.serialNumber)),
+      }));
+
+      showGoogleNotification(`✅ ${reserved.serialNumber} reservado. QR Code já está pronto para imprimir.`);
+    } catch (err: any) {
+      console.warn('Falha ao reservar MA:', err);
+      showGoogleNotification(`❌ Não foi possível reservar o MA: ${err?.message || 'falha de gravação na planilha'}`);
+    }
   };
 
   const handleRetryMainSheetSync = async (appt: Appointment) => {
@@ -1071,6 +1117,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onOpenWhatsApp={handleOpenWhatsApp}
             onRetryMainSheetSync={handleRetryMainSheetSync}
+            onReserveMa={handleReserveMaForAppointment}
             onBlockDay={handleBlockDay}
           />
         )}
@@ -1086,6 +1133,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onOpenWhatsApp={handleOpenWhatsApp}
             onRetryMainSheetSync={handleRetryMainSheetSync}
+            onReserveMa={handleReserveMaForAppointment}
           />
         )}
 
