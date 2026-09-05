@@ -26,7 +26,7 @@ import {
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
-import { createDriveBackupSnapshot, ensureClientDriveStructure, saveDatabaseToGoogleDrive, uploadAppointmentPhotos } from './lib/googleDrive';
+import { createDriveBackupSnapshot, ensureClientDriveStructure, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
 import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
@@ -46,6 +46,7 @@ import { BrandInfoModal } from './components/BrandInfoModal';
 import { AppSplashScreen } from './components/AppSplashScreen';
 import { CloudSyncModal } from './components/CloudSyncModal';
 import { CompletionOptions, ServiceCompletionModal } from './components/ServiceCompletionModal';
+import { buildWarrantyUrl, generateServiceOrderPdfBlob } from './lib/serviceOrderPdf';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<ViewTab>('agenda');
@@ -199,7 +200,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.9.4', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.9.5', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -312,7 +313,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '3.9.4',
+      version: '3.9.5',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -647,6 +648,7 @@ export default function App() {
     let driveFolderUrl = completionAppointment.driveFolderUrl;
     let driveFolderError: string | undefined;
     let photosAfterFolderId: string | undefined;
+    let serviceOrderFolderId: string | undefined;
     if (tokenToUse && spreadsheetId && completionAppointment.clientName) {
       try {
         const rootFolderId = await getClientsRootFolderId(tokenToUse, spreadsheetId);
@@ -660,6 +662,7 @@ export default function App() {
         driveFolderId = driveStructure.folderId;
         driveFolderUrl = driveStructure.folderUrl;
         photosAfterFolderId = driveStructure.subfolders['04 - Fotos Depois'];
+        serviceOrderFolderId = driveStructure.subfolders['01 - Ordem de Serviço'];
       } catch (err: any) {
         driveFolderError = err?.message || 'Falha ao criar/localizar pasta do cliente no Drive';
         console.warn('Pasta do cliente no Drive pendente:', err);
@@ -703,9 +706,31 @@ export default function App() {
       driveFolderId,
       driveFolderUrl,
       driveFolderError,
+      warrantyUrl: buildWarrantyUrl(completionAppointment.serialNumber || equipment[0]?.serialNumber),
       mainSheetSyncStatus: (equipment.length || serviceOrder) ? 'pending' : undefined,
       updatedAt: now,
     };
+
+    // Gera a OS em PDF automaticamente e salva na pasta 01 - Ordem de Serviço.
+    // A falha do PDF não impede a conclusão nem a gravação na planilha.
+    if (serviceOrder && tokenToUse && serviceOrderFolderId) {
+      try {
+        const pdfBlob = await generateServiceOrderPdfBlob(updated);
+        const safeOS = serviceOrder.replace(/[^a-zA-Z0-9_-]+/g, '_');
+        const safeClient = updated.clientName.replace(/[\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+        const uploadedPdf = await uploadBlobToDriveFolder(
+          pdfBlob,
+          `${safeOS} - ${safeClient}.pdf`,
+          serviceOrderFolderId,
+          tokenToUse,
+          `Ordem de Serviço ${serviceOrder} - Maicon Automação`
+        );
+        updated = { ...updated, serviceOrderPdfUrl: uploadedPdf.url, serviceOrderPdfError: undefined };
+      } catch (err: any) {
+        console.warn('Falha ao gerar OS PDF:', err);
+        updated = { ...updated, serviceOrderPdfError: err?.message || 'Falha ao gerar a OS em PDF' };
+      }
+    }
 
     // Grava imediatamente nas abas oficiais CLIENTES e O.S quando houver conexão.
     if ((equipment.length || serviceOrder) && tokenToUse && spreadsheetId) {
