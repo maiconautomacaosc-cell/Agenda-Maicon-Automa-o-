@@ -36,6 +36,7 @@ import {
 import { Appointment, AppointmentStatus } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { getGoogleCalendarUrl, downloadNativeCalendarIcs } from '../utils/calendarSync';
+import { buildWarrantyUrl } from '../lib/serviceOrderPdf';
 import confetti from 'canvas-confetti';
 
 interface AppointmentCardProps {
@@ -45,6 +46,7 @@ interface AppointmentCardProps {
   onStatusChange: (id: string, newStatus: AppointmentStatus) => void;
   onOpenWhatsApp: (appt: Appointment) => void;
   onRetryMainSheetSync?: (appt: Appointment) => void;
+  onReserveMa?: (appt: Appointment) => void | Promise<void>;
   onTriggerAlarmTest?: (appt: Appointment) => void;
 }
 
@@ -55,9 +57,11 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onStatusChange,
   onOpenWhatsApp,
   onRetryMainSheetSync,
+  onReserveMa,
 }) => {
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [reservingMa, setReservingMa] = useState(false);
 
   const isParticular = appointment.serviceType === 'compromisso_particular';
 
@@ -237,6 +241,51 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             <div className="flex-1 min-w-0">
               <span className="line-clamp-2">{appointment.address}</span>
             </div>
+          </div>
+        )}
+
+        {!isParticular && appointment.status !== 'concluido' && appointment.status !== 'cancelado' && onReserveMa && (
+          <div className="rounded-xl border border-cyan-800/60 bg-cyan-950/20 p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-bold text-cyan-300">QR de garantia antes da visita</div>
+                <div className="text-[10px] text-zinc-500">Reserva o MA oficial agora para você imprimir o adesivo antes de concluir o serviço.</div>
+              </div>
+              <button
+                type="button"
+                disabled={reservingMa}
+                onClick={async () => {
+                  const confirmed = window.confirm('Reservar o próximo MA oficial para este atendimento? Este número ficará consumido e não será reutilizado, mesmo se o atendimento for cancelado.');
+                  if (!confirmed) return;
+                  setReservingMa(true);
+                  try { await onReserveMa(appointment); } finally { setReservingMa(false); }
+                }}
+                className="shrink-0 rounded-lg border border-cyan-700 bg-cyan-950/60 px-2.5 py-2 text-[10px] font-bold text-cyan-200 hover:bg-cyan-900/60 disabled:opacity-50"
+              >
+                {reservingMa ? 'Reservando…' : (appointment.reservedSerialNumbers?.length ? 'Reservar outro MA' : 'Preparar QR')}
+              </button>
+            </div>
+
+            {(appointment.reservedSerialNumbers?.length || 0) > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {appointment.reservedSerialNumbers!.map(serial => {
+                  const warrantyUrl = buildWarrantyUrl(serial)!;
+                  const qrUrl = `https://quickchart.io/qr?size=420&text=${encodeURIComponent(warrantyUrl)}`;
+                  return (
+                    <div key={serial} className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-2">
+                      <img src={qrUrl} alt={`QR Code ${serial}`} className="w-20 h-20 rounded-lg bg-white p-1 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-mono text-xs font-bold text-cyan-300">{serial}</div>
+                        <div className="text-[9px] text-emerald-400 font-semibold mt-0.5">MA reservado</div>
+                        <a href={qrUrl} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-zinc-200 underline underline-offset-2">
+                          <QrCode className="w-3 h-3" /> Abrir QR grande
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -530,6 +579,28 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                   </div>
                 </div>
               </div>
+
+              {(appointment.reservedSerialNumbers?.length || 0) > 0 && appointment.status !== 'concluido' && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">MA / QR reservado antes da visita</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {appointment.reservedSerialNumbers!.map(serial => {
+                      const warrantyUrl = buildWarrantyUrl(serial)!;
+                      const qrUrl = `https://quickchart.io/qr?size=420&text=${encodeURIComponent(warrantyUrl)}`;
+                      return (
+                        <div key={serial} className="rounded-xl border border-cyan-800/50 bg-cyan-950/20 p-2.5 flex items-center gap-3">
+                          <img src={qrUrl} alt={`QR Code ${serial}`} className="w-24 h-24 rounded-lg bg-white p-1 shrink-0" />
+                          <div>
+                            <div className="font-mono text-sm font-bold text-cyan-300">{serial}</div>
+                            <div className="text-[10px] text-emerald-400 mt-1">Reservado e pronto para impressão.</div>
+                            <a href={qrUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-zinc-200 underline underline-offset-2"><QrCode className="w-3.5 h-3.5" /> Abrir QR grande</a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {appointment.equipment && appointment.equipment.length > 0 && (
                 <div className="space-y-2">
