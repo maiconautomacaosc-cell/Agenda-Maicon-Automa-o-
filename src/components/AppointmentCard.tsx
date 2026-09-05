@@ -28,7 +28,10 @@ import {
   User,
   Wrench,
   RefreshCw,
-  FolderOpen
+  FolderOpen,
+  FileText,
+  ShieldCheck,
+  QrCode
 } from 'lucide-react';
 import { Appointment, AppointmentStatus } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
@@ -554,12 +557,32 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                 </div>
               )}
 
-              {appointment.driveFolderUrl && (
+              {(appointment.serviceOrderPdfUrl || appointment.warrantyUrl || appointment.driveFolderUrl) && (
                 <div className="space-y-2">
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Pasta do cliente</div>
-                  <a href={appointment.driveFolderUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-amber-300 hover:border-amber-700">
-                    <FolderOpen className="w-4 h-4" /> Abrir pasta no Google Drive
-                  </a>
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Documentos do atendimento</div>
+                  <div className="flex flex-wrap gap-2">
+                    {appointment.serviceOrderPdfUrl && (
+                      <a href={appointment.serviceOrderPdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-cyan-800 bg-cyan-950/40 px-3 py-2 text-xs font-bold text-cyan-300 hover:border-cyan-600">
+                        <FileText className="w-4 h-4" /> Abrir OS em PDF
+                      </a>
+                    )}
+                    {appointment.warrantyUrl && (
+                      <a href={appointment.warrantyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-xs font-bold text-emerald-300 hover:border-emerald-600">
+                        <ShieldCheck className="w-4 h-4" /> Abrir garantia
+                      </a>
+                    )}
+                    {appointment.warrantyUrl && (
+                      <a href={`https://quickchart.io/qr?size=420&text=${encodeURIComponent(appointment.warrantyUrl)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-zinc-500">
+                        <QrCode className="w-4 h-4" /> Ver QR Code
+                      </a>
+                    )}
+                    {appointment.driveFolderUrl && (
+                      <a href={appointment.driveFolderUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-amber-300 hover:border-amber-700">
+                        <FolderOpen className="w-4 h-4" /> Pasta do cliente
+                      </a>
+                    )}
+                  </div>
+                  {appointment.serviceOrderPdfError && <div className="text-xs text-rose-300">OS PDF: {appointment.serviceOrderPdfError}</div>}
                 </div>
               )}
 
