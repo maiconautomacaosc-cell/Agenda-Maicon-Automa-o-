@@ -199,7 +199,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.8.9', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '3.9.4', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -312,7 +312,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '3.8.9',
+      version: '3.9.4',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -631,6 +631,10 @@ export default function App() {
       model: eq.model?.trim() || undefined,
       manufacturerSerialNumber: eq.manufacturerSerialNumber?.trim() || undefined,
       description: eq.description?.trim() || undefined,
+      productSupplyType: eq.productSupplyType,
+      supplier: eq.supplier?.trim() || undefined,
+      invoiceProof: eq.invoiceProof?.trim() || undefined,
+      productWarranty: eq.productWarranty,
       createdAt: now,
     }));
     const serviceOrder = options.generateServiceOrder
@@ -695,6 +699,7 @@ export default function App() {
       serviceOrder,
       photoUrls: uploadedPhotoUrls.length ? uploadedPhotoUrls : completionAppointment.photoUrls,
       photoUploadError,
+      installationWarranty: options.installationWarranty,
       driveFolderId,
       driveFolderUrl,
       driveFolderError,

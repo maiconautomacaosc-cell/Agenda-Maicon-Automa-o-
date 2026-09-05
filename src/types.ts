@@ -11,6 +11,9 @@ export type ServiceType =
   | 'compromisso_particular'
   | 'outro';
 
+export type WarrantyPeriod = 'Sem garantia' | '1 Mês' | '3 Meses' | '6 Meses' | '12 Meses' | '24 Meses' | '36 Meses';
+export type ProductSupplyType = 'Produto do cliente' | 'Produto vendido';
+
 export interface EquipmentRecord {
   id: string;
   serialNumber: string; // MA-000000
@@ -20,6 +23,10 @@ export interface EquipmentRecord {
   manufacturerSerialNumber?: string; // número de série original do fabricante/produto
   description?: string;
   photoUrls?: string[];
+  productSupplyType?: ProductSupplyType;
+  supplier?: string;
+  invoiceProof?: string;
+  productWarranty?: WarrantyPeriod;
   createdAt: string;
 }
 
@@ -65,6 +72,7 @@ export interface Appointment {
   notes?: string;
   photoUrls?: string[]; // fotos gerais registradas na finalização do atendimento
   photoUploadError?: string;
+  installationWarranty?: WarrantyPeriod;
   driveFolderId?: string;
   driveFolderUrl?: string;
   driveFolderError?: string;
