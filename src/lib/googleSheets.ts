@@ -328,6 +328,57 @@ export async function getOfficialSequences(
   return { lastMA, lastOS, nextMA: lastMA + 1, nextOS: lastOS + 1 };
 }
 
+
+const WARRANTY_WEBAPP_URL_FOR_QR = 'https://script.google.com/macros/s/AKfycbzUrNL7UwoNH-3-xWn7ToaU5ENqifhPKh-X28y7EIDfYSTha_B_wrH9kxKE-nhm9fXhUQ/exec';
+
+/**
+ * Reserva um MA antes da conclusão do serviço.
+ * O número é gravado imediatamente na planilha oficial, portanto fica consumido
+ * e não será reutilizado por uma conclusão futura.
+ */
+export async function reserveSerialNumberForAppointment(
+  appointment: Appointment,
+  accessToken: string,
+  spreadsheetId = getSpreadsheetId()
+): Promise<{ serialNumber: string; warrantyUrl: string }> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  const official = await getOfficialSequences(accessToken, spreadsheetId, 0, 0);
+  const serialNumber = formatMA(official.nextMA);
+  const warrantyUrl = `${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(serialNumber)}`;
+
+  const clientColA = await readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:A'), accessToken);
+  let targetRow = 2;
+  while (String(clientColA[targetRow - 2]?.[0] || '').trim()) targetRow++;
+
+  // A:J recebe apenas os dados que já existem no agendamento. K/L são preservadas,
+  // pois podem conter fórmulas da planilha original.
+  const reservedRow = [
+    serialNumber,
+    '',
+    appointment.date || '',
+    appointment.clientName || '',
+    appointment.clientPhone || '',
+    appointment.address || '',
+    '',
+    '',
+    appointment.serviceTypeName || '',
+    '',
+  ];
+
+  await updateValues(spreadsheetId, sheetRange(tabs.clients, `A${targetRow}:J${targetRow}`), [reservedRow], accessToken);
+  await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[qrImageFormula(warrantyUrl)]], accessToken);
+
+  // O MA já está oficialmente consumido a partir daqui.
+  await Promise.all([
+    updateValues(spreadsheetId, sheetRange(tabs.config, 'B1'), [[serialNumber]], accessToken),
+    updateValues(spreadsheetId, sheetRange(tabs.config, 'D9'), [[formatMA(official.nextMA + 1)]], accessToken),
+  ]);
+
+  return { serialNumber, warrantyUrl };
+}
+
 function paymentLabel(value?: Appointment['paymentMethod']) {
   const labels: Record<string, string> = {
     pix: 'Pix',
@@ -445,6 +496,47 @@ export async function syncCompletedAppointmentToMainSheets(
     } catch (err) {
       syncStageError('Gravação na aba CLIENTES', err);
     }
+  }
+
+  // Atualiza também registros MA que já existiam por terem sido reservados antes da visita.
+  // Assim, na conclusão, o mesmo MA recebe OS, modelo, serviço, garantias e demais dados sem duplicar linha.
+  try {
+    for (const eq of equipment) {
+      const ma = String(eq.serialNumber || '').trim();
+      const targetRow = rowByMA.get(ma);
+      if (!ma || !targetRow) continue;
+
+      const coreRow = [
+        ma,
+        appointment.serviceOrder || '',
+        appointment.date || '',
+        appointment.clientName || '',
+        appointment.clientPhone || '',
+        appointment.address || '',
+        '',
+        eq.model || '',
+        eq.serviceTypeName || appointment.serviceTypeName || '',
+        appointment.installationWarranty || '',
+      ];
+      await updateValues(spreadsheetId, sheetRange(tabs.clients, `A${targetRow}:J${targetRow}`), [coreRow], accessToken);
+
+      const detailRow = [
+        [eq.description, appointment.notes].filter(Boolean).join(' | '),
+        (eq.photoUrls || appointment.photoUrls || []).join(' | '),
+        eq.productSupplyType || '',
+        eq.supplier || '',
+        eq.invoiceProof || '',
+        eq.productWarranty || '',
+        qrImageFormula(appointment.warrantyUrl),
+      ];
+      await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${targetRow}:T${targetRow}`), [detailRow], accessToken);
+
+      if (eq.manufacturerSerialNumber) {
+        await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${targetRow}`), [[eq.manufacturerSerialNumber]], accessToken);
+      }
+    }
+  } catch (err) {
+    syncStageError('Atualização dos MA reservados na aba CLIENTES', err);
   }
 
   // M (PDF OS) e T (QR Code) também são atualizados em registros que já existiam.
