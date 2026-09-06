@@ -18,7 +18,7 @@ import {
   Tag,
   ClipboardList
 } from 'lucide-react';
-import { Client, Appointment } from '../types';
+import { Client, Appointment, EquipmentRecord } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { openWhatsApp } from '../utils/whatsapp';
 
@@ -28,6 +28,7 @@ interface ClientsManagerProps {
   onSaveClient: (client: Client) => void;
   onDeleteClient: (id: string) => void;
   onScheduleForClient: (client: Client) => void;
+  onScheduleMaintenance: (client: Client, equipment: EquipmentRecord) => void;
   onOpenWhatsAppForAppt: (appt: Appointment) => void;
   onQuoteForClient?: (client: Client) => void;
 }
@@ -38,12 +39,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   onSaveClient,
   onDeleteClient,
   onScheduleForClient,
+  onScheduleMaintenance,
   onQuoteForClient,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null);
+  const [selectedEquipment, setSelectedEquipment] = useState<EquipmentRecord | null>(null);
 
   // Form states
   const [name, setName] = useState('');
@@ -106,6 +109,8 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
       serviceOrder: editingClient?.serviceOrder,
       equipment: editingClient?.equipment,
       notes: notes.trim(),
+      driveFolderId: editingClient?.driveFolderId,
+      driveFolderUrl: editingClient?.driveFolderUrl,
       createdAt: editingClient ? editingClient.createdAt : new Date().toISOString(),
     };
 
@@ -119,7 +124,12 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     c.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (c.neighborhood && c.neighborhood.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (c.serialNumber && c.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (c.serviceOrder && c.serviceOrder.toLowerCase().includes(searchTerm.toLowerCase()))
+    (c.serviceOrder && c.serviceOrder.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (c.equipment || []).some(eq =>
+      eq.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (eq.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (eq.model || '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
   );
 
   return (
@@ -305,11 +315,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                   </button>
 
                   <button
-                    onClick={() => setSelectedClientForHistory(client)}
+                    onClick={() => {
+                      setSelectedClientForHistory(client);
+                      setSelectedEquipment(null);
+                    }}
                     className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-[11px] font-medium transition-colors cursor-pointer"
                   >
                     <History className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Histórico</span>
+                    <span>Equipamentos</span>
                   </button>
                 </div>
               </div>
@@ -356,45 +369,81 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
               </div>
             )}
 
-            <div className="p-4 space-y-2.5 overflow-y-auto flex-1 text-xs">
-              {appointments.filter(
-                a => a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase()
-              ).length === 0 ? (
-                <div className="p-6 text-center text-zinc-400">
-                  Nenhum serviço registrado para este cliente até o momento.
-                </div>
-              ) : (
-                appointments
-                  .filter(a => a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase())
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .map(a => (
-                    <div
-                      key={a.id}
-                      className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1"
-                    >
-                      <div className="flex justify-between items-center font-bold">
-                        <span className="text-white flex items-center gap-1.5">
-                          <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
-                          {a.serviceTypeName}
-                        </span>
-                        <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                          a.status === 'concluido' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-cyan-950 text-cyan-400 border border-cyan-800'
-                        }`}>
-                          {a.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="text-zinc-400 font-mono text-[11px] flex justify-between">
-                        <span>📅 {formatDateBR(a.date)} às {a.startTime}</span>
-                        {a.price && <span className="text-emerald-400 font-semibold">{formatCurrencyBRL(a.price)}</span>}
-                      </div>
-                      {a.lockModel && (
-                        <div className="text-zinc-300 text-[11px]">
-                          Fechadura: {a.lockModel}
-                        </div>
-                      )}
+            <div className="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
+              {!selectedEquipment ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-bold">Equipamentos cadastrados</div>
+                      <div className="text-zinc-500 text-[11px]">Cada MA acompanha o equipamento durante toda a vida útil.</div>
                     </div>
-                  ))
-              )}
+                    <span className="px-2 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">
+                      {(selectedClientForHistory.equipment || []).length} MA
+                    </span>
+                  </div>
+
+                  {(selectedClientForHistory.equipment || []).length === 0 ? (
+                    <div className="p-6 text-center rounded-2xl bg-zinc-950 border border-dashed border-zinc-800 text-zinc-400">
+                      Nenhum equipamento com MA cadastrado para este cliente.
+                    </div>
+                  ) : (selectedClientForHistory.equipment || []).map(eq => {
+                    const eqHistory = appointments.filter(a =>
+                      (a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase()) &&
+                      ((a.equipment || []).some(item => item.serialNumber === eq.serialNumber) || a.serialNumber === eq.serialNumber || (a.reservedSerialNumbers || []).includes(eq.serialNumber))
+                    );
+                    return (
+                      <button key={eq.id || eq.serialNumber} onClick={() => setSelectedEquipment(eq)} className="w-full text-left p-3 rounded-2xl bg-zinc-950 border border-zinc-800 hover:border-cyan-800 transition-colors cursor-pointer">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-mono font-bold text-cyan-300">{eq.serialNumber}</div>
+                            <div className="text-white font-semibold mt-1">{[eq.brand, eq.model].filter(Boolean).join(' ') || eq.description || 'Equipamento sem marca/modelo'}</div>
+                            <div className="text-zinc-500 text-[11px] mt-1">{eq.serviceTypeName || 'Equipamento cadastrado'} • {eqHistory.length} atendimento{eqHistory.length !== 1 ? 's' : ''}</div>
+                          </div>
+                          <KeyRound className="w-5 h-5 text-cyan-400 shrink-0" />
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  <div className="pt-2 border-t border-zinc-800">
+                    <div className="text-zinc-400 font-bold mb-2">Histórico geral do cliente</div>
+                    {appointments.filter(a => a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase()).sort((a,b) => b.date.localeCompare(a.date)).slice(0,5).map(a => (
+                      <div key={a.id} className="p-2.5 mb-2 rounded-xl bg-zinc-950 border border-zinc-800 flex justify-between gap-2">
+                        <span className="text-zinc-200">{formatDateBR(a.date)} • {a.serviceTypeName}</span>
+                        {a.serviceOrder && <span className="font-mono text-amber-300">{a.serviceOrder}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (() => {
+                const history = appointments.filter(a =>
+                  (a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase()) &&
+                  ((a.equipment || []).some(item => item.serialNumber === selectedEquipment.serialNumber) || a.serialNumber === selectedEquipment.serialNumber || (a.reservedSerialNumbers || []).includes(selectedEquipment.serialNumber))
+                ).sort((a,b) => b.date.localeCompare(a.date));
+                return (
+                  <>
+                    <button onClick={() => setSelectedEquipment(null)} className="text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer">← Voltar aos equipamentos</button>
+                    <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-800/60">
+                      <div className="font-mono text-cyan-300 font-bold text-base">{selectedEquipment.serialNumber}</div>
+                      <div className="text-white font-bold mt-1">{[selectedEquipment.brand, selectedEquipment.model].filter(Boolean).join(' ') || selectedEquipment.description || 'Equipamento'}</div>
+                      {selectedEquipment.manufacturerSerialNumber && <div className="text-zinc-400 mt-1">Série fabricante: {selectedEquipment.manufacturerSerialNumber}</div>}
+                      <div className="text-zinc-400 mt-1">Garantia produto: {selectedEquipment.productWarranty || 'Não informada'}</div>
+                    </div>
+                    <button onClick={() => { onScheduleMaintenance(selectedClientForHistory, selectedEquipment); setSelectedClientForHistory(null); setSelectedEquipment(null); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold cursor-pointer">
+                      <CalendarPlus className="w-4 h-4" /> Nova manutenção deste MA
+                    </button>
+                    <div className="text-white font-bold pt-1">Histórico do equipamento</div>
+                    {history.length === 0 ? <div className="p-4 text-center text-zinc-500">Nenhum atendimento localizado para este MA.</div> : history.map(a => (
+                      <div key={a.id} className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1">
+                        <div className="flex justify-between gap-2"><span className="text-white font-bold">{a.serviceTypeName}</span><span className="font-mono text-amber-300">{a.serviceOrder || 'Sem OS'}</span></div>
+                        <div className="text-zinc-400">📅 {formatDateBR(a.date)} às {a.startTime}</div>
+                        {a.description && <div className="text-zinc-300">{a.description}</div>}
+                        {a.price != null && <div className="text-emerald-400 font-semibold">{formatCurrencyBRL(a.price)}</div>}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
