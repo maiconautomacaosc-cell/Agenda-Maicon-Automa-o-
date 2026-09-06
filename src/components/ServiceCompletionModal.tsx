@@ -72,7 +72,15 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
     setGenerateOS(true);
     const firstType = (appointment?.serviceTypes || [appointment?.serviceType]).find(t => t && t !== 'compromisso_particular') as ServiceType | undefined;
-    setEquipment(reserved.map(() => ({ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente' as ProductSupplyType, supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' as WarrantyPeriod })));
+    setEquipment(reserved.map((serial) => {
+      const existing = (appointment?.equipment || []).find(eq => eq.serialNumber === serial);
+      return {
+        serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined,
+        brand: existing?.brand || '', model: existing?.model || '', manufacturerSerialNumber: existing?.manufacturerSerialNumber || '',
+        description: existing?.description || '', productSupplyType: existing?.productSupplyType || ('Produto do cliente' as ProductSupplyType),
+        supplier: existing?.supplier || '', invoiceProof: existing?.invoiceProof || '', productWarranty: existing?.productWarranty || ('Sem garantia' as WarrantyPeriod)
+      };
+    }));
     setInstallationWarranty('3 Meses');
     setPhotos([]);
     setSaving(false);
