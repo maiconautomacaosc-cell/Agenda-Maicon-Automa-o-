@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>Maicon Automação - Garantia</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f4f5f7;color:#111827}.wrap{max-width:560px;margin:0 auto;padding:24px 14px 40px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}.header{background:#111827;color:#fff;padding:24px 20px;text-align:center}.header h1{margin:0;font-size:24px;letter-spacing:.4px}.header p{margin:7px 0 0;color:#cbd5e1;font-size:12px}.content{padding:20px}.title{text-align:center;font-size:18px;font-weight:800;margin:2px 0 18px}.statusbox{padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e5e7eb;text-align:center;color:#475569;font-size:14px}.error{background:#fff1f2;border-color:#fecdd3;color:#be123c}.field{padding:12px 0;border-bottom:1px solid #e5e7eb}.field:last-child{border-bottom:0}.label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px}.value{font-size:16px;font-weight:700;margin-top:4px;word-break:break-word}.warranty{margin-top:18px;padding:4px 14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px}.support{text-align:center;margin-top:22px}.wa{display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:800;padding:13px 20px;border-radius:10px}.small{font-size:11px;color:#94a3b8;text-align:center;margin-top:18px}.hidden{display:none}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:800}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <header class="header">
+        <h1>MAICON AUTOMAÇÃO</h1>
+        <p>Instalação e Manutenção de Fechaduras Eletrônicas</p>
+      </header>
+      <div class="content">
+        <div class="title">GARANTIA E SUPORTE</div>
+        <div id="loading" class="statusbox">Consultando informações da garantia...</div>
+        <div id="error" class="statusbox error hidden"></div>
+        <div id="data" class="hidden">
+          <div class="field"><div class="label">Nº de série</div><div id="serie" class="value"></div></div>
+          <div class="field"><div class="label">Cliente</div><div id="cliente" class="value"></div></div>
+          <div class="field"><div class="label">Equipamento</div><div id="equipamento" class="value"></div></div>
+          <div class="field"><div class="label">Ordem de serviço</div><div id="os" class="value"></div></div>
+          <div class="field"><div class="label">Data da instalação</div><div id="dataInstalacao" class="value"></div></div>
+          <div class="warranty">
+            <div class="field"><div class="label">Garantia da instalação</div><div id="garantiaInstalacao" class="value"></div></div>
+            <div class="field"><div class="label">Garantia do produto</div><div id="garantiaProduto" class="value"></div></div>
+            <div class="field"><div class="label">Status</div><div class="value"><span id="status" class="badge"></span></div></div>
+          </div>
+          <div class="support"><p>Precisa de atendimento?</p><a class="wa" href="https://wa.me/5547933886303" target="_blank" rel="noopener">Falar pelo WhatsApp</a></div>
+        </div>
+        <div class="small">Consulta pública de garantia • Maicon Automação</div>
+      </div>
+    </section>
+  </main>
+<script>
+(function(){
+  const WEBAPP='https://script.google.com/macros/s/AKfycbzUrNL7UwoNH-3-xWn7ToaU5ENqifhPKh-X28y7EIDfYSTha_B_wrH9kxKE-nhm9fXhUQ/exec';
+  const params=new URLSearchParams(location.search);
+  const serial=(params.get('serie')||'').trim().toUpperCase();
+  const loading=document.getElementById('loading');
+  const error=document.getElementById('error');
+  const dataBox=document.getElementById('data');
+  let finished=false;
+  function fail(msg){if(finished)return;finished=true;loading.classList.add('hidden');dataBox.classList.add('hidden');error.textContent=msg;error.classList.remove('hidden')}
+  function val(id,v,fallback='—'){document.getElementById(id).textContent=(v&&String(v).trim())?String(v):fallback}
+  window.maiconGarantiaCallback=function(payload){
+    if(finished)return;
+    if(!payload||payload.sucesso===false){fail((payload&&payload.erro)||'Não foi possível localizar esta garantia.');return}
+    const d=payload.dados;
+    if(!d){fail('Equipamento não encontrado. Confira o número de série.');return}
+    finished=true;loading.classList.add('hidden');error.classList.add('hidden');dataBox.classList.remove('hidden');
+    val('serie',d.serie);val('cliente',d.cliente);val('equipamento',[d.marca,d.modelo].filter(Boolean).join(' '),'Não informado');val('os',d.os);val('dataInstalacao',d.data);val('garantiaInstalacao',d.garantiaInstalacao,'Não informado');val('garantiaProduto',d.garantiaProduto,'Não informado');val('status',d.status,'Ativa');
+  };
+  if(!serial){fail('Número de série não informado.');return}
+  if(!/^MA-?\d{1,10}$/.test(serial)){fail('Número de série inválido.');return}
+  const script=document.createElement('script');
+  script.src=WEBAPP+'?acao=garantiaJsonp&serie='+encodeURIComponent(serial)+'&callback=maiconGarantiaCallback&_='+Date.now();
+  script.async=true;
+  script.onerror=function(){fail('Não foi possível consultar a garantia agora. Tente novamente em alguns instantes.')};
+  document.body.appendChild(script);
+  setTimeout(function(){if(!finished)fail('A consulta demorou mais que o esperado. Verifique sua internet e tente novamente.')},12000);
+})();
+</script>
+</body>
+</html>
