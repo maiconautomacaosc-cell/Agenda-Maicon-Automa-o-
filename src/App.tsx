@@ -10,7 +10,7 @@ import {
   Quote, 
   QuoteStatus, 
   ViewTab, 
-  AppointmentStatus 
+  AppointmentStatus, EquipmentRecord
 } from './types';
 import { 
   loadClients, 
@@ -200,7 +200,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '3.9.5', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.0.0', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -313,7 +313,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '3.9.5',
+      version: '4.0.0',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -700,7 +700,7 @@ export default function App() {
     let updated: Appointment = {
       ...completionAppointment,
       status: 'concluido',
-      equipment: [...(completionAppointment.equipment || []), ...equipment],
+      equipment: Array.from(new Map([...(completionAppointment.equipment || []), ...equipment].map(eq => [eq.serialNumber, eq])).values()),
       serialNumber: completionAppointment.serialNumber || equipment[0]?.serialNumber,
       serviceOrder,
       photoUrls: uploadedPhotoUrls.length ? uploadedPhotoUrls : completionAppointment.photoUrls,
@@ -1027,6 +1027,26 @@ export default function App() {
     });
   };
 
+
+  const handleScheduleMaintenance = (client: Client, equipment: EquipmentRecord) => {
+    const defaultDate = selectedDate || getTodayString();
+    setEditingAppointment({
+      id: `appt-${Date.now()}`,
+      clientId: client.id, clientName: client.name, clientPhone: client.phone,
+      address: client.address, neighborhood: client.neighborhood, city: client.city || 'Joinville',
+      serialNumber: equipment.serialNumber,
+      reservedSerialNumbers: [equipment.serialNumber],
+      equipment: [equipment],
+      date: defaultDate, startTime: '10:00', endTime: '11:00', durationMinutes: 60,
+      serviceType: 'manutencao_corretiva', serviceTypes: ['manutencao_corretiva'],
+      serviceTypeName: 'Manutenção Corretiva',
+      description: `Manutenção do equipamento ${equipment.serialNumber}${equipment.brand || equipment.model ? ` - ${[equipment.brand, equipment.model].filter(Boolean).join(' ')}` : ''}`,
+      lockModel: equipment.model || '', price: 0, paymentMethod: 'a_combinar', status: 'pendente',
+      reminderMinutesBefore: 60, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    });
+    setModalInitialDate(defaultDate);
+    setIsAppointmentModalOpen(true);
+  };
   const handleDeleteClient = (id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
   };
@@ -1168,6 +1188,7 @@ export default function App() {
             onSaveClient={handleSaveClient}
             onDeleteClient={handleDeleteClient}
             onScheduleForClient={handleScheduleForClient}
+            onScheduleMaintenance={handleScheduleMaintenance}
             onOpenWhatsAppForAppt={handleOpenWhatsApp}
             onQuoteForClient={handleOpenNewQuote}
           />
