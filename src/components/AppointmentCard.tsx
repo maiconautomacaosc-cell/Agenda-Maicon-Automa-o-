@@ -616,7 +616,8 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                         </div>
                         <span className="shrink-0 text-xs px-2 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono font-bold">{item.serialNumber}</span>
                       </div>
-                      {item.model && <div className="text-xs text-zinc-300 mt-2"><span className="text-zinc-500">Modelo / local:</span> {item.model}</div>}
+                      {item.brand && <div className="text-xs text-zinc-300 mt-2"><span className="text-zinc-500">Marca:</span> {item.brand}</div>}
+                      {item.model && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Modelo:</span> {item.model}</div>}
                       {item.manufacturerSerialNumber && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Série original:</span> <span className="font-mono">{item.manufacturerSerialNumber}</span></div>}
                       {item.productSupplyType && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Fornecimento:</span> {item.productSupplyType}</div>}
                       {item.productWarranty && item.productSupplyType === 'Produto vendido' && <div className="text-xs text-zinc-300 mt-1"><span className="text-zinc-500">Garantia produto:</span> {item.productWarranty}</div>}
