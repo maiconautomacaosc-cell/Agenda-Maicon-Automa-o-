@@ -871,8 +871,17 @@ export default function App() {
       // Reutiliza os MA/OS já gerados. NÃO cria nem consome nova numeração.
       await syncCompletedAppointmentToMainSheets(appt, tokenToUse, spreadsheetId);
       const syncedAt = new Date().toISOString();
+      const canonicalWarrantyUrl = buildWarrantyUrl(
+        appt.equipment?.[0]?.serialNumber || appt.serialNumber || appt.reservedSerialNumbers?.[0]
+      );
       setAppointments(prev => prev.map(a => a.id === appt.id
-        ? { ...a, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: syncedAt, mainSheetSyncError: undefined }
+        ? {
+            ...a,
+            warrantyUrl: canonicalWarrantyUrl || a.warrantyUrl,
+            mainSheetSyncStatus: 'synced',
+            mainSheetSyncedAt: syncedAt,
+            mainSheetSyncError: undefined,
+          }
         : a));
       setSyncErrorMessage(undefined);
       showGoogleNotification(`✅ ${appt.serviceOrder || 'Atendimento'} enviado para a planilha.`);
