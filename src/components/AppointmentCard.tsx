@@ -65,6 +65,14 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
   const isParticular = appointment.serviceType === 'compromisso_particular';
 
+  // Sempre usa o Web App oficial confirmado. Não confia em warrantyUrl antigo
+  // salvo no atendimento, pois versões anteriores podem ter armazenado link inválido.
+  const primaryWarrantySerial =
+    appointment.equipment?.[0]?.serialNumber ||
+    appointment.serialNumber ||
+    appointment.reservedSerialNumbers?.[0];
+  const canonicalWarrantyUrl = buildWarrantyUrl(primaryWarrantySerial);
+
   const getStatusBadge = (status: AppointmentStatus) => {
     if (isParticular) {
       return {
@@ -629,7 +637,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                 </div>
               )}
 
-              {(appointment.serviceOrderPdfUrl || appointment.warrantyUrl || appointment.driveFolderUrl || (appointment.status === 'concluido' && (appointment.serviceOrder || (appointment.equipment?.length || 0) > 0))) && (
+              {(appointment.serviceOrderPdfUrl || canonicalWarrantyUrl || appointment.driveFolderUrl || (appointment.status === 'concluido' && (appointment.serviceOrder || (appointment.equipment?.length || 0) > 0))) && (
                 <div className="space-y-2">
                   <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Documentos do atendimento</div>
                   <div className="flex flex-wrap gap-2">
@@ -638,13 +646,13 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                         <FileText className="w-4 h-4" /> Abrir OS em PDF
                       </a>
                     )}
-                    {appointment.warrantyUrl && (
-                      <a href={appointment.warrantyUrl} target="_self" className="inline-flex items-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-xs font-bold text-emerald-300 hover:border-emerald-600">
+                    {canonicalWarrantyUrl && (
+                      <a href={canonicalWarrantyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-xs font-bold text-emerald-300 hover:border-emerald-600">
                         <ShieldCheck className="w-4 h-4" /> Abrir garantia
                       </a>
                     )}
-                    {appointment.warrantyUrl && (
-                      <a href={`https://quickchart.io/qr?size=420&text=${encodeURIComponent(appointment.warrantyUrl)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-zinc-500">
+                    {canonicalWarrantyUrl && (
+                      <a href={`https://quickchart.io/qr?size=420&text=${encodeURIComponent(canonicalWarrantyUrl)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-zinc-500">
                         <QrCode className="w-4 h-4" /> Ver QR Code
                       </a>
                     )}
