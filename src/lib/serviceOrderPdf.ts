@@ -177,7 +177,8 @@ export async function generateServiceOrderPdfBlob(appointment: Appointment): Pro
       ctx.fillStyle = index % 2 === 0 ? '#f8fafc' : '#ffffff';
       ctx.fillRect(60, y - 28, 1120, 70);
       ctx.fillStyle = '#111827'; ctx.font = '700 22px Arial';
-      ctx.fillText(`${index + 1}. ${eq.serviceTypeName || 'Equipamento'}${eq.model ? ` — ${eq.model}` : ''}`, 78, y);
+      const brandModel = [eq.brand, eq.model].filter(Boolean).join(' ');
+      ctx.fillText(`${index + 1}. ${eq.serviceTypeName || 'Equipamento'}${brandModel ? ` — ${brandModel}` : ''}`, 78, y);
       ctx.textAlign = 'right'; ctx.fillStyle = '#0e7490'; ctx.font = '800 22px Arial'; ctx.fillText(eq.serialNumber || '', 1160, y); ctx.textAlign = 'left';
       if (eq.productSupplyType) { ctx.fillStyle = '#6b7280'; ctx.font = '500 18px Arial'; ctx.fillText(`${eq.productSupplyType}${eq.productWarranty ? ` | Garantia produto: ${eq.productWarranty}` : ''}`, 78, y + 27); }
       y += 78;
