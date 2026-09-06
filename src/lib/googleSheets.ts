@@ -1,5 +1,6 @@
 import { Appointment, Client, Quote } from '../types';
 import { AppSettings } from '../utils/storage';
+import { buildWarrantyUrl } from './serviceOrderPdf';
 
 export interface SheetsDatabasePayload {
   version: string;
@@ -329,7 +330,6 @@ export async function getOfficialSequences(
 }
 
 
-const WARRANTY_WEBAPP_URL_FOR_QR = 'https://script.google.com/macros/s/AKfycbzUrNL7UwoNH-3-xWn7ToaU5ENqifhPKh-X28y7EIDfYSTha_B_wrH9kxKE-nhm9fXhUQ/exec';
 
 /**
  * Reserva um MA antes da conclusão do serviço.
@@ -346,7 +346,8 @@ export async function reserveSerialNumberForAppointment(
   const tabs = await resolveMainTabs(spreadsheetId, accessToken);
   const official = await getOfficialSequences(accessToken, spreadsheetId, 0, 0);
   const serialNumber = formatMA(official.nextMA);
-  const warrantyUrl = `${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(serialNumber)}`;
+  const warrantyUrl = buildWarrantyUrl(serialNumber);
+  if (!warrantyUrl) throw new Error('Não foi possível montar o endereço de garantia para o MA reservado.');
 
   const clientColA = await readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:A'), accessToken);
   let targetRow = 2;
@@ -396,6 +397,28 @@ function qrImageFormula(warrantyUrl?: string) {
   if (!url) return '';
   const qrUrl = `https://quickchart.io/qr?size=300&text=${encodeURIComponent(url)}`;
   return `=IMAGE("${qrUrl}")`;
+}
+
+/**
+ * Reaproveita o MESMO endereço de garantia que já funciona na Agenda.
+ * Ao trocar apenas o parâmetro serie, cada MA mantém a mesma implantação do WebApp
+ * sem inventar/recalcular outro endereço para a planilha.
+ */
+function warrantyUrlFromAppointment(appointment: Appointment, serialNumber?: string) {
+  const serial = String(serialNumber || '').trim();
+  if (!serial) return undefined;
+  const stored = String(appointment.warrantyUrl || '').trim();
+  if (stored) {
+    try {
+      const url = new URL(stored);
+      url.searchParams.set('serie', serial);
+      return url.toString();
+    } catch {
+      const base = stored.split('?')[0];
+      if (base) return `${base}?serie=${encodeURIComponent(serial)}`;
+    }
+  }
+  return buildWarrantyUrl(serial);
 }
 
 /**
@@ -465,7 +488,7 @@ export async function syncCompletedAppointmentToMainSheets(
         eq.supplier || '',
         eq.invoiceProof || '',
         eq.productWarranty || '',
-        qrImageFormula(`${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(eq.serialNumber)}`),
+        qrImageFormula(warrantyUrlFromAppointment(appointment, eq.serialNumber)),
       ],
     }));
 
@@ -527,9 +550,10 @@ export async function syncCompletedAppointmentToMainSheets(
         eq.supplier || '',
         eq.invoiceProof || '',
         eq.productWarranty || '',
-        qrImageFormula(`${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(eq.serialNumber)}`),
       ];
-      await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${targetRow}:T${targetRow}`), [detailRow], accessToken);
+      // IMPORTANTE: T (QR Code) NÃO é regravada na conclusão.
+      // O QR reservado antes da visita precisa permanecer exatamente como foi gerado na Agenda.
+      await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${targetRow}:S${targetRow}`), [detailRow], accessToken);
 
       if (eq.manufacturerSerialNumber) {
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${targetRow}`), [[eq.manufacturerSerialNumber]], accessToken);
@@ -539,8 +563,10 @@ export async function syncCompletedAppointmentToMainSheets(
     syncStageError('Atualização dos MA reservados na aba CLIENTES', err);
   }
 
-  // M (PDF OS) e T (QR Code) também são atualizados em registros que já existiam.
-  // Isso permite corrigir um atendimento anterior usando apenas "Reenviar Planilha", sem duplicar MA/OS.
+  // M (PDF OS) pode ser atualizada em registros que já existiam.
+  // T (QR Code) só é regravada quando o próprio atendimento já possui warrantyUrl.
+  // Nesse caso usamos EXATAMENTE a mesma implantação que já funciona no botão/QR da Agenda,
+  // alterando somente o MA. Isso permite reparar registros que receberam um QR incorreto.
   try {
     for (const eq of equipment) {
       const ma = String(eq.serialNumber || '').trim();
@@ -549,14 +575,16 @@ export async function syncCompletedAppointmentToMainSheets(
       if (appointment.serviceOrderPdfUrl) {
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `M${targetRow}`), [[appointment.serviceOrderPdfUrl]], accessToken);
       }
-      const warrantyUrlForMa = `${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(ma)}`;
-      const qrFormula = qrImageFormula(warrantyUrlForMa);
-      if (qrFormula) {
-        await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[qrFormula]], accessToken);
+      if (appointment.warrantyUrl) {
+        const agendaWarrantyUrl = warrantyUrlFromAppointment(appointment, ma);
+        const agendaQrFormula = qrImageFormula(agendaWarrantyUrl);
+        if (agendaQrFormula) {
+          await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[agendaQrFormula]], accessToken);
+        }
       }
     }
   } catch (err) {
-    syncStageError('Atualização dos links PDF/QR na aba CLIENTES', err);
+    syncStageError('Atualização dos links PDF/QR da Agenda na aba CLIENTES', err);
   }
 
   if (appointment.serviceOrder && !existingOS.has(appointment.serviceOrder)) {
