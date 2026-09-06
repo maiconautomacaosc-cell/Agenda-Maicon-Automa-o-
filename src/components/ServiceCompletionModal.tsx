@@ -3,7 +3,7 @@ import { Camera, CheckCircle2, ClipboardList, KeyRound, Plus, Trash2, X } from '
 import { Appointment, EquipmentRecord, ProductSupplyType, ServiceType, WarrantyPeriod } from '../types';
 
 export interface CompletionOptions {
-  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'model' | 'manufacturerSerialNumber' | 'description' | 'productSupplyType' | 'supplier' | 'invoiceProof' | 'productWarranty'>>;
+  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'brand' | 'model' | 'manufacturerSerialNumber' | 'description' | 'productSupplyType' | 'supplier' | 'invoiceProof' | 'productWarranty'>>;
   photos: File[];
   generateServiceOrder: boolean;
   installationWarranty: WarrantyPeriod;
@@ -58,7 +58,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
 }) => {
   const [registerEquipment, setRegisterEquipment] = useState(false);
   const [generateOS, setGenerateOS] = useState(true);
-  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; model: string; manufacturerSerialNumber: string; description: string; productSupplyType: ProductSupplyType; supplier: string; invoiceProof: string; productWarranty: WarrantyPeriod }>>([]);
+  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; brand: string; model: string; manufacturerSerialNumber: string; description: string; productSupplyType: ProductSupplyType; supplier: string; invoiceProof: string; productWarranty: WarrantyPeriod }>>([]);
   const [installationWarranty, setInstallationWarranty] = useState<WarrantyPeriod>('3 Meses');
   const [photos, setPhotos] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -72,7 +72,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
     setGenerateOS(true);
     const firstType = (appointment?.serviceTypes || [appointment?.serviceType]).find(t => t && t !== 'compromisso_particular') as ServiceType | undefined;
-    setEquipment(reserved.map(() => ({ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente' as ProductSupplyType, supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' as WarrantyPeriod })));
+    setEquipment(reserved.map(() => ({ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente' as ProductSupplyType, supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' as WarrantyPeriod })));
     setInstallationWarranty('3 Meses');
     setPhotos([]);
     setSaving(false);
@@ -94,7 +94,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     setRegisterEquipment(value);
     if (value && equipment.length === 0) {
       const firstType = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular');
-      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]);
+      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]);
     }
     if (!value) setEquipment([]);
   };
@@ -165,7 +165,10 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                         <option key={st} value={st}>{SERVICE_LABELS[st]}</option>
                       ))}
                     </select>
-                    <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Marca / modelo do equipamento (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input value={item.brand} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, brand:e.target.value} : x))} placeholder="Marca (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                      <input value={item.model} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, model:e.target.value} : x))} placeholder="Modelo (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
+                    </div>
                     <input value={item.manufacturerSerialNumber} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, manufacturerSerialNumber:e.target.value} : x))} placeholder="Nº de série original do produto (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
                     <input value={item.description} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, description:e.target.value} : x))} placeholder="Ex: Apto 302 / porta social (opcional)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" />
 
@@ -202,7 +205,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                   </div>
                 ))}
                 <p className="text-[11px] text-zinc-500">A numeração MA é automática e não pode ser digitada manualmente.</p>
-                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
+                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
               </div>
             )}
           </section>
