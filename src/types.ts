@@ -19,6 +19,7 @@ export interface EquipmentRecord {
   serialNumber: string; // MA-000000
   serviceType?: ServiceType;
   serviceTypeName?: string;
+  brand?: string;
   model?: string;
   manufacturerSerialNumber?: string; // número de série original do fabricante/produto
   description?: string;
