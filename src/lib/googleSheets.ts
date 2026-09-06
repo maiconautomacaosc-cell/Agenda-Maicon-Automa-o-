@@ -400,25 +400,13 @@ function qrImageFormula(warrantyUrl?: string) {
 }
 
 /**
- * Reaproveita o MESMO endereço de garantia que já funciona na Agenda.
- * Ao trocar apenas o parâmetro serie, cada MA mantém a mesma implantação do WebApp
- * sem inventar/recalcular outro endereço para a planilha.
+ * URL canônica da garantia.
+ * Nunca reaproveita um warrantyUrl antigo salvo no agendamento, porque versões
+ * anteriores podem ter guardado um endereço inválido. A fonte de verdade é o
+ * Web App confirmado + o MA específico daquela linha.
  */
-function warrantyUrlFromAppointment(appointment: Appointment, serialNumber?: string) {
-  const serial = String(serialNumber || '').trim();
-  if (!serial) return undefined;
-  const stored = String(appointment.warrantyUrl || '').trim();
-  if (stored) {
-    try {
-      const url = new URL(stored);
-      url.searchParams.set('serie', serial);
-      return url.toString();
-    } catch {
-      const base = stored.split('?')[0];
-      if (base) return `${base}?serie=${encodeURIComponent(serial)}`;
-    }
-  }
-  return buildWarrantyUrl(serial);
+function warrantyUrlFromAppointment(_appointment: Appointment, serialNumber?: string) {
+  return buildWarrantyUrl(serialNumber);
 }
 
 /**
@@ -575,12 +563,10 @@ export async function syncCompletedAppointmentToMainSheets(
       if (appointment.serviceOrderPdfUrl) {
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `M${targetRow}`), [[appointment.serviceOrderPdfUrl]], accessToken);
       }
-      if (appointment.warrantyUrl) {
-        const agendaWarrantyUrl = warrantyUrlFromAppointment(appointment, ma);
-        const agendaQrFormula = qrImageFormula(agendaWarrantyUrl);
-        if (agendaQrFormula) {
-          await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[agendaQrFormula]], accessToken);
-        }
+      const agendaWarrantyUrl = warrantyUrlFromAppointment(appointment, ma);
+      const agendaQrFormula = qrImageFormula(agendaWarrantyUrl);
+      if (agendaQrFormula) {
+        await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[agendaQrFormula]], accessToken);
       }
     }
   } catch (err) {
