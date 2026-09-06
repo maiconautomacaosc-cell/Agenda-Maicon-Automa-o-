@@ -631,6 +631,7 @@ export default function App() {
       serialNumber: reservedSerialNumbers[index] || `MA-${String(nextMA + extraMaIndex++).padStart(6, '0')}`,
       serviceType: eq.serviceType,
       serviceTypeName: eq.serviceTypeName,
+      brand: eq.brand?.trim() || undefined,
       model: eq.model?.trim() || undefined,
       manufacturerSerialNumber: eq.manufacturerSerialNumber?.trim() || undefined,
       description: eq.description?.trim() || undefined,
