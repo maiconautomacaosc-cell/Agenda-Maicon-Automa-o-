@@ -452,7 +452,7 @@ export async function syncCompletedAppointmentToMainSheets(
         appointment.clientName || '',
         appointment.clientPhone || '',
         appointment.address || '',
-        '',
+        eq.brand || '',
         eq.model || '',
         eq.serviceTypeName || appointment.serviceTypeName || '',
         appointment.installationWarranty || '',
@@ -465,7 +465,7 @@ export async function syncCompletedAppointmentToMainSheets(
         eq.supplier || '',
         eq.invoiceProof || '',
         eq.productWarranty || '',
-        qrImageFormula(appointment.warrantyUrl),
+        qrImageFormula(`${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(eq.serialNumber)}`),
       ],
     }));
 
@@ -513,7 +513,7 @@ export async function syncCompletedAppointmentToMainSheets(
         appointment.clientName || '',
         appointment.clientPhone || '',
         appointment.address || '',
-        '',
+        eq.brand || '',
         eq.model || '',
         eq.serviceTypeName || appointment.serviceTypeName || '',
         appointment.installationWarranty || '',
@@ -527,7 +527,7 @@ export async function syncCompletedAppointmentToMainSheets(
         eq.supplier || '',
         eq.invoiceProof || '',
         eq.productWarranty || '',
-        qrImageFormula(appointment.warrantyUrl),
+        qrImageFormula(`${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(eq.serialNumber)}`),
       ];
       await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${targetRow}:T${targetRow}`), [detailRow], accessToken);
 
@@ -549,7 +549,8 @@ export async function syncCompletedAppointmentToMainSheets(
       if (appointment.serviceOrderPdfUrl) {
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `M${targetRow}`), [[appointment.serviceOrderPdfUrl]], accessToken);
       }
-      const qrFormula = qrImageFormula(appointment.warrantyUrl);
+      const warrantyUrlForMa = `${WARRANTY_WEBAPP_URL_FOR_QR}?serie=${encodeURIComponent(ma)}`;
+      const qrFormula = qrImageFormula(warrantyUrlForMa);
       if (qrFormula) {
         await updateValues(spreadsheetId, sheetRange(tabs.clients, `T${targetRow}`), [[qrFormula]], accessToken);
       }
@@ -564,7 +565,7 @@ export async function syncCompletedAppointmentToMainSheets(
       const serviceNames = equipment.length
         ? equipment.map(eq => eq.serviceTypeName || appointment.serviceTypeName).filter(Boolean).join(' | ')
         : appointment.serviceTypeName;
-      const models = equipment.map(eq => eq.model).filter(Boolean).join(' | ');
+      const models = equipment.map(eq => [eq.brand, eq.model].filter(Boolean).join(' ')).filter(Boolean).join(' | ');
       const equipmentSummary = equipment.length
         ? `${equipment.length} equipamento(s)`
         : 'Serviço sem equipamento cadastrado';
