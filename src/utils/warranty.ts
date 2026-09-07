@@ -1,4 +1,4 @@
-import { Appointment, EquipmentRecord, WarrantyPeriod } from '../types';
+import { Appointment, Client, EquipmentRecord, WarrantyPeriod } from '../types';
 
 export type WarrantyState = 'ativa' | 'vencendo' | 'vencida' | 'sem_garantia';
 
@@ -8,6 +8,103 @@ export interface WarrantyInfo {
   endDate?: string;
   state: WarrantyState;
   daysRemaining?: number;
+}
+
+export function normalizeMaSerial(value?: string): string {
+  const raw = String(value || '').trim().toUpperCase();
+  if (!raw) return '';
+  const compact = raw.replace(/[^A-Z0-9]/g, '');
+  const match = compact.match(/^MA(\d+)$/);
+  if (match) return `MA-${match[1].padStart(6, '0')}`;
+  return raw;
+}
+
+function sameClient(appt: Appointment, client: Client): boolean {
+  return appt.clientId === client.id || appt.clientName.trim().toLowerCase() === client.name.trim().toLowerCase();
+}
+
+function mergeEquipment(base: EquipmentRecord | undefined, incoming: EquipmentRecord): EquipmentRecord {
+  if (!base) return incoming;
+  return {
+    ...base,
+    ...incoming,
+    id: base.id || incoming.id,
+    serialNumber: normalizeMaSerial(base.serialNumber || incoming.serialNumber),
+    serviceType: incoming.serviceType || base.serviceType,
+    serviceTypeName: incoming.serviceTypeName || base.serviceTypeName,
+    brand: incoming.brand || base.brand,
+    model: incoming.model || base.model,
+    manufacturerSerialNumber: incoming.manufacturerSerialNumber || base.manufacturerSerialNumber,
+    description: incoming.description || base.description,
+    photoUrls: incoming.photoUrls?.length ? incoming.photoUrls : base.photoUrls,
+    productSupplyType: incoming.productSupplyType || base.productSupplyType,
+    supplier: incoming.supplier || base.supplier,
+    invoiceProof: incoming.invoiceProof || base.invoiceProof,
+    productWarranty: incoming.productWarranty || base.productWarranty,
+    createdAt: base.createdAt || incoming.createdAt,
+  };
+}
+
+/**
+ * Compatibilidade 4.0: monta a lista de equipamentos tanto do cadastro moderno
+ * client.equipment quanto de atendimentos/MA antigos. Isso mantém clientes reais
+ * anteriores à estrutura de EquipmentRecord visíveis na Central de Garantias.
+ */
+export function getClientEquipmentRecords(client: Client, appointments: Appointment[]): EquipmentRecord[] {
+  const bySerial = new Map<string, EquipmentRecord>();
+  const put = (eq: EquipmentRecord) => {
+    const serial = normalizeMaSerial(eq.serialNumber);
+    if (!serial) return;
+    const normalized = { ...eq, serialNumber: serial };
+    bySerial.set(serial, mergeEquipment(bySerial.get(serial), normalized));
+  };
+
+  (client.equipment || []).forEach(put);
+
+  if (client.serialNumber) {
+    const serial = normalizeMaSerial(client.serialNumber);
+    put({
+      id: `legacy-${client.id}-${serial}`,
+      serialNumber: serial,
+      createdAt: client.createdAt || new Date().toISOString(),
+    });
+  }
+
+  appointments.filter(a => sameClient(a, client)).forEach(appt => {
+    (appt.equipment || []).forEach(eq => put({
+      ...eq,
+      serialNumber: normalizeMaSerial(eq.serialNumber),
+      createdAt: eq.createdAt || appt.createdAt || `${appt.date}T12:00:00`,
+    }));
+
+    const serials = [
+      appt.serialNumber,
+      appt.maintenanceSerialNumber,
+      ...(appt.reservedSerialNumbers || []),
+    ].map(normalizeMaSerial).filter(Boolean);
+
+    serials.forEach(serial => {
+      const detailed = (appt.equipment || []).find(eq => normalizeMaSerial(eq.serialNumber) === serial);
+      put({
+        id: detailed?.id || `legacy-${appt.id}-${serial}`,
+        serialNumber: serial,
+        serviceType: detailed?.serviceType || appt.serviceType,
+        serviceTypeName: detailed?.serviceTypeName || appt.serviceTypeName,
+        brand: detailed?.brand,
+        model: detailed?.model || (!detailed?.brand ? appt.lockModel : undefined),
+        manufacturerSerialNumber: detailed?.manufacturerSerialNumber,
+        description: detailed?.description || appt.description,
+        photoUrls: detailed?.photoUrls || appt.photoUrls,
+        productSupplyType: detailed?.productSupplyType,
+        supplier: detailed?.supplier,
+        invoiceProof: detailed?.invoiceProof,
+        productWarranty: detailed?.productWarranty,
+        createdAt: detailed?.createdAt || appt.createdAt || `${appt.date}T12:00:00`,
+      });
+    });
+  });
+
+  return Array.from(bySerial.values()).sort((a, b) => a.serialNumber.localeCompare(b.serialNumber));
 }
 
 const MONTHS_BY_PERIOD: Partial<Record<WarrantyPeriod, number>> = {
@@ -20,13 +117,13 @@ const MONTHS_BY_PERIOD: Partial<Record<WarrantyPeriod, number>> = {
 };
 
 export function appointmentHasSerial(appt: Appointment, serialNumber: string): boolean {
-  const serial = String(serialNumber || '').trim().toUpperCase();
+  const serial = normalizeMaSerial(serialNumber);
   if (!serial) return false;
   return (
-    String(appt.serialNumber || '').trim().toUpperCase() === serial ||
-    String(appt.maintenanceSerialNumber || '').trim().toUpperCase() === serial ||
-    (appt.reservedSerialNumbers || []).some(s => String(s).trim().toUpperCase() === serial) ||
-    (appt.equipment || []).some(eq => String(eq.serialNumber || '').trim().toUpperCase() === serial)
+    normalizeMaSerial(appt.serialNumber) === serial ||
+    normalizeMaSerial(appt.maintenanceSerialNumber) === serial ||
+    (appt.reservedSerialNumbers || []).some(s => normalizeMaSerial(s) === serial) ||
+    (appt.equipment || []).some(eq => normalizeMaSerial(eq.serialNumber) === serial)
   );
 }
 
