@@ -149,7 +149,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
         isParticular
           ? 'bg-gradient-to-br from-purple-950/40 via-zinc-900 to-zinc-900 border-purple-800/60 border-l-4 border-l-purple-500 shadow-md shadow-purple-950/20'
           : isExistingMaMaintenance
-          ? 'bg-gradient-to-br from-zinc-700/80 via-zinc-800 to-zinc-900 border-zinc-500/80 border-l-4 border-l-zinc-300 shadow-lg shadow-black/20'
+          ? 'bg-gradient-to-br from-zinc-600/95 via-zinc-700/90 to-zinc-800 border-zinc-400 border-l-4 border-l-zinc-200 shadow-lg shadow-black/30'
           : appointment.status === 'concluido'
           ? 'bg-zinc-900/90 border-zinc-800 border-l-4 border-l-emerald-500 opacity-90'
           : appointment.status === 'em_andamento'
