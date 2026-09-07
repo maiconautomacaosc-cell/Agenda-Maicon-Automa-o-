@@ -16,10 +16,15 @@ import {
   KeyRound,
   FileText,
   Tag,
-  ClipboardList
+  ClipboardList,
+  ShieldCheck,
+  AlertTriangle,
+  ShieldX,
+  ChevronRight
 } from 'lucide-react';
 import { Client, Appointment, EquipmentRecord } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
+import { getEquipmentHistory, getEquipmentWarrantySummary, WarrantyState } from '../utils/warranty';
 import { openWhatsApp } from '../utils/whatsapp';
 
 interface ClientsManagerProps {
@@ -47,6 +52,9 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null);
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentRecord | null>(null);
+  const [isWarrantyCenterOpen, setIsWarrantyCenterOpen] = useState(false);
+  const [warrantyFilter, setWarrantyFilter] = useState<WarrantyState | 'todos'>('todos');
+  const [warrantySearch, setWarrantySearch] = useState('');
 
   // Form states
   const [name, setName] = useState('');
@@ -118,6 +126,30 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setIsModalOpen(false);
   };
 
+  const warrantyRecords = clients.flatMap(client =>
+    (client.equipment || []).map(eq => {
+      const history = getEquipmentHistory(appointments, client.id, client.name, eq.serialNumber);
+      const summary = getEquipmentWarrantySummary(eq, history);
+      return { client, eq, history, summary };
+    })
+  );
+
+  const filteredWarrantyRecords = warrantyRecords.filter(({ client, eq, summary }) => {
+    const q = warrantySearch.trim().toLowerCase();
+    const matchesSearch = !q ||
+      client.name.toLowerCase().includes(q) ||
+      eq.serialNumber.toLowerCase().includes(q) ||
+      (eq.brand || '').toLowerCase().includes(q) ||
+      (eq.model || '').toLowerCase().includes(q);
+    const matchesFilter = warrantyFilter === 'todos' || summary.overall === warrantyFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const warrantyCounts = warrantyRecords.reduce((acc, item) => {
+    acc[item.summary.overall] = (acc[item.summary.overall] || 0) + 1;
+    return acc;
+  }, { ativa: 0, vencendo: 0, vencida: 0, sem_garantia: 0 } as Record<WarrantyState, number>);
+
   const filteredClients = clients.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone.includes(searchTerm) ||
@@ -151,14 +183,23 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
             </div>
           </div>
 
-          <button
-            id="btn-new-client-top"
-            onClick={openNewClientModal}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold shadow-lg shadow-cyan-950/40 active:scale-95 transition-all self-start sm:self-auto cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4 stroke-[2.5]" />
-            <span>Cadastrar Cliente</span>
-          </button>
+          <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => setIsWarrantyCenterOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/70 text-emerald-300 border border-emerald-800 text-xs font-bold active:scale-95 transition-all cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Central de Garantias</span>
+            </button>
+            <button
+              id="btn-new-client-top"
+              onClick={openNewClientModal}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold shadow-lg shadow-cyan-950/40 active:scale-95 transition-all cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4 stroke-[2.5]" />
+              <span>Cadastrar Cliente</span>
+            </button>
+          </div>
         </div>
 
         {/* Search input */}
@@ -331,6 +372,75 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
         )}
       </div>
 
+      {/* Central de Garantias */}
+      {isWarrantyCenterOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-sm">
+          <div className="w-full max-w-3xl bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            <div className="flex items-center justify-between p-4 bg-zinc-950 border-b border-zinc-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-300"><ShieldCheck className="w-5 h-5" /></div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Central de Garantias</h3>
+                  <p className="text-[11px] text-zinc-400">Acompanhamento por MA • instalação e produto</p>
+                </div>
+              </div>
+              <button onClick={() => setIsWarrantyCenterOpen(false)} className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="p-4 border-b border-zinc-800 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {([
+                  ['ativa', 'Ativas', warrantyCounts.ativa, 'text-emerald-300 border-emerald-800 bg-emerald-950/40'],
+                  ['vencendo', 'Até 30 dias', warrantyCounts.vencendo, 'text-amber-300 border-amber-800 bg-amber-950/40'],
+                  ['vencida', 'Vencidas', warrantyCounts.vencida, 'text-rose-300 border-rose-800 bg-rose-950/40'],
+                  ['sem_garantia', 'Sem garantia', warrantyCounts.sem_garantia, 'text-zinc-300 border-zinc-700 bg-zinc-950'],
+                ] as const).map(([key, label, count, cls]) => (
+                  <button key={key} onClick={() => setWarrantyFilter(warrantyFilter === key ? 'todos' : key)} className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${cls} ${warrantyFilter === key ? 'ring-2 ring-cyan-500/70' : ''}`}>
+                    <div className="text-xl font-black">{count}</div><div className="text-[10px] font-bold uppercase tracking-wide">{label}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-3" />
+                <input value={warrantySearch} onChange={e => setWarrantySearch(e.target.value)} placeholder="Buscar cliente, MA, marca ou modelo..." className="w-full pl-9 pr-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-2">
+              {filteredWarrantyRecords.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl border border-dashed border-zinc-800 text-zinc-500">Nenhum equipamento encontrado neste filtro.</div>
+              ) : filteredWarrantyRecords
+                  .sort((a, b) => a.eq.serialNumber.localeCompare(b.eq.serialNumber))
+                  .map(({ client, eq, history, summary }) => {
+                    const statusMap = {
+                      ativa: { label: 'Garantia ativa', cls: 'bg-emerald-950 text-emerald-300 border-emerald-800', icon: ShieldCheck },
+                      vencendo: { label: 'Vence em até 30 dias', cls: 'bg-amber-950 text-amber-300 border-amber-800', icon: AlertTriangle },
+                      vencida: { label: 'Garantia vencida', cls: 'bg-rose-950 text-rose-300 border-rose-800', icon: ShieldX },
+                      sem_garantia: { label: 'Sem garantia', cls: 'bg-zinc-950 text-zinc-400 border-zinc-700', icon: ShieldX },
+                    }[summary.overall];
+                    const StatusIcon = statusMap.icon;
+                    return (
+                      <button key={`${client.id}-${eq.serialNumber}`} onClick={() => { setSelectedClientForHistory(client); setSelectedEquipment(eq); setIsWarrantyCenterOpen(false); }} className="w-full text-left p-3 rounded-2xl bg-zinc-950 border border-zinc-800 hover:border-cyan-800 transition-colors cursor-pointer">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2"><span className="font-mono font-bold text-cyan-300">{eq.serialNumber}</span><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusMap.cls}`}><StatusIcon className="w-3 h-3" />{statusMap.label}</span></div>
+                            <div className="text-white font-bold mt-1 truncate">{client.name}</div>
+                            <div className="text-zinc-400 text-[11px] mt-0.5">{[eq.brand, eq.model].filter(Boolean).join(' ') || eq.description || 'Equipamento'} • {history.length} atendimento{history.length !== 1 ? 's' : ''}</div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] text-zinc-500">
+                              <span>Instalação: <b className="text-zinc-300">{summary.installation.period || 'Não informada'}</b>{summary.installation.endDate ? ` • até ${formatDateBR(summary.installation.endDate)}` : ''}</span>
+                              <span>Produto: <b className="text-zinc-300">{summary.product.period || 'Não informada'}</b>{summary.product.endDate ? ` • até ${formatDateBR(summary.product.endDate)}` : ''}</span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-zinc-600 shrink-0 mt-1" />
+                        </div>
+                      </button>
+                    );
+                  })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Client History Popover */}
       {selectedClientForHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
@@ -387,10 +497,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       Nenhum equipamento com MA cadastrado para este cliente.
                     </div>
                   ) : (selectedClientForHistory.equipment || []).map(eq => {
-                    const eqHistory = appointments.filter(a =>
-                      (a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase()) &&
-                      ((a.equipment || []).some(item => item.serialNumber === eq.serialNumber) || a.serialNumber === eq.serialNumber || (a.reservedSerialNumbers || []).includes(eq.serialNumber))
-                    );
+                    const eqHistory = getEquipmentHistory(appointments, selectedClientForHistory.id, selectedClientForHistory.name, eq.serialNumber);
                     return (
                       <button key={eq.id || eq.serialNumber} onClick={() => setSelectedEquipment(eq)} className="w-full text-left p-3 rounded-2xl bg-zinc-950 border border-zinc-800 hover:border-cyan-800 transition-colors cursor-pointer">
                         <div className="flex items-start justify-between gap-2">
@@ -416,10 +523,8 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                   </div>
                 </>
               ) : (() => {
-                const history = appointments.filter(a =>
-                  (a.clientId === selectedClientForHistory.id || a.clientName.toLowerCase() === selectedClientForHistory.name.toLowerCase()) &&
-                  ((a.equipment || []).some(item => item.serialNumber === selectedEquipment.serialNumber) || a.serialNumber === selectedEquipment.serialNumber || (a.reservedSerialNumbers || []).includes(selectedEquipment.serialNumber))
-                ).sort((a,b) => b.date.localeCompare(a.date));
+                const history = getEquipmentHistory(appointments, selectedClientForHistory.id, selectedClientForHistory.name, selectedEquipment.serialNumber).reverse();
+                const warranty = getEquipmentWarrantySummary(selectedEquipment, [...history].reverse());
                 return (
                   <>
                     <button onClick={() => setSelectedEquipment(null)} className="text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer">← Voltar aos equipamentos</button>
@@ -427,7 +532,18 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       <div className="font-mono text-cyan-300 font-bold text-base">{selectedEquipment.serialNumber}</div>
                       <div className="text-white font-bold mt-1">{[selectedEquipment.brand, selectedEquipment.model].filter(Boolean).join(' ') || selectedEquipment.description || 'Equipamento'}</div>
                       {selectedEquipment.manufacturerSerialNumber && <div className="text-zinc-400 mt-1">Série fabricante: {selectedEquipment.manufacturerSerialNumber}</div>}
-                      <div className="text-zinc-400 mt-1">Garantia produto: {selectedEquipment.productWarranty || 'Não informada'}</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                        <div className="p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800">
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500 font-bold">Garantia instalação</div>
+                          <div className="text-zinc-200 font-semibold mt-1">{warranty.installation.period || 'Não informada'}</div>
+                          {warranty.installation.endDate && <div className="text-[11px] text-zinc-400 mt-0.5">Vence em {formatDateBR(warranty.installation.endDate)}</div>}
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800">
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500 font-bold">Garantia produto</div>
+                          <div className="text-zinc-200 font-semibold mt-1">{warranty.product.period || 'Não informada'}</div>
+                          {warranty.product.endDate && <div className="text-[11px] text-zinc-400 mt-0.5">Vence em {formatDateBR(warranty.product.endDate)}</div>}
+                        </div>
+                      </div>
                     </div>
                     <button onClick={() => { onScheduleMaintenance(selectedClientForHistory, selectedEquipment); setSelectedClientForHistory(null); setSelectedEquipment(null); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold cursor-pointer">
                       <CalendarPlus className="w-4 h-4" /> Nova manutenção deste MA
@@ -436,7 +552,10 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                     {history.length === 0 ? <div className="p-4 text-center text-zinc-500">Nenhum atendimento localizado para este MA.</div> : history.map(a => (
                       <div key={a.id} className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1">
                         <div className="flex justify-between gap-2"><span className="text-white font-bold">{a.serviceTypeName}</span><span className="font-mono text-amber-300">{a.serviceOrder || 'Sem OS'}</span></div>
-                        <div className="text-zinc-400">📅 {formatDateBR(a.date)} às {a.startTime}</div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-zinc-400">📅 {formatDateBR(a.date)} às {a.startTime}</div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${a.status === 'concluido' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : a.status === 'cancelado' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}`}>{a.status === 'concluido' ? 'Concluído' : a.status === 'cancelado' ? 'Cancelado' : 'Aberto'}</span>
+                        </div>
                         {a.description && <div className="text-zinc-300">{a.description}</div>}
                         {a.price != null && <div className="text-emerald-400 font-semibold">{formatCurrencyBRL(a.price)}</div>}
                       </div>
