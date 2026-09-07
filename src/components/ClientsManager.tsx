@@ -532,6 +532,12 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       <div className="font-mono text-cyan-300 font-bold text-base">{selectedEquipment.serialNumber}</div>
                       <div className="text-white font-bold mt-1">{[selectedEquipment.brand, selectedEquipment.model].filter(Boolean).join(' ') || selectedEquipment.description || 'Equipamento'}</div>
                       {selectedEquipment.manufacturerSerialNumber && <div className="text-zinc-400 mt-1">Série fabricante: {selectedEquipment.manufacturerSerialNumber}</div>}
+                      {selectedEquipment.description && (
+                        <div className="mt-3 p-2.5 rounded-xl bg-zinc-950/70 border border-cyan-900/70">
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500 font-bold">Local do equipamento</div>
+                          <div className="text-zinc-200 font-semibold mt-1">{selectedEquipment.description}</div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                         <div className="p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800">
                           <div className="text-[10px] uppercase tracking-wide text-zinc-500 font-bold">Garantia instalação</div>
