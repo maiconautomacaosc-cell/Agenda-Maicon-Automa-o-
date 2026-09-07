@@ -16,7 +16,8 @@ import {
   Users,
   AlertTriangle,
   Lock,
-  Ban
+  Ban,
+  Wrench
 } from 'lucide-react';
 import { Appointment, Client, ServiceType, AppointmentStatus } from '../types';
 import { getTodayString, formatDateBR } from '../utils/date';
@@ -141,6 +142,15 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   if (!isOpen) return null;
 
   const isParticular = serviceTypes.includes('compromisso_particular');
+  const inferredMaintenanceSerial = initialAppointment?.maintenanceSerialNumber || (
+    initialAppointment &&
+    ['manutencao_preventiva', 'manutencao_corretiva'].includes(initialAppointment.serviceType) &&
+    initialAppointment.serialNumber &&
+    (initialAppointment.equipment || []).some(eq => eq.serialNumber === initialAppointment.serialNumber)
+      ? initialAppointment.serialNumber
+      : undefined
+  );
+  const isExistingMaMaintenance = Boolean(inferredMaintenanceSerial);
 
   // Check if chosen date already has a compromisso_particular
   const existingDayBlocks = existingAppointments.filter(
@@ -262,6 +272,12 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       serialNumber: isParticular ? undefined : initialAppointment?.serialNumber,
       serviceOrder: isParticular ? undefined : initialAppointment?.serviceOrder,
       equipment: initialAppointment?.equipment,
+      reservedSerialNumbers: isParticular
+        ? undefined
+        : (initialAppointment?.reservedSerialNumbers?.length
+            ? initialAppointment.reservedSerialNumbers
+            : (inferredMaintenanceSerial ? [inferredMaintenanceSerial] : undefined)),
+      maintenanceSerialNumber: isParticular ? undefined : inferredMaintenanceSerial,
       description: description.trim() || (isParticular ? 'Compromisso Particular / Bloqueio de Agenda' : serviceTypeName),
       price: price ? parseFloat(price.replace(',', '.')) : undefined,
       paymentMethod: isParticular ? 'a_combinar' : paymentMethod,
@@ -290,6 +306,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         className={`w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl my-auto flex flex-col max-h-[92vh] border ${
           isParticular 
             ? 'bg-zinc-900 border-purple-800/60 shadow-purple-950/40' 
+            : isExistingMaMaintenance
+            ? 'bg-zinc-800 border-zinc-500 shadow-black/40'
             : 'bg-zinc-900 border-zinc-800'
         }`}
       >
@@ -297,6 +315,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         <div className={`flex items-center justify-between p-4 border-b ${
           isParticular 
             ? 'bg-purple-950/40 border-purple-800/40' 
+            : isExistingMaMaintenance
+            ? 'bg-zinc-700/90 border-zinc-500'
             : 'bg-zinc-950 border-zinc-800'
         }`}>
           <div className="flex items-center gap-2.5">
@@ -311,11 +331,15 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               <h2 className="text-base font-bold text-white">
                 {isParticular
                   ? (initialAppointment ? 'Editar Compromisso Particular' : 'Bloquear Horário / Dia Ocupado')
+                  : isExistingMaMaintenance
+                  ? `Manutenção • ${inferredMaintenanceSerial}`
                   : (initialAppointment ? 'Editar Agendamento' : 'Novo Agendamento & Cliente')}
               </h2>
               <p className="text-xs text-zinc-400 font-mono">
                 {isParticular
                   ? 'Marca o dia como Ocupado para não agendar atendimentos'
+                  : isExistingMaMaintenance
+                  ? 'Atendimento vinculado a equipamento já cadastrado • mesmo MA, nova OS'
                   : 'Instalação, Manutenção e Automação de Fechaduras'}
               </p>
             </div>
@@ -343,6 +367,15 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto flex-1 text-xs">
+          {isExistingMaMaintenance && (
+            <div className="p-3 rounded-2xl bg-zinc-300 text-zinc-950 border border-zinc-100 flex items-start gap-2">
+              <Wrench className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">MANUTENÇÃO DE MA EXISTENTE</div>
+                <div className="text-[11px] mt-0.5">MA {inferredMaintenanceSerial} já possui QR. A finalização reutiliza este MA e gera apenas a nova OS.</div>
+              </div>
+            </div>
+          )}
           
           {/* Service / Block Type Selector */}
           <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 space-y-3">
