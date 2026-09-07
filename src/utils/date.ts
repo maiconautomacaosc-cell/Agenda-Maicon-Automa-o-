@@ -42,26 +42,29 @@ export function formatCurrencyBRL(val?: number): string {
 
 export function calculateDayOccupancy(appointments: Appointment[]): { status: DayOccupancyStatus; totalHours: number } {
   const activeAppts = appointments.filter(a => a.status !== 'cancelado');
+
+  // Regra definitiva da agenda:
+  // - sem atendimento ativo = livre
+  // - compromisso particular = ocupado
+  // - existe qualquer atendimento técnico ainda aberto = parcial
+  // - todos os atendimentos técnicos do dia concluídos = concluido
   if (activeAppts.length === 0) {
     return { status: 'livre', totalHours: 0 };
-  }
-
-  // If there is any personal commitment / blocked day, mark day as occupied immediately
-  const hasPersonalBlockedDay = activeAppts.some(a => a.serviceType === 'compromisso_particular');
-  if (hasPersonalBlockedDay) {
-    const totalMinutes = activeAppts.reduce((acc, curr) => acc + (curr.durationMinutes || 90), 0);
-    return { status: 'ocupado', totalHours: Math.round((totalMinutes / 60) * 10) / 10 };
   }
 
   const totalMinutes = activeAppts.reduce((acc, curr) => acc + (curr.durationMinutes || 90), 0);
   const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
 
-  // Assuming a standard workday of ~8 hours (e.g., 08:00 to 18:00):
-  // 1-3.5 hours = 'parcial' (partially occupied, space for more jobs)
-  // >= 4 hours or >= 3 services = 'ocupado'
-  if (totalHours >= 4 || activeAppts.length >= 3) {
+  const hasPersonalCommitment = activeAppts.some(a => a.serviceType === 'compromisso_particular');
+  if (hasPersonalCommitment) {
     return { status: 'ocupado', totalHours };
   }
+
+  const allCompleted = activeAppts.every(a => a.status === 'concluido');
+  if (allCompleted) {
+    return { status: 'concluido', totalHours };
+  }
+
   return { status: 'parcial', totalHours };
 }
 
