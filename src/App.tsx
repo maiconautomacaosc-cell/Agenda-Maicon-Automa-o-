@@ -200,7 +200,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.0.0', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.0.7', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -313,7 +313,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.0.0',
+      version: '4.0.7',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -802,7 +802,26 @@ export default function App() {
         const currentById = prev.find(c => c.id === updated.clientId);
         const previousEquipment = currentById?.equipment || [];
         const equipmentBySerial = new Map(previousEquipment.map(eq => [eq.serialNumber, eq]));
-        for (const eq of equipment) equipmentBySerial.set(eq.serialNumber, eq);
+        for (const eq of equipment) {
+          const previous = equipmentBySerial.get(eq.serialNumber);
+          const isExistingMaMaintenance = !!updated.maintenanceSerialNumber && updated.maintenanceSerialNumber === eq.serialNumber && !!previous;
+
+          if (isExistingMaMaintenance && previous) {
+            // O cadastro do cliente guarda a identidade mestre do equipamento.
+            // Uma manutenção não transforma a instalação original em "manutenção"
+            // nem reinicia a data/garantia do MA; isso fica registrado no histórico do atendimento/OS.
+            equipmentBySerial.set(eq.serialNumber, {
+              ...previous,
+              brand: eq.brand || previous.brand,
+              model: eq.model || previous.model,
+              manufacturerSerialNumber: eq.manufacturerSerialNumber || previous.manufacturerSerialNumber,
+              description: eq.description || previous.description,
+              photoUrls: Array.from(new Set([...(previous.photoUrls || []), ...(eq.photoUrls || [])])),
+            });
+          } else {
+            equipmentBySerial.set(eq.serialNumber, eq);
+          }
+        }
 
         const next = upsertClientFromAppointment(prev, updated, {
           equipment: Array.from(equipmentBySerial.values()),
