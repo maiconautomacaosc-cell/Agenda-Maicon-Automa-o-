@@ -29,6 +29,7 @@ interface CalendarViewProps {
   onStatusChange: (id: string, newStatus: Appointment['status']) => void;
   onOpenWhatsApp: (appt: Appointment) => void;
   onRetryMainSheetSync?: (appt: Appointment) => void;
+  onRetryCalendarSync?: (appt: Appointment) => void | Promise<void>;
   onReserveMa?: (appt: Appointment) => void | Promise<void>;
   onBlockDay?: (date: string) => void;
 }
@@ -43,6 +44,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onStatusChange,
   onOpenWhatsApp,
   onRetryMainSheetSync,
+  onRetryCalendarSync,
   onReserveMa,
   onBlockDay,
 }) => {
@@ -419,6 +421,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onStatusChange={onStatusChange}
                   onOpenWhatsApp={onOpenWhatsApp}
                   onRetryMainSheetSync={onRetryMainSheetSync}
+                  onRetryCalendarSync={onRetryCalendarSync}
                   onReserveMa={onReserveMa}
                 />
               ))}
