@@ -509,14 +509,41 @@ export async function syncCompletedAppointmentToMainSheets(
     }
   }
 
-  // Atualiza também registros MA que já existiam por terem sido reservados antes da visita.
-  // Assim, na conclusão, o mesmo MA recebe OS, modelo, serviço, garantias e demais dados sem duplicar linha.
+  // Atualiza registros MA que já existiam por terem sido reservados antes da visita.
+  // REGRA 4.0.7: quando o atendimento é uma MANUTENÇÃO de um MA existente,
+  // a linha CLIENTES é o cadastro mestre do equipamento e NÃO pode perder a
+  // instalação original (data, OS, serviço, garantias e PDF original).
+  // A manutenção entra como uma nova linha na aba O.S, preservando o ciclo de vida do MA.
   try {
     for (const eq of equipment) {
       const ma = String(eq.serialNumber || '').trim();
       const targetRow = rowByMA.get(ma);
       if (!ma || !targetRow) continue;
 
+      const maintenanceMA = String(appointment.maintenanceSerialNumber || '').trim();
+      const isExistingMaMaintenance = !!maintenanceMA && maintenanceMA === ma;
+
+      if (isExistingMaMaintenance) {
+        // Em manutenção só permitimos correções cadastrais seguras do equipamento.
+        // Não alteramos OS/data de instalação/serviço original/garantias/PDF/QR.
+        if (eq.brand) {
+          await updateValues(spreadsheetId, sheetRange(tabs.clients, `G${targetRow}`), [[eq.brand]], accessToken);
+        }
+        if (eq.model) {
+          await updateValues(spreadsheetId, sheetRange(tabs.clients, `H${targetRow}`), [[eq.model]], accessToken);
+        }
+        if (eq.description) {
+          // N funciona como identificação/localização do equipamento (apto, porta, ambiente etc.).
+          await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${targetRow}`), [[eq.description]], accessToken);
+        }
+        if (eq.manufacturerSerialNumber) {
+          await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${targetRow}`), [[eq.manufacturerSerialNumber]], accessToken);
+        }
+        continue;
+      }
+
+      // MA reservado para uma instalação/novo equipamento: completa normalmente
+      // a linha que havia sido criada antecipadamente pelo botão Preparar QR.
       const coreRow = [
         ma,
         appointment.serviceOrder || '',
@@ -539,7 +566,7 @@ export async function syncCompletedAppointmentToMainSheets(
         eq.invoiceProof || '',
         eq.productWarranty || '',
       ];
-      // IMPORTANTE: T (QR Code) NÃO é regravada na conclusão.
+      // IMPORTANTE: T (QR Code) NÃO é regravada aqui.
       // O QR reservado antes da visita precisa permanecer exatamente como foi gerado na Agenda.
       await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${targetRow}:S${targetRow}`), [detailRow], accessToken);
 
@@ -548,7 +575,7 @@ export async function syncCompletedAppointmentToMainSheets(
       }
     }
   } catch (err) {
-    syncStageError('Atualização dos MA reservados na aba CLIENTES', err);
+    syncStageError('Atualização dos MA existentes na aba CLIENTES', err);
   }
 
   // M (PDF OS) pode ser atualizada em registros que já existiam.
