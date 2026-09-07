@@ -56,6 +56,8 @@ const QUICK_PARTICULAR_MOTIVES = [
   { label: 'MORIAH - Evento', name: 'MORIAH - Evento' },
   { label: 'GP CASAIS - Ensaio extra', name: 'GP CASAIS - Ensaio extra' },
   { label: 'GP CASAIS - Evento', name: 'GP CASAIS - Evento' },
+  { label: 'Consulta médica', name: 'Consulta médica' },
+  { label: 'Outros', name: 'Outros' },
 ];
 
 export const AppointmentModal: React.FC<AppointmentModalProps> = ({
