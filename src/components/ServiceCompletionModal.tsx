@@ -62,12 +62,24 @@ export const ServiceCompletionModal: React.FC<Props> = ({
   const [installationWarranty, setInstallationWarranty] = useState<WarrantyPeriod>('3 Meses');
   const [photos, setPhotos] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
-  const reservedSerialNumbers = appointment?.reservedSerialNumbers || [];
+  const inferredMaintenanceSerial = appointment?.maintenanceSerialNumber || (
+    appointment &&
+    ['manutencao_preventiva', 'manutencao_corretiva'].includes(appointment.serviceType) &&
+    appointment.serialNumber &&
+    (appointment.equipment || []).some(eq => eq.serialNumber === appointment.serialNumber)
+      ? appointment.serialNumber
+      : undefined
+  );
+  const reservedSerialNumbers = appointment?.reservedSerialNumbers?.length
+    ? appointment.reservedSerialNumbers
+    : (inferredMaintenanceSerial ? [inferredMaintenanceSerial] : []);
   const reservedCount = reservedSerialNumbers.length;
 
   useEffect(() => {
     if (!isOpen) return;
-    const reserved = appointment?.reservedSerialNumbers || [];
+    const reserved = appointment?.reservedSerialNumbers?.length
+      ? appointment.reservedSerialNumbers
+      : (inferredMaintenanceSerial ? [inferredMaintenanceSerial] : []);
     setRegisterEquipment(reserved.length > 0);
     // Regra padrão: todo atendimento concluído gera OS, salvo se o usuário escolher Não.
     setGenerateOS(true);
