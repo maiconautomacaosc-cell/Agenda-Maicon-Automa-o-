@@ -473,6 +473,7 @@ export default function App() {
               ...appt,
               googleEventId: eventId,
               googleSyncedAt: new Date().toISOString(),
+              syncedToCalendar: true,
             };
             setAppointments((prev) => {
               const updated = prev.map((a) => (a.id === appt.id ? syncedAppt : a));
@@ -495,6 +496,39 @@ export default function App() {
         saveClients(updatedList);
         return updatedList;
       });
+    }
+  };
+
+  const handleRetryCalendarSync = async (appt: Appointment) => {
+    try {
+      let tokenToUse = googleAccessToken || getCachedAccessToken();
+      if (!tokenToUse) tokenToUse = await ensureValidAccessToken();
+
+      if (!tokenToUse) {
+        showGoogleNotification('📅 Conecte sua conta Google e depois toque novamente em Sincronizar Agenda.');
+        setIsCloudSyncOpen(true);
+        return;
+      }
+
+      showGoogleNotification(`📅 Sincronizando ${appt.clientName} com o Google Agenda...`);
+      const { eventId } = await updateGoogleCalendarEvent(appt, tokenToUse);
+      const syncedAt = new Date().toISOString();
+      setAppointments(prev => {
+        const updated = prev.map(a => a.id === appt.id ? {
+          ...a,
+          googleEventId: eventId || a.googleEventId,
+          googleSyncedAt: syncedAt,
+          syncedToCalendar: true,
+          updatedAt: new Date().toISOString(),
+        } : a);
+        saveAppointments(updated);
+        backupAgendaMutation(updated, 'google-agenda-sincronizada');
+        return updated;
+      });
+      showGoogleNotification(`✅ ${appt.clientName} sincronizado com o Google Agenda.`);
+    } catch (err) {
+      console.warn('Erro ao reenviar para Google Agenda:', err);
+      showGoogleNotification('⚠️ Não foi possível sincronizar com o Google Agenda. Confira a conexão Google e tente novamente.');
     }
   };
 
@@ -624,7 +658,16 @@ export default function App() {
       }
     }
 
-    const reservedSerialNumbers = completionAppointment.reservedSerialNumbers || [];
+    const inferredMaintenanceSerial = completionAppointment.maintenanceSerialNumber || (
+      ['manutencao_preventiva', 'manutencao_corretiva'].includes(completionAppointment.serviceType) &&
+      completionAppointment.serialNumber &&
+      (completionAppointment.equipment || []).some(eq => eq.serialNumber === completionAppointment.serialNumber)
+        ? completionAppointment.serialNumber
+        : undefined
+    );
+    const reservedSerialNumbers = completionAppointment.reservedSerialNumbers?.length
+      ? completionAppointment.reservedSerialNumbers
+      : (inferredMaintenanceSerial ? [inferredMaintenanceSerial] : []);
     let extraMaIndex = 0;
     let equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
@@ -1036,6 +1079,7 @@ export default function App() {
       address: client.address, neighborhood: client.neighborhood, city: client.city || 'Joinville',
       serialNumber: equipment.serialNumber,
       reservedSerialNumbers: [equipment.serialNumber],
+      maintenanceSerialNumber: equipment.serialNumber,
       equipment: [equipment],
       date: defaultDate, startTime: '10:00', endTime: '11:00', durationMinutes: 60,
       serviceType: 'manutencao_corretiva', serviceTypes: ['manutencao_corretiva'],
@@ -1147,6 +1191,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onOpenWhatsApp={handleOpenWhatsApp}
             onRetryMainSheetSync={handleRetryMainSheetSync}
+            onRetryCalendarSync={handleRetryCalendarSync}
             onReserveMa={handleReserveMaForAppointment}
             onBlockDay={handleBlockDay}
           />
@@ -1163,6 +1208,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onOpenWhatsApp={handleOpenWhatsApp}
             onRetryMainSheetSync={handleRetryMainSheetSync}
+            onRetryCalendarSync={handleRetryCalendarSync}
             onReserveMa={handleReserveMaForAppointment}
           />
         )}
