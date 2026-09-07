@@ -46,6 +46,7 @@ interface AppointmentCardProps {
   onStatusChange: (id: string, newStatus: AppointmentStatus) => void;
   onOpenWhatsApp: (appt: Appointment) => void;
   onRetryMainSheetSync?: (appt: Appointment) => void;
+  onRetryCalendarSync?: (appt: Appointment) => void | Promise<void>;
   onReserveMa?: (appt: Appointment) => void | Promise<void>;
   onTriggerAlarmTest?: (appt: Appointment) => void;
 }
@@ -57,6 +58,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onStatusChange,
   onOpenWhatsApp,
   onRetryMainSheetSync,
+  onRetryCalendarSync,
   onReserveMa,
 }) => {
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
@@ -64,6 +66,14 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   const [reservingMa, setReservingMa] = useState(false);
 
   const isParticular = appointment.serviceType === 'compromisso_particular';
+  const inferredMaintenanceSerial = appointment.maintenanceSerialNumber || (
+    ['manutencao_preventiva', 'manutencao_corretiva'].includes(appointment.serviceType) &&
+    appointment.serialNumber &&
+    (appointment.equipment || []).some(eq => eq.serialNumber === appointment.serialNumber)
+      ? appointment.serialNumber
+      : undefined
+  );
+  const isExistingMaMaintenance = Boolean(inferredMaintenanceSerial);
 
   // Sempre usa o Web App oficial confirmado. Não confia em warrantyUrl antigo
   // salvo no atendimento, pois versões anteriores podem ter armazenado link inválido.
@@ -138,6 +148,8 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       className={`relative rounded-2xl border transition-all duration-200 overflow-hidden ${
         isParticular
           ? 'bg-gradient-to-br from-purple-950/40 via-zinc-900 to-zinc-900 border-purple-800/60 border-l-4 border-l-purple-500 shadow-md shadow-purple-950/20'
+          : isExistingMaMaintenance
+          ? 'bg-gradient-to-br from-zinc-700/80 via-zinc-800 to-zinc-900 border-zinc-500/80 border-l-4 border-l-zinc-300 shadow-lg shadow-black/20'
           : appointment.status === 'concluido'
           ? 'bg-zinc-900/90 border-zinc-800 border-l-4 border-l-emerald-500 opacity-90'
           : appointment.status === 'em_andamento'
@@ -203,6 +215,11 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
           {/* Service badge */}
           <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {isExistingMaMaintenance && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold border bg-zinc-300 text-zinc-950 border-zinc-100">
+                <Wrench className="w-3 h-3" /> MANUTENÇÃO DE MA EXISTENTE
+              </span>
+            )}
             <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md font-medium border ${
               isParticular 
                 ? 'bg-purple-950/80 text-purple-300 border-purple-700/60'
@@ -252,7 +269,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           </div>
         )}
 
-        {!isParticular && appointment.status !== 'concluido' && appointment.status !== 'cancelado' && onReserveMa && (
+        {!isParticular && !isExistingMaMaintenance && appointment.status !== 'concluido' && appointment.status !== 'cancelado' && onReserveMa && (
           <div className="rounded-xl border border-cyan-800/60 bg-cyan-950/20 p-2.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -342,6 +359,18 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             </div>
           </div>
         </div>
+
+        {!isParticular && !appointment.googleEventId && onRetryCalendarSync && (
+          <button
+            type="button"
+            onClick={() => onRetryCalendarSync(appointment)}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-blue-500/70 bg-blue-950/60 hover:bg-blue-900/70 py-2 px-3 text-[11px] font-bold text-blue-100 transition-colors active:scale-[0.99]"
+            title="Envia somente este atendimento para o Google Agenda, sem alterar planilha, MA ou OS"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Sincronizar Google Agenda
+          </button>
+        )}
 
         {!isParticular && appointment.status === 'concluido' && appointment.mainSheetSyncStatus !== 'synced' && (appointment.serviceOrder || (appointment.equipment?.length || 0) > 0) && (
           <div className="rounded-xl border border-amber-700/60 bg-amber-950/35 p-2.5 space-y-2">
