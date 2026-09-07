@@ -307,7 +307,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
           isParticular 
             ? 'bg-zinc-900 border-purple-800/60 shadow-purple-950/40' 
             : isExistingMaMaintenance
-            ? 'bg-zinc-800 border-zinc-500 shadow-black/40'
+            ? 'bg-zinc-700 border-zinc-400 shadow-black/50'
             : 'bg-zinc-900 border-zinc-800'
         }`}
       >
@@ -316,7 +316,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
           isParticular 
             ? 'bg-purple-950/40 border-purple-800/40' 
             : isExistingMaMaintenance
-            ? 'bg-zinc-700/90 border-zinc-500'
+            ? 'bg-zinc-600 border-zinc-400'
             : 'bg-zinc-950 border-zinc-800'
         }`}>
           <div className="flex items-center gap-2.5">
