@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Client, Appointment, EquipmentRecord } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
-import { getEquipmentHistory, getEquipmentWarrantySummary, WarrantyState } from '../utils/warranty';
+import { getClientEquipmentRecords, getEquipmentHistory, getEquipmentWarrantySummary, WarrantyState } from '../utils/warranty';
 import { openWhatsApp } from '../utils/whatsapp';
 
 interface ClientsManagerProps {
@@ -127,7 +127,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   };
 
   const warrantyRecords = clients.flatMap(client =>
-    (client.equipment || []).map(eq => {
+    getClientEquipmentRecords(client, appointments).map(eq => {
       const history = getEquipmentHistory(appointments, client.id, client.name, eq.serialNumber);
       const summary = getEquipmentWarrantySummary(eq, history);
       return { client, eq, history, summary };
@@ -157,7 +157,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     (c.neighborhood && c.neighborhood.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (c.serialNumber && c.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (c.serviceOrder && c.serviceOrder.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (c.equipment || []).some(eq =>
+    getClientEquipmentRecords(c, appointments).some(eq =>
       eq.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (eq.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (eq.model || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -488,15 +488,15 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       <div className="text-zinc-500 text-[11px]">Cada MA acompanha o equipamento durante toda a vida útil.</div>
                     </div>
                     <span className="px-2 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">
-                      {(selectedClientForHistory.equipment || []).length} MA
+                      {getClientEquipmentRecords(selectedClientForHistory, appointments).length} MA
                     </span>
                   </div>
 
-                  {(selectedClientForHistory.equipment || []).length === 0 ? (
+                  {getClientEquipmentRecords(selectedClientForHistory, appointments).length === 0 ? (
                     <div className="p-6 text-center rounded-2xl bg-zinc-950 border border-dashed border-zinc-800 text-zinc-400">
                       Nenhum equipamento com MA cadastrado para este cliente.
                     </div>
-                  ) : (selectedClientForHistory.equipment || []).map(eq => {
+                  ) : getClientEquipmentRecords(selectedClientForHistory, appointments).map(eq => {
                     const eqHistory = getEquipmentHistory(appointments, selectedClientForHistory.id, selectedClientForHistory.name, eq.serialNumber);
                     return (
                       <button key={eq.id || eq.serialNumber} onClick={() => setSelectedEquipment(eq)} className="w-full text-left p-3 rounded-2xl bg-zinc-950 border border-zinc-800 hover:border-cyan-800 transition-colors cursor-pointer">

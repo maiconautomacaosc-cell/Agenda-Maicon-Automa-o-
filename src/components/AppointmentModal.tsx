@@ -47,12 +47,15 @@ const SERVICE_OPTIONS: { type: ServiceType; label: string; defaultDuration: numb
 ];
 
 const QUICK_PARTICULAR_MOTIVES = [
-  { label: '🩺 Consulta Médica', name: 'Consulta Médica' },
-  { label: '🌴 Folga / Descanso', name: 'Folga / Descanso' },
-  { label: '🚗 Viagem / Estrada', name: 'Viagem / Fora da Cidade' },
-  { label: '🏠 Assuntos Pessoais', name: 'Assuntos Pessoais' },
-  { label: '🛠️ Oficina / Ferramentas', name: 'Manutenção de Ferramentas / Oficina' },
-  { label: '🎓 Treinamento / Curso', name: 'Curso / Treinamento' },
+  { label: 'AZAFE - Reunião geral', name: 'AZAFE - Reunião geral' },
+  { label: 'AZAFE - Reunião ADM', name: 'AZAFE - Reunião ADM' },
+  { label: 'AZAFE - Ensaio extra', name: 'AZAFE - Ensaio extra' },
+  { label: 'AZAFE - Evento', name: 'AZAFE - Evento' },
+  { label: 'MORIAH - Ensaio Geral', name: 'MORIAH - Ensaio Geral' },
+  { label: 'MORIAH - Reunião Geral', name: 'MORIAH - Reunião Geral' },
+  { label: 'MORIAH - Evento', name: 'MORIAH - Evento' },
+  { label: 'GP CASAIS - Ensaio extra', name: 'GP CASAIS - Ensaio extra' },
+  { label: 'GP CASAIS - Evento', name: 'GP CASAIS - Evento' },
 ];
 
 export const AppointmentModal: React.FC<AppointmentModalProps> = ({
@@ -234,7 +237,11 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName.trim()) {
-      alert(isParticular ? 'Por favor, informe o motivo do compromisso particular.' : 'Por favor, informe o nome do cliente.');
+      alert(isParticular ? 'Por favor, selecione o tipo do compromisso particular.' : 'Por favor, informe o nome do cliente.');
+      return;
+    }
+    if (isParticular && !QUICK_PARTICULAR_MOTIVES.some(m => m.name === clientName.trim())) {
+      alert('Selecione uma das opções do menu de Dia ocupado.');
       return;
     }
     if (!date) {
@@ -377,73 +384,72 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             </div>
           )}
           
-          {/* Service / Block Type Selector */}
-          <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 space-y-3">
-            <span className="font-mono font-bold text-zinc-300 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-              <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
-              Tipo de Entrada na Agenda
-            </span>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {SERVICE_OPTIONS.map((opt) => {
-                const selected = serviceTypes.includes(opt.type);
-                const particular = opt.type === 'compromisso_particular';
-                return (
+          {/* Tipo técnico OU menu exclusivo de Dia Ocupado */}
+          {isParticular ? (
+            <div className="bg-purple-950/35 p-3.5 rounded-2xl border border-purple-800/50 space-y-3">
+              <span className="font-mono font-bold text-purple-200 text-xs flex items-center gap-1.5 uppercase tracking-wider">
+                <Lock className="w-3.5 h-3.5 text-purple-400" />
+                Tipo do compromisso particular
+              </span>
+              <p className="text-[11px] text-purple-300/80">Este menu aparece somente pelo botão Dia ocupado.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {QUICK_PARTICULAR_MOTIVES.map((m) => (
                   <button
-                    key={opt.type}
+                    key={m.name}
                     type="button"
-                    onClick={() => handleServiceChange(opt.type)}
-                    className={`text-left p-2.5 rounded-xl border text-xs font-semibold transition-all ${
-                      selected
-                        ? particular
-                          ? 'bg-purple-950/70 border-purple-500 text-purple-100'
-                          : 'bg-cyan-950/60 border-cyan-500 text-cyan-100'
-                        : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600'
+                    onClick={() => {
+                      setClientName(m.name);
+                      setDescription(`Compromisso: ${m.name}`);
+                    }}
+                    className={`text-left p-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                      clientName === m.name
+                        ? 'bg-purple-600 text-white border-purple-400 shadow-sm'
+                        : 'bg-zinc-900 border-zinc-700 text-zinc-200 hover:border-purple-600 hover:text-white'
                     }`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? 'bg-cyan-500 border-cyan-400 text-black' : 'border-zinc-600'}`}>
-                        {selected && <Check className="w-3 h-3" />}
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${clientName === m.name ? 'bg-white border-white text-purple-700' : 'border-zinc-600'}`}>
+                        {clientName === m.name && <Check className="w-3 h-3" />}
                       </span>
-                      {opt.label}
+                      {m.label}
                     </span>
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
-            {!isParticular && (
-              <p className="text-[11px] text-zinc-500">Você pode marcar mais de um tipo no mesmo atendimento. Ex.: 2 instalações sobrepor + 1 embutir continuam sendo uma única visita.</p>
-            )}
-
-            {/* If it's a personal commitment */}
-            {isParticular && (
-              <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-800/40 space-y-2">
-                <div className="flex items-center gap-2 text-purple-300 font-semibold text-xs">
-                  <Lock className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Escolha rápida do motivo:</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_PARTICULAR_MOTIVES.map((m) => (
+          ) : (
+            <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 space-y-3">
+              <span className="font-mono font-bold text-zinc-300 text-xs flex items-center gap-1.5 uppercase tracking-wider">
+                <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
+                Tipo de Entrada na Agenda
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SERVICE_OPTIONS.filter(opt => opt.type !== 'compromisso_particular').map((opt) => {
+                  const selected = serviceTypes.includes(opt.type);
+                  return (
                     <button
-                      key={m.name}
+                      key={opt.type}
                       type="button"
-                      onClick={() => {
-                        setClientName(m.name);
-                        setDescription(`Compromisso: ${m.name}`);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                        clientName === m.name
-                          ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
-                          : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-purple-600 hover:text-white'
+                      onClick={() => handleServiceChange(opt.type)}
+                      className={`text-left p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                        selected
+                          ? 'bg-cyan-950/60 border-cyan-500 text-cyan-100'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-600'
                       }`}
                     >
-                      {m.label}
+                      <span className="flex items-center gap-2">
+                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? 'bg-cyan-500 border-cyan-400 text-black' : 'border-zinc-600'}`}>
+                          {selected && <Check className="w-3 h-3" />}
+                        </span>
+                        {opt.label}
+                      </span>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
+              <p className="text-[11px] text-zinc-500">Você pode marcar mais de um tipo no mesmo atendimento. Ex.: 2 instalações sobrepor + 1 embutir continuam sendo uma única visita.</p>
+            </div>
+          )}
 
           {/* Section: Client or Motive Details */}
           <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 space-y-3">
@@ -484,7 +490,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
             <div className="relative">
               <label className="block text-zinc-300 font-semibold mb-1">
-                {isParticular ? 'Título / Motivo do Bloqueio *' : 'Nome do Cliente *'}
+                {isParticular ? 'Compromisso selecionado *' : 'Nome do Cliente *'}
               </label>
               <input
                 id="input-client-name"
@@ -492,10 +498,13 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 required
                 value={clientName}
                 onChange={(e) => {
-                  setClientName(e.target.value);
-                  setSelectedClientId('');
+                  if (!isParticular) {
+                    setClientName(e.target.value);
+                    setSelectedClientId('');
+                  }
                 }}
-                placeholder={isParticular ? "Ex: Consulta Médica, Viagem com a Família, Folga..." : "Ex: Carlos Eduardo ou Condomínio Solar"}
+                readOnly={isParticular}
+                placeholder={isParticular ? "Selecione uma opção acima" : "Ex: Carlos Eduardo ou Condomínio Solar"}
                 className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
               />
 
