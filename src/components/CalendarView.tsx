@@ -154,18 +154,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
         </div>
 
-        {/* Legend / Status Badges for Free / Busy / Partial */}
-        <div className="grid grid-cols-3 gap-2 py-3 px-1 border-b border-zinc-800 text-xs">
+        {/* Legenda / filtros com regra definitiva do status do dia */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-3 px-1 border-b border-zinc-800 text-xs">
           <button
             onClick={() => setFilterOccupancy(filterOccupancy === 'livre' ? 'todos' : 'livre')}
             className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
               filterOccupancy === 'livre'
-                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                ? 'bg-zinc-800 border-zinc-300 text-white'
                 : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50"></span>
-            <span className="font-semibold">Dia Livre</span>
+            <span className="w-2 h-2 rounded-full bg-white shadow-sm shadow-white/40"></span>
+            <span className="font-semibold">Livre</span>
           </button>
 
           <button
@@ -177,19 +177,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50"></span>
-            <span className="font-semibold">Parcial</span>
+            <span className="font-semibold">Pendente</span>
+          </button>
+
+          <button
+            onClick={() => setFilterOccupancy(filterOccupancy === 'concluido' ? 'todos' : 'concluido')}
+            className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
+              filterOccupancy === 'concluido'
+                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50"></span>
+            <span className="font-semibold">Concluído</span>
           </button>
 
           <button
             onClick={() => setFilterOccupancy(filterOccupancy === 'ocupado' ? 'todos' : 'ocupado')}
             className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
               filterOccupancy === 'ocupado'
-                ? 'bg-cyan-950/80 border-cyan-500 text-cyan-300'
+                ? 'bg-purple-950/80 border-purple-500 text-purple-300'
                 : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
-            <span className="font-semibold">Ocupado</span>
+            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50"></span>
+            <span className="font-semibold">Particular</span>
           </button>
         </div>
 
@@ -252,13 +264,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                   {/* Dot status */}
                   {hasParticular ? (
-                    <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50" title="Compromisso particular (Dia Ocupado)" />
+                    <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50" title="Compromisso particular" />
                   ) : dayObj.status === 'livre' ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Dia livre" />
-                  ) : dayObj.status === 'parcial' ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Parcialmente ocupado" />
+                    <span className="w-2 h-2 rounded-full bg-white shadow-sm shadow-white/40" title="Dia livre" />
+                  ) : dayObj.status === 'concluido' ? (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" title="Todos os serviços concluídos" />
                   ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" title="Dia ocupado" />
+                    <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50" title="Há agendamento pendente" />
                   )}
                 </div>
 
@@ -272,15 +284,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   ) : apptsCount > 0 ? (
                     <span
                       className={`w-full text-center text-[10px] font-bold py-0.5 px-1 rounded-md truncate ${
-                        dayObj.status === 'ocupado'
-                          ? 'bg-cyan-500 text-black font-extrabold'
+                        dayObj.status === 'concluido'
+                          ? 'bg-emerald-500 text-black font-extrabold'
                           : 'bg-amber-400 text-black font-extrabold'
                       }`}
                     >
                       {apptsCount} {apptsCount === 1 ? 'serv.' : 'serv.'}
                     </span>
                   ) : (
-                    <span className="text-[9px] text-emerald-400/70 font-mono hidden sm:inline">
+                    <span className="text-[9px] text-white/75 font-mono hidden sm:inline">
                       Livre
                     </span>
                   )}
