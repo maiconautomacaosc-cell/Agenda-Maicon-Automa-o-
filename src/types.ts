@@ -59,6 +59,7 @@ export interface Appointment {
   serviceOrder?: string; // uma OS por atendimento, quando solicitada
   equipment?: EquipmentRecord[]; // zero, um ou vários equipamentos no mesmo atendimento
   reservedSerialNumbers?: string[]; // MA reservado antecipadamente para gerar/imprimir o QR antes da visita
+  maintenanceSerialNumber?: string; // quando é manutenção de MA já existente, preserva o mesmo equipamento e bloqueia nova reserva de QR
   date: string;
   startTime: string;
   endTime?: string;
