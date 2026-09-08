@@ -464,8 +464,9 @@ export default function App() {
     });
 
     // Automatic Google Calendar Sync
+    // Compromissos particulares são histórico interno da Agenda Maicon: não geram Drive, planilha principal nem Google Calendar.
     const tokenToUse = googleAccessToken || getCachedAccessToken();
-    if (tokenToUse) {
+    if (tokenToUse && appt.serviceType !== 'compromisso_particular') {
       updateGoogleCalendarEvent(appt, tokenToUse)
         .then(({ eventId }) => {
           if (eventId) {
@@ -568,7 +569,9 @@ export default function App() {
       prev.map((a) => {
         if (a.id === id) {
           const updated = { ...a, status: newStatus, updatedAt: new Date().toISOString() };
-          if (tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
+          if (tokenToUse && updated.serviceType !== 'compromisso_particular') {
+            updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
+          }
           return updated;
         }
         return a;
