@@ -33,6 +33,7 @@ import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
 import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
+import { PostSalesCenter } from './components/PostSalesCenter';
 import { DayScheduleView } from './components/DayScheduleView';
 import { QuotesManager } from './components/QuotesManager';
 import { QuoteEditorModal } from './components/QuoteEditorModal';
@@ -289,7 +290,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.1.2', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.2.0', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -402,7 +403,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.1.2',
+      version: '4.2.0',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -1375,6 +1376,15 @@ export default function App() {
             onScheduleMaintenance={handleScheduleMaintenance}
             onOpenWhatsAppForAppt={handleOpenWhatsApp}
             onQuoteForClient={handleOpenNewQuote}
+          />
+        )}
+
+        {currentTab === 'posvenda' && (
+          <PostSalesCenter
+            clients={clients}
+            appointments={appointments}
+            onScheduleMaintenance={handleScheduleMaintenance}
+            onOpenAgendaDate={(date) => { setSelectedDate(date); setAgendaFocusFilter(null); setCurrentTab('agenda'); }}
           />
         )}
 
