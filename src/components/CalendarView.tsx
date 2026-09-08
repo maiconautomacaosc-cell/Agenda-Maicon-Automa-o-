@@ -13,7 +13,8 @@ import {
   Ban,
   Lock,
   Trash2,
-  Edit3
+  Edit3,
+  Filter
 } from 'lucide-react';
 import { Appointment, DayInfo, DayOccupancyStatus } from '../types';
 import { generateMonthDays, formatDateFriendly, formatDateBR, getTodayString } from '../utils/date';
@@ -89,6 +90,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const selectedDayAppointments = appointments.filter(a => a.date === selectedDate);
   const selectedDayActive = selectedDayAppointments.filter(a => a.status !== 'cancelado');
   const particularAppt = selectedDayActive.find(a => a.serviceType === 'compromisso_particular');
+  const selectedTechnical = selectedDayActive.filter(a => a.serviceType !== 'compromisso_particular');
+  const selectedDayIsMixed = Boolean(particularAppt && selectedTechnical.length > 0);
 
   // Count metrics for current month
   const monthAppointments = appointments.filter(a => {
@@ -154,55 +157,50 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
         </div>
 
-        {/* Legenda / filtros com regra definitiva do status do dia */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-3 px-1 border-b border-zinc-800 text-xs">
-          <button
-            onClick={() => setFilterOccupancy(filterOccupancy === 'livre' ? 'todos' : 'livre')}
-            className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-              filterOccupancy === 'livre'
-                ? 'bg-zinc-800 border-zinc-300 text-white'
-                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-white shadow-sm shadow-white/40"></span>
-            <span className="font-semibold">Livre</span>
-          </button>
+        {/* Legenda visual + filtro separado das cores */}
+        <div className="py-3 px-1 border-b border-zinc-800 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-300">
+              <CalendarIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Legenda da agenda</span>
+            </div>
 
-          <button
-            onClick={() => setFilterOccupancy(filterOccupancy === 'parcial' ? 'todos' : 'parcial')}
-            className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-              filterOccupancy === 'parcial'
-                ? 'bg-amber-950/80 border-amber-500 text-amber-300'
-                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50"></span>
-            <span className="font-semibold">Pendente</span>
-          </button>
+            <label className="relative flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+              <select
+                aria-label="Filtrar dias da agenda"
+                value={filterOccupancy}
+                onChange={(e) => setFilterOccupancy(e.target.value as DayOccupancyStatus | 'todos')}
+                className="appearance-none bg-zinc-950 border border-zinc-700 rounded-xl pl-2.5 pr-7 py-1.5 text-[11px] font-semibold text-zinc-200 outline-none focus:border-cyan-500 cursor-pointer"
+              >
+                <option value="todos">Todos os dias</option>
+                <option value="livre">Livres</option>
+                <option value="parcial">Clientes pendentes</option>
+                <option value="concluido">Concluídos</option>
+                <option value="ocupado">Particulares</option>
+                <option value="misto">Mistos</option>
+              </select>
+              <ChevronRight className="w-3 h-3 rotate-90 text-zinc-500 absolute right-2 pointer-events-none" />
+            </label>
+          </div>
 
-          <button
-            onClick={() => setFilterOccupancy(filterOccupancy === 'concluido' ? 'todos' : 'concluido')}
-            className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-              filterOccupancy === 'concluido'
-                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50"></span>
-            <span className="font-semibold">Concluído</span>
-          </button>
-
-          <button
-            onClick={() => setFilterOccupancy(filterOccupancy === 'ocupado' ? 'todos' : 'ocupado')}
-            className={`flex items-center justify-center gap-1.5 p-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-              filterOccupancy === 'ocupado'
-                ? 'bg-purple-950/80 border-purple-500 text-purple-300'
-                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50"></span>
-            <span className="font-semibold">Particular</span>
-          </button>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-[10px]">
+            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-white"></span><span>Livre</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span><span>Pendente</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span><span>Concluído</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-purple-400"></span><span>Particular</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 col-span-2 sm:col-span-1">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span><span>Misto</span>
+            </div>
+          </div>
         </div>
 
         {/* Days of Week Headers */}
@@ -228,6 +226,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             const hasParticular = dayObj.appointments.some(
               a => a.serviceType === 'compromisso_particular' && a.status !== 'cancelado'
             );
+            const technicalCount = dayObj.appointments.filter(
+              a => a.serviceType !== 'compromisso_particular' && a.status !== 'cancelado'
+            ).length;
+            const isMixedDay = hasParticular && technicalCount > 0;
 
             return (
               <button
@@ -238,11 +240,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   !dayObj.isCurrentMonth
                     ? 'opacity-25 bg-zinc-950/30 border border-transparent'
                     : isSelected
-                    ? hasParticular
+                    ? isMixedDay
+                      ? 'bg-red-950/80 border-2 border-red-500 ring-2 ring-red-500/20 text-white shadow-lg shadow-red-950/50'
+                      : hasParticular
                       ? 'bg-purple-950/80 border-2 border-purple-400 ring-2 ring-purple-400/20 text-white shadow-lg shadow-purple-950/50'
                       : 'bg-cyan-950/70 border-2 border-cyan-400 ring-2 ring-cyan-400/20 text-white shadow-lg shadow-cyan-950/50'
                     : dayObj.isToday
-                    ? 'bg-zinc-800 border border-cyan-500/60 text-white'
+                    ? isMixedDay
+                      ? 'bg-red-950/50 border border-red-500/80 text-white'
+                      : 'bg-zinc-800 border border-cyan-500/60 text-white'
+                    : isMixedDay
+                    ? 'bg-red-950/35 border border-red-800/70 text-red-200 hover:bg-red-950/55'
                     : hasParticular
                     ? 'bg-purple-950/30 border border-purple-800/60 text-purple-200 hover:bg-purple-950/50'
                     : 'bg-zinc-950/80 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-300'
@@ -255,7 +263,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       dayObj.isToday
                         ? 'bg-cyan-500 text-black font-extrabold'
                         : isSelected
-                        ? hasParticular ? 'text-purple-300 font-extrabold' : 'text-cyan-300 font-extrabold'
+                        ? isMixedDay ? 'text-red-300 font-extrabold' : hasParticular ? 'text-purple-300 font-extrabold' : 'text-cyan-300 font-extrabold'
                         : 'text-zinc-300'
                     }`}
                   >
@@ -263,7 +271,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </span>
 
                   {/* Dot status */}
-                  {hasParticular ? (
+                  {isMixedDay ? (
+                    <span className="w-2 h-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50" title="Dia misto: cliente + compromisso particular" />
+                  ) : hasParticular ? (
                     <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50" title="Compromisso particular" />
                   ) : dayObj.status === 'livre' ? (
                     <span className="w-2 h-2 rounded-full bg-white shadow-sm shadow-white/40" title="Dia livre" />
@@ -276,10 +286,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                 {/* Badge for Appointments count & time */}
                 <div className="w-full mt-1 flex flex-col items-center">
-                  {hasParticular ? (
+                  {isMixedDay ? (
+                    <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-red-600 text-white font-mono flex items-center justify-center gap-0.5" title={`${technicalCount} atendimento(s) + compromisso particular`}>
+                      <span>Misto • {technicalCount} cli.</span>
+                    </span>
+                  ) : hasParticular ? (
                     <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-purple-600 text-white font-mono flex items-center justify-center gap-0.5">
                       <Ban className="w-2.5 h-2.5" />
-                      <span>Ocupado</span>
+                      <span>Particular</span>
                     </span>
                   ) : apptsCount > 0 ? (
                     <span
@@ -312,8 +326,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <span>Agenda do Dia: {formatDateFriendly(selectedDate)}</span>
             </h3>
             <p className="text-xs text-zinc-400 font-mono">
-              {particularAppt
-                ? '🚫 Dia Bloqueado para Compromisso Particular (Indisponível)'
+              {selectedDayIsMixed
+                ? `🔴 Dia misto • ${selectedTechnical.length} cliente(s) + compromisso particular`
+                : particularAppt
+                ? `🟣 Compromisso particular • ${particularAppt.startTime} às ${particularAppt.endTime || '18:00'}`
                 : selectedDayActive.length === 0
                 ? 'Nenhum serviço agendado (Dia 100% Livre)'
                 : `${selectedDayActive.length} serviço(s) • ${selectedDayAppointments.reduce((acc, c) => acc + (c.durationMinutes || 0), 0)} min estimados`}
@@ -327,10 +343,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 id="btn-quick-block-day"
                 onClick={() => onBlockDay(selectedDate)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 text-purple-200 border border-purple-700/60 text-xs font-semibold shadow-md transition-all active:scale-95"
-                title="Marcar este dia como ocupado por compromisso particular"
+                title="Adicionar um compromisso particular neste dia"
               >
                 <Ban className="w-3.5 h-3.5 text-purple-400" />
-                <span>Marcar Dia Ocupado</span>
+                <span>Compromisso Particular</span>
               </button>
             )}
 
@@ -354,7 +370,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
               <div>
                 <div className="font-bold text-sm text-white flex items-center gap-1.5">
-                  <span>Dia Marcado como Ocupado</span>
+                  <span>{selectedDayIsMixed ? 'Compromisso Particular no Dia Misto' : 'Compromisso Particular'}</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-900 text-purple-300 font-mono">
                     {particularAppt.clientName}
                   </span>
@@ -378,14 +394,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
               <button
                 onClick={() => {
-                  if (window.confirm('Deseja liberar este dia para agendamentos (remover compromisso particular)?')) {
+                  if (window.confirm('Deseja remover este compromisso particular? Os demais agendamentos do dia serão mantidos.')) {
                     onDeleteAppointment(particularAppt.id);
                   }
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>Liberar Dia</span>
+                <span>Remover</span>
               </button>
             </div>
           </div>
