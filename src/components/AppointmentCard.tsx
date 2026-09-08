@@ -452,19 +452,26 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             <Edit3 className="w-3.5 h-3.5" />
             <span>Editar Bloqueio</span>
           </button>
-          <button
-            id={`btn-delete-${appointment.id}`}
-            onClick={() => {
-              if (window.confirm(`Deseja remover o compromisso particular e liberar este dia para agendamentos?`)) {
-                onDelete(appointment.id);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold transition-colors active:scale-95"
-            title="Liberar Dia / Excluir Bloqueio"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Liberar Dia</span>
-          </button>
+          {appointment.status !== 'concluido' ? (
+            <button
+              id={`btn-complete-particular-${appointment.id}`}
+              onClick={() => {
+                if (window.confirm(`Liberar este período e manter o compromisso particular no histórico como concluído?`)) {
+                  onStatusChange(appointment.id, 'concluido');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-950/60 hover:bg-orange-900/80 text-orange-300 border border-orange-800/60 text-xs font-semibold transition-colors active:scale-95"
+              title="Liberar período e preservar no histórico"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Liberar Dia</span>
+            </button>
+          ) : (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/50 text-emerald-300 border border-emerald-800/60 text-xs font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Concluído</span>
+            </span>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-1 p-1.5 bg-zinc-950 border-t border-zinc-800">
