@@ -52,6 +52,7 @@ import { buildWarrantyUrl, generateServiceOrderPdfBlob } from './lib/serviceOrde
 export default function App() {
   const [currentTab, setCurrentTab] = useState<ViewTab>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(() => getTodayString());
+  const [agendaFocusFilter, setAgendaFocusFilter] = useState<'manutencoes_abertas' | null>(null);
   const [clients, setClients] = useState<Client[]>(() => loadClients());
   const [appointments, setAppointments] = useState<Appointment[]>(() => loadAppointments());
   const [quotes, setQuotes] = useState<Quote[]>(() => loadQuotes());
@@ -201,7 +202,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.1.0', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.1.1', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -314,7 +315,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.1.0',
+      version: '4.1.1',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -1153,6 +1154,20 @@ export default function App() {
     setIsWhatsAppModalOpen(true);
   };
 
+  const handleOpenMaintenanceAgenda = () => {
+    const open = appointments
+      .filter(a =>
+        a.status !== 'cancelado' &&
+        (a.status === 'pendente' || a.status === 'em_andamento') &&
+        (a.serviceType === 'manutencao_preventiva' || a.serviceType === 'manutencao_corretiva')
+      )
+      .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`));
+
+    if (open[0]?.date) setSelectedDate(open[0].date);
+    setAgendaFocusFilter('manutencoes_abertas');
+    setCurrentTab('agenda');
+  };
+
   // Sound Settings
   const handleToggleSound = () => {
     setSettings((prev) => {
@@ -1210,6 +1225,7 @@ export default function App() {
             onSelectTab={setCurrentTab}
             onNewAppointment={() => handleOpenNewAppointment()}
             onSelectDate={setSelectedDate}
+            onOpenMaintenanceAgenda={handleOpenMaintenanceAgenda}
           />
         )}
 
@@ -1227,6 +1243,8 @@ export default function App() {
             onRetryCalendarSync={handleRetryCalendarSync}
             onReserveMa={handleReserveMaForAppointment}
             onBlockDay={handleBlockDay}
+            focusFilter={agendaFocusFilter}
+            onClearFocusFilter={() => setAgendaFocusFilter(null)}
           />
         )}
 
