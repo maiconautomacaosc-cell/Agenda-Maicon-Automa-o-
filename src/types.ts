@@ -95,7 +95,7 @@ export interface Appointment {
   mainSheetSyncError?: string; // último erro exato da gravação na planilha principal
 }
 
-export type DayOccupancyStatus = 'livre' | 'parcial' | 'concluido' | 'ocupado';
+export type DayOccupancyStatus = 'livre' | 'parcial' | 'concluido' | 'ocupado' | 'misto';
 
 export interface DayInfo {
   date: string;
