@@ -32,6 +32,7 @@ import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/goog
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
 import { CalendarView } from './components/CalendarView';
+import { Dashboard } from './components/Dashboard';
 import { DayScheduleView } from './components/DayScheduleView';
 import { QuotesManager } from './components/QuotesManager';
 import { QuoteEditorModal } from './components/QuoteEditorModal';
@@ -49,7 +50,7 @@ import { CompletionOptions, ServiceCompletionModal } from './components/ServiceC
 import { buildWarrantyUrl, generateServiceOrderPdfBlob } from './lib/serviceOrderPdf';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<ViewTab>('agenda');
+  const [currentTab, setCurrentTab] = useState<ViewTab>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(() => getTodayString());
   const [clients, setClients] = useState<Client[]>(() => loadClients());
   const [appointments, setAppointments] = useState<Appointment[]>(() => loadAppointments());
@@ -200,7 +201,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.0.8', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.1.0', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -313,7 +314,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.0.8',
+      version: '4.1.0',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -1202,6 +1203,16 @@ export default function App() {
 
       {/* Main Responsive Content Body */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 space-y-4">
+        {currentTab === 'dashboard' && (
+          <Dashboard
+            appointments={appointments}
+            clients={clients}
+            onSelectTab={setCurrentTab}
+            onNewAppointment={() => handleOpenNewAppointment()}
+            onSelectDate={setSelectedDate}
+          />
+        )}
+
         {currentTab === 'agenda' && (
           <CalendarView
             appointments={appointments}
