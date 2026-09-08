@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -13,7 +13,8 @@ import {
   Ban,
   Lock,
   Edit3,
-  Filter
+  Filter,
+  Wrench
 } from 'lucide-react';
 import { Appointment, DayInfo, DayOccupancyStatus } from '../types';
 import { generateMonthDays, formatDateFriendly, formatDateBR, getTodayString } from '../utils/date';
@@ -32,6 +33,8 @@ interface CalendarViewProps {
   onRetryCalendarSync?: (appt: Appointment) => void | Promise<void>;
   onReserveMa?: (appt: Appointment) => void | Promise<void>;
   onBlockDay?: (date: string) => void;
+  focusFilter?: 'manutencoes_abertas' | null;
+  onClearFocusFilter?: () => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -47,10 +50,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onRetryCalendarSync,
   onReserveMa,
   onBlockDay,
+  focusFilter,
+  onClearFocusFilter,
 }) => {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
-  const [filterOccupancy, setFilterOccupancy] = useState<DayOccupancyStatus | 'todos'>('todos');
+  type CalendarFilter = DayOccupancyStatus | 'todos' | 'manutencoes_abertas';
+  const [filterOccupancy, setFilterOccupancy] = useState<CalendarFilter>('todos');
 
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -60,6 +66,40 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const weekDayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
   const daysGrid = generateMonthDays(currentYear, currentMonth, appointments);
+
+  const openMaintenances = useMemo(() => appointments
+    .filter(a =>
+      a.status !== 'cancelado' &&
+      (a.status === 'pendente' || a.status === 'em_andamento') &&
+      (a.serviceType === 'manutencao_preventiva' || a.serviceType === 'manutencao_corretiva')
+    )
+    .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)), [appointments]);
+
+  const maintenanceDays = useMemo(() => {
+    const byDate = new Map<string, number>();
+    openMaintenances.forEach(a => byDate.set(a.date, (byDate.get(a.date) || 0) + 1));
+    return Array.from(byDate.entries()).map(([date, count]) => ({ date, count }));
+  }, [openMaintenances]);
+
+  useEffect(() => {
+    if (focusFilter === 'manutencoes_abertas') {
+      setFilterOccupancy('manutencoes_abertas');
+      const target = maintenanceDays[0]?.date;
+      if (target) {
+        const [year, month] = target.split('-').map(Number);
+        setCurrentYear(year);
+        setCurrentMonth(month - 1);
+        onSelectDate(target);
+      }
+    }
+  }, [focusFilter]);
+
+  const selectMaintenanceDate = (date: string) => {
+    const [year, month] = date.split('-').map(Number);
+    setCurrentYear(year);
+    setCurrentMonth(month - 1);
+    onSelectDate(date);
+  };
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -169,7 +209,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <select
                 aria-label="Filtrar dias da agenda"
                 value={filterOccupancy}
-                onChange={(e) => setFilterOccupancy(e.target.value as DayOccupancyStatus | 'todos')}
+                onChange={(e) => {
+                  const value = e.target.value as CalendarFilter;
+                  setFilterOccupancy(value);
+                  if (value !== 'manutencoes_abertas') onClearFocusFilter?.();
+                }}
                 className="appearance-none bg-zinc-950 border border-zinc-700 rounded-xl pl-2.5 pr-7 py-1.5 text-[11px] font-semibold text-zinc-200 outline-none focus:border-cyan-500 cursor-pointer"
               >
                 <option value="todos">Todos os dias</option>
@@ -179,6 +223,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <option value="ocupado">Particulares</option>
                 <option value="misto">Mistos ativos</option>
                 <option value="misto_concluido">Mistos concluídos</option>
+                <option value="manutencoes_abertas">Manutenções abertas</option>
               </select>
               <ChevronRight className="w-3 h-3 rotate-90 text-zinc-500 absolute right-2 pointer-events-none" />
             </label>
@@ -206,6 +251,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
         </div>
 
+        {filterOccupancy === 'manutencoes_abertas' && (
+          <div className="mt-3 bg-zinc-950/70 border border-amber-900/50 rounded-2xl p-3">
+            <div className="flex items-center justify-between gap-3 mb-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <Wrench className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-zinc-100">Manutenções abertas</div>
+                  <div className="text-[10px] text-zinc-500">{openMaintenances.length} atendimento{openMaintenances.length !== 1 ? 's' : ''} em {maintenanceDays.length} dia{maintenanceDays.length !== 1 ? 's' : ''}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => { setFilterOccupancy('todos'); onClearFocusFilter?.(); }}
+                className="text-[10px] font-bold text-zinc-500 hover:text-zinc-200 px-2 py-1 rounded-lg border border-zinc-800"
+              >
+                Ver todos
+              </button>
+            </div>
+            {maintenanceDays.length > 0 ? (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {maintenanceDays.map(({ date, count }) => (
+                  <button
+                    key={date}
+                    onClick={() => selectMaintenanceDate(date)}
+                    className={`shrink-0 rounded-xl border px-3 py-2 text-left transition-colors ${selectedDate === date ? 'bg-amber-500/15 border-amber-500 text-amber-300' : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-amber-900'}`}
+                  >
+                    <div className="text-[11px] font-black">{formatDateBR(date)}</div>
+                    <div className="text-[9px] opacity-70">{count} manutenção{count !== 1 ? 'ões' : ''}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-zinc-500 py-2">Nenhuma manutenção aberta no momento.</div>
+            )}
+          </div>
+        )}
+
         {/* Days of Week Headers */}
         <div className="grid grid-cols-7 gap-1 pt-3 text-center">
           {weekDayLabels.map((day, idx) => (
@@ -224,7 +305,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="grid grid-cols-7 gap-1.5 pt-1">
           {daysGrid.map((dayObj) => {
             const isSelected = dayObj.date === selectedDate;
-            const isFilteredOut = filterOccupancy !== 'todos' && dayObj.status !== filterOccupancy;
+            const hasOpenMaintenance = dayObj.appointments.some(a =>
+              a.status !== 'cancelado' &&
+              (a.status === 'pendente' || a.status === 'em_andamento') &&
+              (a.serviceType === 'manutencao_preventiva' || a.serviceType === 'manutencao_corretiva')
+            );
+            const isFilteredOut = filterOccupancy === 'manutencoes_abertas'
+              ? !hasOpenMaintenance
+              : filterOccupancy !== 'todos' && dayObj.status !== filterOccupancy;
             const apptsCount = dayObj.appointments.filter(a => a.status !== 'cancelado').length;
             const hasParticular = dayObj.appointments.some(
               a => a.serviceType === 'compromisso_particular' && a.status !== 'cancelado'
