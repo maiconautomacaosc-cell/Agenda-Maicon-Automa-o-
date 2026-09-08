@@ -103,6 +103,93 @@ export default function App() {
   const [completionOfficialNumbers, setCompletionOfficialNumbers] = useState<{ nextMA: number; nextOS: number } | null>(null);
   const [completionNumberingLoading, setCompletionNumberingLoading] = useState(false);
 
+  // Navegação Android/PWA: existe apenas um nível interno acima do Painel.
+  // Assim, o botão físico/gesto "Voltar" retorna qualquer tela/submenu ao Dashboard;
+  // já no Dashboard, o próximo "Voltar" fica livre para o Android fechar/minimizar o app.
+  const hasNavigationOverlay = Boolean(
+    isCloudSyncOpen ||
+    isAppointmentModalOpen ||
+    isWhatsAppModalOpen ||
+    isQuoteEditorOpen ||
+    isQuoteWhatsAppOpen ||
+    isQuoteDetailOpen ||
+    isBrandInfoOpen ||
+    completionAppointment
+  );
+  const isInsideAppSection = currentTab !== 'dashboard' || hasNavigationOverlay;
+  const navigationContextRef = useRef({ currentTab, hasNavigationOverlay });
+  const internalHistoryActiveRef = useRef(false);
+
+  navigationContextRef.current = { currentTab, hasNavigationOverlay };
+
+  useEffect(() => {
+    // Marca a entrada atual como a raiz do app sem alterar a URL.
+    if (!window.history.state?.maiconRoot && !window.history.state?.maiconInternal) {
+      window.history.replaceState(
+        { ...(window.history.state || {}), maiconRoot: true },
+        '',
+        window.location.href
+      );
+    }
+
+    const handleAndroidBack = () => {
+      const navigation = navigationContextRef.current;
+      if (navigation.currentTab === 'dashboard' && !navigation.hasNavigationOverlay) {
+        // No Painel não interceptamos: o navegador/PWA pode sair normalmente.
+        return;
+      }
+
+      // Qualquer área interna volta primeiro ao Painel e fecha submenus/modais abertos.
+      setCurrentTab('dashboard');
+      setAgendaFocusFilter(null);
+      setIsCloudSyncOpen(false);
+      setIsAppointmentModalOpen(false);
+      setEditingAppointment(null);
+      setIsWhatsAppModalOpen(false);
+      setWhatsAppAppointment(null);
+      setIsQuoteEditorOpen(false);
+      setEditingQuote(null);
+      setQuoteDefaultClient(null);
+      setIsQuoteWhatsAppOpen(false);
+      setWhatsAppQuote(null);
+      setIsQuoteDetailOpen(false);
+      setDetailQuote(null);
+      setIsBrandInfoOpen(false);
+      setCompletionAppointment(null);
+      internalHistoryActiveRef.current = false;
+    };
+
+    window.addEventListener('popstate', handleAndroidBack);
+    return () => window.removeEventListener('popstate', handleAndroidBack);
+  }, []);
+
+  useEffect(() => {
+    if (isInsideAppSection) {
+      // Agenda -> Clientes -> Dia a Dia etc. continuam compartilhando o mesmo nível
+      // de histórico. Não acumulamos vários "Voltar" para telas internas.
+      if (!window.history.state?.maiconInternal) {
+        window.history.pushState(
+          { ...(window.history.state || {}), maiconInternal: true },
+          '',
+          window.location.href
+        );
+      }
+      internalHistoryActiveRef.current = true;
+      return;
+    }
+
+    // Se o usuário voltou ao Painel por um botão do próprio app, consome o único
+    // nível interno que foi criado. Dessa forma, no Painel um único Voltar sai.
+    if (internalHistoryActiveRef.current && window.history.state?.maiconInternal) {
+      internalHistoryActiveRef.current = false;
+      window.history.back();
+      return;
+    }
+
+    internalHistoryActiveRef.current = false;
+  }, [isInsideAppSection]);
+
+
   const extractSequence = (value?: string) => {
     const digits = String(value || '').replace(/\D/g, '');
     return digits ? Number(digits) : 0;
@@ -202,7 +289,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.1.1', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.1.2', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -315,7 +402,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.1.1',
+      version: '4.1.2',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
