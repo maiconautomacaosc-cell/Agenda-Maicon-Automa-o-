@@ -12,7 +12,6 @@ import {
   CalendarDays,
   Ban,
   Lock,
-  Trash2,
   Edit3,
   Filter
 } from 'lucide-react';
@@ -178,13 +177,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <option value="parcial">Clientes pendentes</option>
                 <option value="concluido">Concluídos</option>
                 <option value="ocupado">Particulares</option>
-                <option value="misto">Mistos</option>
+                <option value="misto">Mistos ativos</option>
+                <option value="misto_concluido">Mistos concluídos</option>
               </select>
               <ChevronRight className="w-3 h-3 rotate-90 text-zinc-500 absolute right-2 pointer-events-none" />
             </label>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-[10px]">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[10px]">
             <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
               <span className="w-2 h-2 rounded-full bg-white"></span><span>Livre</span>
             </div>
@@ -199,6 +199,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
             <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 col-span-2 sm:col-span-1">
               <span className="w-2 h-2 rounded-full bg-red-500"></span><span>Misto</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-orange-950/30 border border-orange-900/50 text-orange-300 col-span-2 sm:col-span-1">
+              <span className="w-2 h-2 rounded-full bg-orange-500"></span><span>Misto concluído</span>
             </div>
           </div>
         </div>
@@ -230,6 +233,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               a => a.serviceType !== 'compromisso_particular' && a.status !== 'cancelado'
             ).length;
             const isMixedDay = hasParticular && technicalCount > 0;
+            const isMixedCompletedDay = dayObj.status === 'misto_concluido';
 
             return (
               <button
@@ -240,15 +244,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   !dayObj.isCurrentMonth
                     ? 'opacity-25 bg-zinc-950/30 border border-transparent'
                     : isSelected
-                    ? isMixedDay
+                    ? isMixedCompletedDay
+                      ? 'bg-orange-950/80 border-2 border-orange-500 ring-2 ring-orange-500/20 text-white shadow-lg shadow-orange-950/50'
+                      : isMixedDay
                       ? 'bg-red-950/80 border-2 border-red-500 ring-2 ring-red-500/20 text-white shadow-lg shadow-red-950/50'
                       : hasParticular
                       ? 'bg-purple-950/80 border-2 border-purple-400 ring-2 ring-purple-400/20 text-white shadow-lg shadow-purple-950/50'
                       : 'bg-cyan-950/70 border-2 border-cyan-400 ring-2 ring-cyan-400/20 text-white shadow-lg shadow-cyan-950/50'
                     : dayObj.isToday
-                    ? isMixedDay
+                    ? isMixedCompletedDay
+                      ? 'bg-orange-950/50 border border-orange-500/80 text-white'
+                      : isMixedDay
                       ? 'bg-red-950/50 border border-red-500/80 text-white'
                       : 'bg-zinc-800 border border-cyan-500/60 text-white'
+                    : isMixedCompletedDay
+                    ? 'bg-orange-950/35 border border-orange-800/70 text-orange-200 hover:bg-orange-950/55'
                     : isMixedDay
                     ? 'bg-red-950/35 border border-red-800/70 text-red-200 hover:bg-red-950/55'
                     : hasParticular
@@ -263,7 +273,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       dayObj.isToday
                         ? 'bg-cyan-500 text-black font-extrabold'
                         : isSelected
-                        ? isMixedDay ? 'text-red-300 font-extrabold' : hasParticular ? 'text-purple-300 font-extrabold' : 'text-cyan-300 font-extrabold'
+                        ? isMixedCompletedDay ? 'text-orange-300 font-extrabold' : isMixedDay ? 'text-red-300 font-extrabold' : hasParticular ? 'text-purple-300 font-extrabold' : 'text-cyan-300 font-extrabold'
                         : 'text-zinc-300'
                     }`}
                   >
@@ -271,7 +281,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </span>
 
                   {/* Dot status */}
-                  {isMixedDay ? (
+                  {isMixedCompletedDay ? (
+                    <span className="w-2 h-2 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50" title="Dia misto concluído: cliente + compromisso particular finalizados" />
+                  ) : isMixedDay ? (
                     <span className="w-2 h-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50" title="Dia misto: cliente + compromisso particular" />
                   ) : hasParticular ? (
                     <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50" title="Compromisso particular" />
@@ -286,7 +298,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                 {/* Badge for Appointments count & time */}
                 <div className="w-full mt-1 flex flex-col items-center">
-                  {isMixedDay ? (
+                  {isMixedCompletedDay ? (
+                    <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-orange-500 text-black font-extrabold font-mono flex items-center justify-center gap-0.5" title={`${technicalCount} atendimento(s) + compromisso particular concluídos`}>
+                      <span>Misto concluído</span>
+                    </span>
+                  ) : isMixedDay ? (
                     <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-red-600 text-white font-mono flex items-center justify-center gap-0.5" title={`${technicalCount} atendimento(s) + compromisso particular`}>
                       <span>Misto • {technicalCount} cli.</span>
                     </span>
@@ -327,7 +343,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </h3>
             <p className="text-xs text-zinc-400 font-mono">
               {selectedDayIsMixed
-                ? `🔴 Dia misto • ${selectedTechnical.length} cliente(s) + compromisso particular`
+                ? (selectedDayActive.every(a => a.status === 'concluido')
+                    ? `🟠 Dia misto concluído • ${selectedTechnical.length} cliente(s) + compromisso particular`
+                    : `🔴 Dia misto • ${selectedTechnical.length} cliente(s) + compromisso particular`)
                 : particularAppt
                 ? `🟣 Compromisso particular • ${particularAppt.startTime} às ${particularAppt.endTime || '18:00'}`
                 : selectedDayActive.length === 0
@@ -392,17 +410,24 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <Edit3 className="w-3 h-3" />
                 <span>Editar</span>
               </button>
-              <button
-                onClick={() => {
-                  if (window.confirm('Deseja remover este compromisso particular? Os demais agendamentos do dia serão mantidos.')) {
-                    onDeleteAppointment(particularAppt.id);
-                  }
-                }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 text-xs font-semibold transition-colors"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Remover</span>
-              </button>
+              {particularAppt.status !== 'concluido' ? (
+                <button
+                  onClick={() => {
+                    if (window.confirm('Liberar este período e manter o compromisso particular no histórico como concluído?')) {
+                      onStatusChange(particularAppt.id, 'concluido');
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-950/60 hover:bg-orange-900/80 text-orange-300 border border-orange-800/60 text-xs font-semibold transition-colors"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Liberar dia</span>
+                </button>
+              ) : (
+                <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 text-emerald-300 border border-emerald-800/60 text-xs font-semibold">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Particular concluído</span>
+                </span>
+              )}
             </div>
           </div>
         )}
