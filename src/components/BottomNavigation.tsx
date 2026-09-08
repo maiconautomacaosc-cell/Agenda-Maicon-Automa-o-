@@ -1,5 +1,6 @@
 import React from 'react';
 import { 
+  LayoutDashboard,
   Calendar, 
   Clock, 
   FileText,
@@ -22,7 +23,18 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onNewAppointment,
 }) => {
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800 px-1.5 py-1.5 flex items-center justify-around">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800 px-1 py-1.5 flex items-center justify-around">
+      <button
+        id="tab-btn-dashboard"
+        onClick={() => onSelectTab('dashboard')}
+        className={`flex flex-col items-center justify-center p-1 rounded-xl transition-all ${
+          currentTab === 'dashboard' ? 'text-cyan-400 font-bold scale-105' : 'text-zinc-400 hover:text-zinc-200'
+        }`}
+      >
+        <LayoutDashboard className="w-4 h-4 mb-0.5" />
+        <span className="text-[8px]">Painel</span>
+      </button>
+
       <button
         id="tab-btn-agenda"
         onClick={() => onSelectTab('agenda')}
