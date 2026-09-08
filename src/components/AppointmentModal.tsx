@@ -159,7 +159,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
   // Check if chosen date already has a compromisso_particular
   const existingDayBlocks = existingAppointments.filter(
-    (a) => a.date === date && a.serviceType === 'compromisso_particular' && a.status !== 'cancelado' && a.id !== initialAppointment?.id
+    (a) => a.date === date && a.serviceType === 'compromisso_particular' && a.status !== 'cancelado' && a.status !== 'concluido' && a.id !== initialAppointment?.id
   );
 
   const handleSelectClient = (c: Client) => {
