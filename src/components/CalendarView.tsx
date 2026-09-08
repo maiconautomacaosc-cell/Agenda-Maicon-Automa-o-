@@ -3,7 +3,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Calendar as CalendarIcon, 
-  Plus, 
   CheckCircle2, 
   Clock, 
   AlertCircle, 
@@ -24,7 +23,6 @@ interface CalendarViewProps {
   appointments: Appointment[];
   selectedDate: string;
   onSelectDate: (date: string) => void;
-  onNewAppointment: (date?: string) => void;
   onEditAppointment: (appt: Appointment) => void;
   onDeleteAppointment: (id: string) => void;
   onStatusChange: (id: string, newStatus: Appointment['status']) => void;
@@ -32,16 +30,16 @@ interface CalendarViewProps {
   onRetryMainSheetSync?: (appt: Appointment) => void;
   onRetryCalendarSync?: (appt: Appointment) => void | Promise<void>;
   onReserveMa?: (appt: Appointment) => void | Promise<void>;
-  onBlockDay?: (date: string) => void;
   focusFilter?: 'manutencoes_abertas' | null;
   onClearFocusFilter?: () => void;
+  newAppointmentSelectionMode?: boolean;
+  onSelectDateForNewAppointment?: (date: string) => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   appointments,
   selectedDate,
   onSelectDate,
-  onNewAppointment,
   onEditAppointment,
   onDeleteAppointment,
   onStatusChange,
@@ -49,9 +47,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onRetryMainSheetSync,
   onRetryCalendarSync,
   onReserveMa,
-  onBlockDay,
   focusFilter,
   onClearFocusFilter,
+  newAppointmentSelectionMode = false,
+  onSelectDateForNewAppointment,
 }) => {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
@@ -185,16 +184,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
 
-            <button
-              id="btn-quick-new-appt"
-              onClick={() => onNewAppointment(selectedDate)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold shadow-md shadow-cyan-950/40 transition-all active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span className="hidden xs:inline">Agendar</span>
-            </button>
           </div>
         </div>
+
+        {newAppointmentSelectionMode && (
+          <div className="mx-1 mb-3 p-3 rounded-2xl bg-cyan-950/50 border border-cyan-700 text-cyan-100">
+            <div className="text-sm font-black">Selecione o dia do novo agendamento</div>
+            <div className="text-[11px] text-cyan-300 mt-0.5">Toque diretamente no dia desejado no calendário.</div>
+          </div>
+        )}
 
         {/* Legenda visual + filtro separado das cores */}
         <div className="py-3 px-1 border-b border-zinc-800 space-y-2.5">
@@ -327,7 +325,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 key={dayObj.date}
                 id={`calendar-day-${dayObj.date}`}
-                onClick={() => onSelectDate(dayObj.date)}
+                onClick={() => newAppointmentSelectionMode ? onSelectDateForNewAppointment?.(dayObj.date) : onSelectDate(dayObj.date)}
                 className={`relative min-h-[58px] sm:min-h-[70px] p-1.5 rounded-2xl flex flex-col justify-between items-center text-left transition-all duration-150 ${
                   !dayObj.isCurrentMonth
                     ? 'opacity-25 bg-zinc-950/30 border border-transparent'
@@ -442,29 +440,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Quick Button to Block Day / Compromisso Particular */}
-            {!particularAppt && onBlockDay && (
-              <button
-                id="btn-quick-block-day"
-                onClick={() => onBlockDay(selectedDate)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 text-purple-200 border border-purple-700/60 text-xs font-semibold shadow-md transition-all active:scale-95"
-                title="Adicionar um compromisso particular neste dia"
-              >
-                <Ban className="w-3.5 h-3.5 text-purple-400" />
-                <span>Compromisso Particular</span>
-              </button>
-            )}
-
-            <button
-              id="btn-add-appt-selected-date"
-              onClick={() => onNewAppointment(selectedDate)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold shadow-md shadow-cyan-950/40 transition-all active:scale-95"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Novo Agendamento</span>
-            </button>
-          </div>
         </div>
 
         {/* If day is blocked with personal commitment, show prominent notification banner */}
@@ -528,26 +503,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
             <h4 className="text-sm font-bold text-white">Dia Livre para Novos Agendamentos</h4>
             <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-              Você não tem atendimentos marcados nesta data. Clique no botão abaixo para adicionar uma instalação ou marcar como dia ocupado.
+              Você não tem atendimentos marcados nesta data. Para criar um novo registro, use o botão azul + no rodapé e selecione o dia diretamente no calendário.
             </p>
-            <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-              <button
-                onClick={() => onNewAppointment(selectedDate)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-cyan-400 border border-zinc-700 text-xs font-bold transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Agendar Serviço Técnico
-              </button>
-              {onBlockDay && (
-                <button
-                  onClick={() => onBlockDay(selectedDate)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 text-xs font-bold transition-colors"
-                >
-                  <Ban className="w-4 h-4" />
-                  Marcar como Dia Ocupado
-                </button>
-              )}
-            </div>
           </div>
         ) : (
           <div className="space-y-3">
