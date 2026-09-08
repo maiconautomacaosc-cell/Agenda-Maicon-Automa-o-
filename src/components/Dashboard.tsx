@@ -117,12 +117,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 space-y-3">
-        <div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400"/><h2 className="font-bold">Pós-venda</h2><span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-zinc-600">prévia v4.2</span></div>
+        <div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400"/><h2 className="font-bold">Pós-venda</h2><button onClick={() => onSelectTab('posvenda')} className="ml-auto text-[9px] font-bold uppercase tracking-wider text-cyan-500">abrir central →</button></div>
         <div className="grid grid-cols-2 gap-3">
           <button onClick={onOpenMaintenanceAgenda} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-amber-800/70 transition-colors">
             <Wrench className="w-4 h-4 text-amber-400 mb-2"/><div className="text-xl font-black">{metrics.maintenanceOpen}</div><div className="text-[10px] text-zinc-500">manutenções abertas</div>
           </button>
-          <button onClick={() => onSelectTab('clientes')} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-zinc-700">
+          <button onClick={() => onSelectTab('posvenda')} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-zinc-700">
             <ShieldCheck className="w-4 h-4 text-emerald-400 mb-2"/><div className="text-xl font-black">{metrics.warrantySoon}</div><div className="text-[10px] text-zinc-500">garantias em até 30 dias</div>
           </button>
         </div>
