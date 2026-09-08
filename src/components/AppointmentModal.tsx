@@ -47,10 +47,10 @@ const SERVICE_OPTIONS: { type: ServiceType; label: string; defaultDuration: numb
 ];
 
 const QUICK_PARTICULAR_MOTIVES = [
-  { label: 'AZAFE - Reunião geral', name: 'AZAFE - Reunião geral' },
-  { label: 'AZAFE - Reunião ADM', name: 'AZAFE - Reunião ADM' },
-  { label: 'AZAFE - Ensaio extra', name: 'AZAFE - Ensaio extra' },
-  { label: 'AZAFE - Evento', name: 'AZAFE - Evento' },
+  { label: 'AZAF - Reunião geral', name: 'AZAF - Reunião geral' },
+  { label: 'AZAF - Reunião ADM', name: 'AZAF - Reunião ADM' },
+  { label: 'AZAF - Ensaio extra', name: 'AZAF - Ensaio extra' },
+  { label: 'AZAF - Evento', name: 'AZAF - Evento' },
   { label: 'MORIAH - Ensaio Geral', name: 'MORIAH - Ensaio Geral' },
   { label: 'MORIAH - Reunião Geral', name: 'MORIAH - Reunião Geral' },
   { label: 'MORIAH - Evento', name: 'MORIAH - Evento' },
