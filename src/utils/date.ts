@@ -44,10 +44,11 @@ export function calculateDayOccupancy(appointments: Appointment[]): { status: Da
   const activeAppts = appointments.filter(a => a.status !== 'cancelado');
 
   // Regra definitiva da agenda:
-  // - sem atendimento ativo = livre
-  // - compromisso particular + atendimento técnico no mesmo dia = misto
-  // - somente compromisso particular = ocupado
-  // - existe qualquer atendimento técnico ainda aberto = parcial
+  // - sem registro = livre
+  // - compromisso particular + atendimento técnico = misto
+  // - se todos os registros do dia misto estiverem concluídos = misto_concluido
+  // - somente compromisso particular = ocupado (roxo, mesmo quando concluído)
+  // - existe atendimento técnico ainda aberto = parcial
   // - todos os atendimentos técnicos do dia concluídos = concluido
   if (activeAppts.length === 0) {
     return { status: 'livre', totalHours: 0 };
@@ -60,7 +61,8 @@ export function calculateDayOccupancy(appointments: Appointment[]): { status: Da
   const hasTechnicalAppointment = activeAppts.some(a => a.serviceType !== 'compromisso_particular');
 
   if (hasPersonalCommitment && hasTechnicalAppointment) {
-    return { status: 'misto', totalHours };
+    const allDayRecordsCompleted = activeAppts.every(a => a.status === 'concluido');
+    return { status: allDayRecordsCompleted ? 'misto_concluido' : 'misto', totalHours };
   }
 
   if (hasPersonalCommitment) {
