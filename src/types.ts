@@ -143,7 +143,7 @@ export interface Quote {
   updatedAt: string;
 }
 
-export type ViewTab = 'agenda' | 'diario' | 'orcamentos' | 'clientes' | 'financeiro' | 'consultoria';
+export type ViewTab = 'dashboard' | 'agenda' | 'diario' | 'orcamentos' | 'clientes' | 'financeiro' | 'consultoria';
 
 export interface FilterState {
   searchTerm: string;
