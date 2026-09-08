@@ -12,6 +12,7 @@ interface DashboardProps {
   onSelectTab: (tab: ViewTab) => void;
   onNewAppointment: () => void;
   onSelectDate: (date: string) => void;
+  onOpenMaintenanceAgenda: () => void;
 }
 
 const warrantyMonths: Record<WarrantyPeriod, number> = {
@@ -25,7 +26,7 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onSelectTab, onNewAppointment, onSelectDate }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onSelectTab, onNewAppointment, onSelectDate, onOpenMaintenanceAgenda }) => {
   const metrics = useMemo(() => {
     const today = getTodayString();
     const now = new Date(`${today}T12:00:00`);
@@ -118,7 +119,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 space-y-3">
         <div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400"/><h2 className="font-bold">Pós-venda</h2><span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-zinc-600">prévia v4.2</span></div>
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => onSelectTab('agenda')} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-zinc-700">
+          <button onClick={onOpenMaintenanceAgenda} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-amber-800/70 transition-colors">
             <Wrench className="w-4 h-4 text-amber-400 mb-2"/><div className="text-xl font-black">{metrics.maintenanceOpen}</div><div className="text-[10px] text-zinc-500">manutenções abertas</div>
           </button>
           <button onClick={() => onSelectTab('clientes')} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-zinc-700">
