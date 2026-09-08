@@ -76,7 +76,7 @@ export const PostSalesCenter: React.FC<PostSalesCenterProps> = ({ clients, appoi
       const matchesSearch = !q || [
         row.client.name, row.client.phone, row.client.address,
         row.equipment.serialNumber, row.equipment.brand, row.equipment.model,
-        row.equipment.manufacturerSerialNumber,
+        row.equipment.manufacturerSerialNumber, row.equipment.description,
       ].some(v => String(v || '').toLowerCase().includes(q));
       if (!matchesSearch) return false;
       if (filter === 'atencao') return row.warranty.overall === 'vencendo' || row.warranty.overall === 'vencida';
@@ -171,6 +171,9 @@ export const PostSalesCenter: React.FC<PostSalesCenterProps> = ({ clients, appoi
             </div>
 
             <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2">
+                <Info label="Local de instalação" value={selected.equipment.description || selected.client.address || 'Não informado'} />
+              </div>
               <Info label="Equipamento" value={[selected.equipment.brand, selected.equipment.model].filter(Boolean).join(' ') || 'Não informado'} />
               <Info label="Nº fabricante" value={selected.equipment.manufacturerSerialNumber || 'Não informado'} />
               <Info label="Garantia instalação" value={`${warrantyLabel[selected.warranty.installation.state]}${selected.warranty.installation.endDate ? ` • até ${formatDate(selected.warranty.installation.endDate)}` : ''}`} />
