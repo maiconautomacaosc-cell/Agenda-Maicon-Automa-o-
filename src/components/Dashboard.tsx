@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  CalendarDays, CheckCircle2, Clock3, DollarSign, KeyRound, Plus,
+  CalendarDays, CheckCircle2, Clock3, DollarSign, KeyRound,
   ShieldCheck, UserRound, Users, Wrench, ArrowRight, CalendarClock
 } from 'lucide-react';
 import { Appointment, Client, ViewTab, WarrantyPeriod } from '../types';
@@ -10,7 +10,6 @@ interface DashboardProps {
   appointments: Appointment[];
   clients: Client[];
   onSelectTab: (tab: ViewTab) => void;
-  onNewAppointment: () => void;
   onSelectDate: (date: string) => void;
   onOpenMaintenanceAgenda: () => void;
 }
@@ -26,7 +25,7 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onSelectTab, onNewAppointment, onSelectDate, onOpenMaintenanceAgenda }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onSelectTab, onSelectDate, onOpenMaintenanceAgenda }) => {
   const metrics = useMemo(() => {
     const today = getTodayString();
     const now = new Date(`${today}T12:00:00`);
@@ -78,7 +77,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
       return days >= 0 && days <= 30;
     }).length;
 
-    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon };
+    const weekCompletionPercent = weekServices.length > 0
+      ? Math.round((weekDone.length / weekServices.length) * 100)
+      : 0;
+
+    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon };
   }, [appointments, clients]);
 
   const goToday = () => { onSelectDate(metrics.today); onSelectTab('agenda'); };
@@ -91,9 +94,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
           <h1 className="text-2xl font-black text-white">Dashboard</h1>
           <p className="text-xs text-zinc-500 mt-1">Operação da Maicon Automação em um só lugar.</p>
         </div>
-        <button onClick={onNewAppointment} className="shrink-0 flex items-center gap-1.5 rounded-xl bg-cyan-500 px-3 py-2 text-xs font-black text-black active:scale-95 transition-transform">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
       </div>
 
       <button onClick={goToday} className="w-full text-left bg-zinc-900 border border-zinc-800 rounded-3xl p-4 hover:border-cyan-800 transition-colors">
@@ -110,7 +110,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
       </button>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card icon={<CalendarClock/>} title="Semana" value={`${metrics.weekDone.length}/${metrics.weekServices.length}`} note="serviços concluídos" onClick={() => onSelectTab('agenda')} />
+        <Card icon={<CalendarClock/>} title="Semana" value={`${metrics.weekDone.length} de ${metrics.weekServices.length}`} note={`concluídos • ${metrics.weekCompletionPercent}%`} onClick={() => onSelectTab('agenda')} />
         <Card icon={<DollarSign/>} title="Faturamento" value={formatCurrencyBRL(metrics.monthRevenue)} note="concluído neste mês" onClick={() => onSelectTab('financeiro')} valueSmall />
         <Card icon={<KeyRound/>} title="Equipamentos" value={String(metrics.equipment)} note="MA identificados" onClick={() => onSelectTab('clientes')} />
         <Card icon={<Users/>} title="Clientes" value={String(clients.length)} note="na base atual" onClick={() => onSelectTab('clientes')} />
@@ -129,7 +129,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Quick icon={<Plus/>} label="Agendar" onClick={onNewAppointment}/>
         <Quick icon={<CalendarDays/>} label="Agenda" onClick={() => onSelectTab('agenda')}/>
         <Quick icon={<UserRound/>} label="Clientes" onClick={() => onSelectTab('clientes')}/>
         <Quick icon={<Clock3/>} label="Dia a Dia" onClick={() => onSelectTab('diario')}/>
