@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import {
-  CalendarDays, CheckCircle2, Clock3, DollarSign, KeyRound,
-  ShieldCheck, UserRound, Users, Wrench, ArrowRight, CalendarClock
+  CalendarDays, DollarSign, KeyRound,
+  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock
 } from 'lucide-react';
 import { Appointment, Client, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
@@ -128,11 +128,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Quick icon={<CalendarDays/>} label="Agenda" onClick={() => onSelectTab('agenda')}/>
-        <Quick icon={<UserRound/>} label="Clientes" onClick={() => onSelectTab('clientes')}/>
-        <Quick icon={<Clock3/>} label="Dia a Dia" onClick={() => onSelectTab('diario')}/>
-      </div>
     </div>
   );
 };
@@ -145,11 +140,5 @@ const Card = ({ icon, title, value, note, onClick, valueSmall }: { icon: React.R
   <button onClick={onClick} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3.5 text-left hover:border-cyan-900 transition-colors">
     <div className="flex items-center justify-between text-zinc-500 mb-2"><span className="text-[10px] uppercase tracking-wider font-bold">{title}</span><span className="[&>svg]:w-4 [&>svg]:h-4 text-cyan-400">{icon}</span></div>
     <div className={`${valueSmall ? 'text-base' : 'text-2xl'} font-black text-white truncate`}>{value}</div><div className="text-[9px] text-zinc-500 mt-1">{note}</div>
-  </button>
-);
-
-const Quick = ({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) => (
-  <button onClick={onClick} className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl py-3 text-xs font-bold text-zinc-300 hover:text-cyan-400 hover:border-cyan-900">
-    <span className="[&>svg]:w-4 [&>svg]:h-4">{icon}</span>{label}
   </button>
 );
