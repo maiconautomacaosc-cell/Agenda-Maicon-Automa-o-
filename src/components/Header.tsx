@@ -1,6 +1,7 @@
 import React from 'react';
 import { 
   Plus, 
+  LayoutDashboard,
   Calendar, 
   Clock, 
   Users, 
@@ -84,6 +85,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Desktop Navigation Tabs */}
         <nav className="hidden md:flex items-center gap-1 bg-zinc-950/80 border border-zinc-800 p-1 rounded-xl">
+          <button
+            onClick={() => onSelectTab('dashboard')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              currentTab === 'dashboard'
+                ? 'bg-cyan-500 text-black shadow-sm font-extrabold'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+            }`}
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
+          </button>
+
           <button
             onClick={() => onSelectTab('agenda')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
