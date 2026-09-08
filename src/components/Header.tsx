@@ -1,6 +1,5 @@
 import React from 'react';
 import { 
-  Plus, 
   LayoutDashboard,
   Calendar, 
   Clock, 
@@ -208,14 +207,6 @@ export const Header: React.FC<HeaderProps> = ({
             onSelectMelody={onSelectMelody}
           />
 
-          <button
-            id="btn-header-new-appointment"
-            onClick={onNewAppointment}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold shadow-lg shadow-cyan-950/40 active:scale-95 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span className="hidden sm:inline">Novo Agendamento</span>
-          </button>
         </div>
       </div>
     </header>
