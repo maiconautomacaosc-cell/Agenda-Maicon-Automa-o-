@@ -147,6 +147,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   if (!isOpen) return null;
 
   const isParticular = serviceTypes.includes('compromisso_particular');
+  const fullDateLabel = new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const inferredMaintenanceSerial = initialAppointment?.maintenanceSerialNumber || (
     initialAppointment &&
     ['manutencao_preventiva', 'manutencao_corretiva'].includes(initialAppointment.serviceType) &&
@@ -344,7 +345,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   ? `Manutenção • ${inferredMaintenanceSerial}`
                   : (initialAppointment ? 'Editar Agendamento' : 'Novo Agendamento & Cliente')}
               </h2>
-              <p className="text-xs text-zinc-400 font-mono">
+              <p className="text-xs text-cyan-300 font-bold capitalize">{fullDateLabel}</p>
+              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
                 {isParticular
                   ? 'Marca o dia como Ocupado para não agendar atendimentos'
                   : isExistingMaMaintenance
@@ -675,14 +677,9 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   <Calendar className="w-3 h-3 text-zinc-400" />
                   Data *
                 </label>
-                <input
-                  id="input-appt-date"
-                  type="date"
-                  required
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
-                />
+                <div id="input-appt-date" className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white capitalize">
+                  {fullDateLabel}
+                </div>
               </div>
 
               <div>
