@@ -27,7 +27,7 @@ import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { createDriveBackupSnapshot, ensureClientDriveStructure, renameGoogleDriveItem, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
-import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
+import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, migratePermanentTestClientIdentityInMainSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -339,15 +339,27 @@ export default function App() {
     });
   }, [clients]);
 
-  // Renomeia a pasta histórica pelo ID. O ID não muda, portanto todos os vínculos permanecem válidos.
+  // v4.2.9 R2 — normaliza a pasta histórica pelo ID para o nome do CLIENTE, sem prefixo MA.
+  // O ID não muda, então subpastas, PDFs, fotos e vínculos permanecem exatamente no mesmo lugar.
   useEffect(() => {
     const testClient = clients.find(c => c.isTestClient);
     const token = googleAccessToken || getCachedAccessToken();
-    if (!testClient?.driveFolderId || testClient.testDriveFolderRenamed || !token) return;
-    const reference = testClient.serialNumber || testClient.equipment?.find(e => e.serialNumber)?.serialNumber || 'CLIENTE';
-    renameGoogleDriveItem(testClient.driveFolderId, `${reference} - ${TEST_CLIENT_NAME}`, token)
-      .then(() => setClients(prev => prev.map(c => c.id === testClient.id ? { ...c, testDriveFolderRenamed: true } : c)))
-      .catch(err => console.warn('Não foi possível renomear a pasta do Cliente Teste; vínculo preservado:', err));
+    if (!testClient?.driveFolderId || testClient.testDriveFolderCanonicalRenamed || !token) return;
+    renameGoogleDriveItem(testClient.driveFolderId, TEST_CLIENT_NAME, token)
+      .then(() => setClients(prev => prev.map(c => c.id === testClient.id ? { ...c, testDriveFolderRenamed: true, testDriveFolderCanonicalRenamed: true } : c)))
+      .catch(err => console.warn('Não foi possível normalizar a pasta do Cliente Teste; vínculo preservado:', err));
+  }, [clients, googleAccessToken]);
+
+  // v4.2.9 R2 — atualiza apenas o NOME nas linhas históricas das abas oficiais CLIENTES e O.S.
+  // MA, OS, datas, QR, PDF e demais dados históricos permanecem intactos.
+  useEffect(() => {
+    const testClient = clients.find(c => c.isTestClient);
+    const token = googleAccessToken || getCachedAccessToken();
+    const spreadsheetId = getSpreadsheetId();
+    if (!testClient || testClient.testMainSheetsMigrated || !token || !spreadsheetId) return;
+    migratePermanentTestClientIdentityInMainSheets(token, spreadsheetId, TEST_CLIENT_NAME, Array.from(TEST_CLIENT_KNOWN_MAS))
+      .then(() => setClients(prev => prev.map(c => c.id === testClient.id ? { ...c, testMainSheetsMigrated: true } : c)))
+      .catch(err => console.warn('Não foi possível propagar o nome do Cliente Teste nas abas CLIENTES/O.S:', err));
   }, [clients, googleAccessToken]);
 
   // Auto-sync para a mesma Planilha Google + backup no Drive
