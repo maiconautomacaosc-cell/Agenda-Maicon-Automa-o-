@@ -6,7 +6,7 @@ import {
 import { Appointment, Client, Quote, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
 import { DAILY_BIBLE_INSPIRATIONS } from '../data/dailyBibleInspirations';
-import { getFollowUps } from '../utils/followUps';
+import { getFollowUps, filterVisibleFollowUps } from '../utils/followUps';
 
 interface DashboardProps {
   appointments: Appointment[];
@@ -16,6 +16,7 @@ interface DashboardProps {
   onSelectDate: (date: string) => void;
   onOpenMaintenanceAgenda: () => void;
   onOpenFollowUps: () => void;
+  sandboxActive?: boolean;
 }
 
 const warrantyMonths: Record<WarrantyPeriod, number> = {
@@ -43,7 +44,7 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quotes, onSelectTab, onSelectDate, onOpenMaintenanceAgenda, onOpenFollowUps }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quotes, onSelectTab, onSelectDate, onOpenMaintenanceAgenda, onOpenFollowUps, sandboxActive = false }) => {
   const [dayKey, setDayKey] = useState(getLocalDayKey);
   const dailyVerse = useMemo(() => getDailyBibleInspiration(dayKey), [dayKey]);
 
@@ -113,11 +114,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
       : 0;
 
     const quotesWaiting = quotes.filter(q => q.status === 'pendente' && !q.isTestData && !(q.clientId && testClientIds.has(q.clientId))).length;
-    const followUps = getFollowUps(appointments, clients, quotes, today);
+    const followUpsRaw = getFollowUps(appointments, clients, quotes, today, sandboxActive ? 'sandbox' : 'operacao');
+    const followUps = filterVisibleFollowUps(followUpsRaw, today, sandboxActive);
     const followUpHigh = followUps.filter(i => i.priority === 'alta').length;
 
     return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting, followUpTotal: followUps.length, followUpHigh, realClientsCount: realClients.length };
-  }, [appointments, clients, quotes]);
+  }, [appointments, clients, quotes, sandboxActive]);
 
   const goToday = () => { onSelectDate(metrics.today); onSelectTab('agenda'); };
 
