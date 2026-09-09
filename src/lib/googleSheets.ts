@@ -707,6 +707,30 @@ export async function migratePermanentTestClientIdentityInMainSheets(
   return { clientsUpdated, serviceOrdersUpdated };
 }
 
+
+/**
+ * Atualiza SOMENTE dados cadastrais seguros de um equipamento já concluído.
+ * Não altera MA, OS, data de instalação, garantia, PDF ou QR.
+ */
+export async function updateEquipmentMasterData(
+  accessToken: string,
+  spreadsheetId: string,
+  equipment: Pick<import('../types').EquipmentRecord, 'serialNumber' | 'brand' | 'model' | 'manufacturerSerialNumber' | 'description'>
+): Promise<void> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+  const ma = String(equipment.serialNumber || '').trim();
+  if (!ma) throw new Error('MA do equipamento não informado.');
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  const rows = await readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:A'), accessToken);
+  const index = rows.findIndex(r => String(r[0] || '').trim() === ma);
+  if (index < 0) throw new Error(`${ma} não localizado na aba CLIENTES.`);
+  const row = index + 2;
+  const originalSerialColumn = await ensureOriginalProductSerialColumn(spreadsheetId, tabs.clients, accessToken);
+  await updateValues(spreadsheetId, sheetRange(tabs.clients, `G${row}:H${row}`), [[equipment.brand || '', equipment.model || '']], accessToken);
+  await updateValues(spreadsheetId, sheetRange(tabs.clients, `N${row}`), [[equipment.description || '']], accessToken);
+  await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${row}`), [[equipment.manufacturerSerialNumber || '']], accessToken);
+}
+
 export async function loadDatabaseFromGoogleSheets(
   accessToken: string,
   spreadsheetId = getSpreadsheetId()
