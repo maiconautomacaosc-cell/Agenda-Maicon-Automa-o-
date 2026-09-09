@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays, DollarSign, KeyRound,
-  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen, FileText
+  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen, FileText, BellRing
 } from 'lucide-react';
 import { Appointment, Client, Quote, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
 import { DAILY_BIBLE_INSPIRATIONS } from '../data/dailyBibleInspirations';
+import { getFollowUps } from '../utils/followUps';
 
 interface DashboardProps {
   appointments: Appointment[];
@@ -14,6 +15,7 @@ interface DashboardProps {
   onSelectTab: (tab: ViewTab) => void;
   onSelectDate: (date: string) => void;
   onOpenMaintenanceAgenda: () => void;
+  onOpenFollowUps: () => void;
 }
 
 const warrantyMonths: Record<WarrantyPeriod, number> = {
@@ -41,7 +43,7 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quotes, onSelectTab, onSelectDate, onOpenMaintenanceAgenda }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quotes, onSelectTab, onSelectDate, onOpenMaintenanceAgenda, onOpenFollowUps }) => {
   const [dayKey, setDayKey] = useState(getLocalDayKey);
   const dailyVerse = useMemo(() => getDailyBibleInspiration(dayKey), [dayKey]);
 
@@ -111,8 +113,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
       : 0;
 
     const quotesWaiting = quotes.filter(q => q.status === 'pendente' && !q.isTestData && !(q.clientId && testClientIds.has(q.clientId))).length;
+    const followUps = getFollowUps(appointments, clients, quotes, today);
+    const followUpHigh = followUps.filter(i => i.priority === 'alta').length;
 
-    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting, realClientsCount: realClients.length };
+    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting, followUpTotal: followUps.length, followUpHigh, realClientsCount: realClients.length };
   }, [appointments, clients, quotes]);
 
   const goToday = () => { onSelectDate(metrics.today); onSelectTab('agenda'); };
@@ -153,6 +157,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
         <Card icon={<KeyRound/>} title="Equipamentos" value={String(metrics.equipment)} note="MA identificados" onClick={() => onSelectTab('clientes')} />
         <Card icon={<Users/>} title="Clientes" value={String(metrics.realClientsCount)} note="clientes reais" onClick={() => onSelectTab('clientes')} />
       </div>
+
+      <button onClick={onOpenFollowUps} className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 flex items-center gap-3 text-left hover:border-cyan-900 transition-colors">
+        <BellRing className="w-5 h-5 text-cyan-400 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-black text-white">Acompanhamentos</div>
+          <div className="text-[10px] text-zinc-500">{metrics.followUpTotal === 0 ? 'Tudo em dia' : `${metrics.followUpTotal} ${metrics.followUpTotal === 1 ? 'item' : 'itens'} pedem atenção${metrics.followUpHigh ? ` • ${metrics.followUpHigh} prioritários` : ''}`}</div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-zinc-600 shrink-0" />
+      </button>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 space-y-3">
         <div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400"/><h2 className="font-bold">Pós-venda</h2><button onClick={() => onSelectTab('posvenda')} className="ml-auto text-[9px] font-bold uppercase tracking-wider text-cyan-500">abrir central →</button></div>
