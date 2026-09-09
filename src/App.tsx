@@ -21,7 +21,7 @@ import {
   saveQuotes, 
   loadSettings, 
   saveSettings, 
-  AppSettings 
+  AppSettings, loadSandboxData, saveSandboxData, resetSandboxData 
 } from './utils/storage';
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
@@ -59,6 +59,9 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(() => loadAppointments());
   const [quotes, setQuotes] = useState<Quote[]>(() => loadQuotes());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [isSandbox, setIsSandbox] = useState(false);
+  const [sandboxConfirmOpen, setSandboxConfirmOpen] = useState(false);
+  const [sandboxResetOpen, setSandboxResetOpen] = useState(false);
 
   // Cloud Sync & Auth State
   const [currentUser, setCurrentUser] = useState<GoogleUser | null>(() => getCachedGoogleUser());
@@ -269,20 +272,50 @@ export default function App() {
 
   // Sync to localStorage
   useEffect(() => {
-    saveClients(clients);
-  }, [clients]);
+    if (isSandbox) { const d = loadSandboxData(); saveSandboxData({ ...d, clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() }); } else saveClients(clients);
+  }, [clients, isSandbox]);
 
   useEffect(() => {
-    saveAppointments(appointments);
-  }, [appointments]);
+    if (isSandbox) { const d = loadSandboxData(); saveSandboxData({ ...d, clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() }); } else saveAppointments(appointments);
+  }, [appointments, isSandbox]);
 
   useEffect(() => {
-    saveQuotes(quotes);
-  }, [quotes]);
+    if (isSandbox) { const d = loadSandboxData(); saveSandboxData({ ...d, clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() }); } else saveQuotes(quotes);
+  }, [quotes, isSandbox]);
 
   useEffect(() => {
-    saveSettings(settings);
-  }, [settings]);
+    if (isSandbox) { const d = loadSandboxData(); saveSandboxData({ ...d, clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() }); } else saveSettings(settings);
+  }, [settings, isSandbox]);
+
+
+  // v4.3.2 — alternância de contexto. O Sandbox persiste até reset explícito.
+  useEffect(() => {
+    if (!isSandbox) return;
+    const d = loadSandboxData();
+    saveSandboxData({ ...d, clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() });
+  }, [isSandbox, currentTab, selectedDate]);
+
+  const enterSandbox = () => {
+    // produção já está persistida pelos efeitos acima; carregamos uma base física separada.
+    const d = loadSandboxData();
+    setClients(d.clients); setAppointments(d.appointments); setQuotes(d.quotes); setSettings(d.settings);
+    setCurrentTab((d.ui?.currentTab as ViewTab) || 'dashboard');
+    setSelectedDate(d.ui?.selectedDate || getTodayString());
+    setAgendaFocusFilter(null); setIsCloudSyncOpen(false); setIsAppointmentModalOpen(false); setCompletionAppointment(null); setIsSandbox(true); setSandboxConfirmOpen(false);
+    setSyncStatus('offline'); setSyncErrorMessage(undefined);
+  };
+
+  const exitSandbox = () => {
+    saveSandboxData({ version: '4.3.2', clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() });
+    setClients(loadClients()); setAppointments(loadAppointments()); setQuotes(loadQuotes()); setSettings(loadSettings());
+    setCurrentTab('dashboard'); setSelectedDate(getTodayString()); setAgendaFocusFilter(null); setIsSandbox(false);
+  };
+
+  const confirmResetSandbox = () => {
+    const d = resetSandboxData();
+    setClients(d.clients); setAppointments(d.appointments); setQuotes(d.quotes); setSettings(d.settings);
+    setCurrentTab('dashboard'); setSelectedDate(getTodayString()); setAgendaFocusFilter(null); setSandboxResetOpen(false);
+  };
 
 
   // v4.2.9 — ambiente permanente de testes. Migra o último cliente validado sem trocar ID, MA, OS, QR ou pasta.
@@ -307,6 +340,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (isSandbox) return;
     // Reconhece tanto "Cliente Teste V.4.0.7" quanto "Cliente Teste V. 4.0.7" e outras variações de espaço/pontuação.
     // Como proteção adicional para esta migração única, também reconhece o conjunto histórico MA-000061..MA-000065.
     const testClient = clients.find(c => c.isTestClient || isLegacyTestClientName(c.name) || hasKnownTestEquipment(c));
@@ -343,6 +377,7 @@ export default function App() {
   // v4.2.9 R2 — normaliza a pasta histórica pelo ID para o nome do CLIENTE, sem prefixo MA.
   // O ID não muda, então subpastas, PDFs, fotos e vínculos permanecem exatamente no mesmo lugar.
   useEffect(() => {
+    if (isSandbox) return;
     const testClient = clients.find(c => c.isTestClient);
     const token = googleAccessToken || getCachedAccessToken();
     if (!testClient?.driveFolderId || testClient.testDriveFolderCanonicalRenamed || !token) return;
@@ -354,6 +389,7 @@ export default function App() {
   // v4.2.9 R2 — atualiza apenas o NOME nas linhas históricas das abas oficiais CLIENTES e O.S.
   // MA, OS, datas, QR, PDF e demais dados históricos permanecem intactos.
   useEffect(() => {
+    if (isSandbox) return;
     const testClient = clients.find(c => c.isTestClient);
     const token = googleAccessToken || getCachedAccessToken();
     const spreadsheetId = getSpreadsheetId();
@@ -366,14 +402,14 @@ export default function App() {
   // Auto-sync para a mesma Planilha Google + backup no Drive
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
-    if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
+    if (isSandbox || !googleAccessToken || !spreadsheetId || !cloudReady) return;
 
     const timer = setTimeout(async () => {
       try {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.3.1', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.3.2', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -404,12 +440,12 @@ export default function App() {
     }, 2200);
 
     return () => clearTimeout(timer);
-  }, [clients, appointments, quotes, settings, googleAccessToken, cloudReady]);
+  }, [clients, appointments, quotes, settings, googleAccessToken, cloudReady, isSandbox]);
 
   // Ao conectar em outro aparelho, carrega a versão mais recente da planilha.
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
-    if (!googleAccessToken || !spreadsheetId || initialCloudLoadDoneRef.current) return;
+    if (isSandbox || !googleAccessToken || !spreadsheetId || initialCloudLoadDoneRef.current) return;
     initialCloudLoadDoneRef.current = true;
     loadDatabaseFromGoogleSheets(googleAccessToken, spreadsheetId)
       .then((data) => {
@@ -428,12 +464,12 @@ export default function App() {
         console.warn('Initial Google Sheets load:', err);
         setCloudReady(true);
       });
-  }, [googleAccessToken]);
+  }, [googleAccessToken, isSandbox]);
 
   // Ao conectar, alinha os contadores locais com a numeração REAL das abas CLIENTES e O.S.
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
-    if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
+    if (isSandbox || !googleAccessToken || !spreadsheetId || !cloudReady) return;
     getOfficialSequences(googleAccessToken, spreadsheetId, 0, 0)
       .then(seq => {
         // A planilha principal é a referência quando está acessível. Aqui substituímos
@@ -445,12 +481,12 @@ export default function App() {
         }));
       })
       .catch(err => console.warn('Numeração oficial CLIENTES/O.S:', err));
-  }, [googleAccessToken, cloudReady]);
+  }, [googleAccessToken, cloudReady, isSandbox]);
 
   // Mantém aparelhos abertos sincronizados sem precisar apertar botão.
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
-    if (!googleAccessToken || !spreadsheetId || !cloudReady) return;
+    if (isSandbox || !googleAccessToken || !spreadsheetId || !cloudReady) return;
     const interval = setInterval(async () => {
       try {
         const data = await loadDatabaseFromGoogleSheets(googleAccessToken, spreadsheetId);
@@ -463,9 +499,10 @@ export default function App() {
       } catch {}
     }, 30000);
     return () => clearInterval(interval);
-  }, [googleAccessToken, cloudReady]);
+  }, [googleAccessToken, cloudReady, isSandbox]);
 
   const handleRestoreData = (data: { clients: Client[]; appointments: Appointment[]; quotes: Quote[]; settings?: AppSettings }) => {
+    if (isSandbox) { showGoogleNotification('🧪 Sandbox: restauração da nuvem bloqueada.'); return; }
     const safeClients = mergeByIdLatest(clients, data.clients || []);
     const safeAppointments = mergeByIdLatest(appointments, data.appointments || []);
     const safeQuotes = mergeByIdLatest(quotes, data.quotes || []);
@@ -485,8 +522,9 @@ export default function App() {
   // e também é criado um snapshot histórico independente. Assim, um erro futuro não
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
+    if (isSandbox) return; // regra absoluta: Sandbox nunca escreve no Drive.
     const payload = {
-      version: '4.3.1',
+      version: '4.3.2',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -667,7 +705,7 @@ export default function App() {
     // Automatic Google Calendar Sync
     // Compromissos particulares são histórico interno da Agenda Maicon: não geram Drive, planilha principal nem Google Calendar.
     const tokenToUse = googleAccessToken || getCachedAccessToken();
-    if (tokenToUse && appt.serviceType !== 'compromisso_particular') {
+    if (!isSandbox && tokenToUse && appt.serviceType !== 'compromisso_particular') {
       updateGoogleCalendarEvent(appt, tokenToUse)
         .then(({ eventId }) => {
           if (eventId) {
@@ -679,7 +717,7 @@ export default function App() {
             };
             setAppointments((prev) => {
               const updated = prev.map((a) => (a.id === appt.id ? syncedAppt : a));
-              saveAppointments(updated);
+              if (!isSandbox) saveAppointments(updated);
               return updated;
             });
           }
@@ -695,13 +733,14 @@ export default function App() {
       setClients((prev) => {
         const updatedList = upsertClientFromAppointment(prev, appt);
         // Grava imediatamente também no localStorage; o useEffect e a nuvem continuam como camadas extras.
-        saveClients(updatedList);
+        if (!isSandbox) saveClients(updatedList);
         return updatedList;
       });
     }
   };
 
   const handleRetryCalendarSync = async (appt: Appointment) => {
+    if (isSandbox) { showGoogleNotification('🧪 Sandbox: Google Agenda bloqueado.'); return; }
     try {
       let tokenToUse = googleAccessToken || getCachedAccessToken();
       if (!tokenToUse) tokenToUse = await ensureValidAccessToken();
@@ -723,7 +762,7 @@ export default function App() {
           syncedToCalendar: true,
           updatedAt: new Date().toISOString(),
         } : a);
-        saveAppointments(updated);
+        if (!isSandbox) saveAppointments(updated);
         backupAgendaMutation(updated, 'google-agenda-sincronizada');
         return updated;
       });
@@ -738,7 +777,7 @@ export default function App() {
     const target = appointments.find((a) => a.id === id);
     const tokenToUse = googleAccessToken || getCachedAccessToken();
     
-    if (target?.googleEventId && tokenToUse) {
+    if (!isSandbox && target?.googleEventId && tokenToUse) {
       try {
         await deleteGoogleCalendarEvent(target.googleEventId, tokenToUse);
         showGoogleNotification(`🗑️ Evento de ${target.clientName} removido do seu Google Agenda.`);
@@ -752,7 +791,7 @@ export default function App() {
     backupAgendaMutation(appointments, 'antes-de-excluir');
     setAppointments((prev) => {
       const updated = prev.filter((a) => a.id !== id);
-      saveAppointments(updated);
+      if (!isSandbox) saveAppointments(updated);
       backupAgendaMutation(updated, 'agendamento-excluido');
       return updated;
     });
@@ -770,7 +809,7 @@ export default function App() {
       prev.map((a) => {
         if (a.id === id) {
           const updated = { ...a, status: newStatus, updatedAt: new Date().toISOString() };
-          if (tokenToUse && updated.serviceType !== 'compromisso_particular') {
+          if (!isSandbox && tokenToUse && updated.serviceType !== 'compromisso_particular') {
             updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
           }
           return updated;
@@ -790,7 +829,7 @@ export default function App() {
     }
 
     const spreadsheetId = getSpreadsheetId();
-    if (!spreadsheetId) {
+    if (isSandbox || !spreadsheetId) {
       const local = getNextNumbers();
       setCompletionOfficialNumbers(local);
       setCompletionNumberingLoading(false);
@@ -830,8 +869,8 @@ export default function App() {
     if (!completionAppointment) return;
     const now = new Date().toISOString();
     const spreadsheetId = getSpreadsheetId();
-    let tokenToUse = googleAccessToken || getCachedAccessToken();
-    tokenToUse = await ensureValidAccessToken().catch(() => tokenToUse);
+    let tokenToUse = isSandbox ? null : (googleAccessToken || getCachedAccessToken());
+    if (!isSandbox) tokenToUse = await ensureValidAccessToken().catch(() => tokenToUse);
 
     // Quando a planilha principal está configurada, ela é obrigatoriamente a fonte
     // da numeração. Se não for possível consultá-la, NÃO geramos MA/OS localmente,
@@ -839,7 +878,7 @@ export default function App() {
     const localNext = getNextNumbers();
     let nextMA = localNext.nextMA;
     let nextOS = localNext.nextOS;
-    if (spreadsheetId) {
+    if (!isSandbox && spreadsheetId) {
       if (!tokenToUse) {
         setSyncErrorMessage('Não foi possível conferir a numeração oficial. Reconecte sua conta Google em Nuvem e tente finalizar novamente. Nenhum MA/OS foi gerado.');
         return;
@@ -875,7 +914,7 @@ export default function App() {
     let extraMaIndex = 0;
     let equipment = options.equipment.map((eq, index) => ({
       id: `eq-${Date.now()}-${index}`,
-      serialNumber: reservedSerialNumbers[index] || `MA-${String(nextMA + extraMaIndex++).padStart(6, '0')}`,
+      serialNumber: reservedSerialNumbers[index] || `${isSandbox ? 'MAT' : 'MA'}-${String(nextMA + extraMaIndex++).padStart(6, '0')}`,
       serviceType: eq.serviceType,
       serviceTypeName: eq.serviceTypeName,
       brand: eq.brand?.trim() || undefined,
@@ -889,7 +928,7 @@ export default function App() {
       createdAt: now,
     }));
     const serviceOrder = options.generateServiceOrder
-      ? `OS-${String(nextOS).padStart(6, '0')}`
+      ? `${isSandbox ? 'OST' : 'OS'}-${String(nextOS).padStart(6, '0')}`
       : completionAppointment.serviceOrder;
 
     // Prepara a pasta do cliente no Drive. A raiz vem de PASTA_CLIENTES na aba CONFIGURAÇÕES.
@@ -899,7 +938,7 @@ export default function App() {
     let driveFolderError: string | undefined;
     let photosAfterFolderId: string | undefined;
     let serviceOrderFolderId: string | undefined;
-    if (tokenToUse && spreadsheetId && completionAppointment.clientName) {
+    if (!isSandbox && tokenToUse && spreadsheetId && completionAppointment.clientName) {
       try {
         const rootFolderId = await getClientsRootFolderId(tokenToUse, spreadsheetId);
         const reference = equipment[0]?.serialNumber || serviceOrder || 'CLIENTE';
@@ -923,7 +962,7 @@ export default function App() {
     // Se o upload falhar, o atendimento continua sendo concluído normalmente e o erro fica registrado.
     let uploadedPhotoUrls: string[] = [];
     let photoUploadError: string | undefined;
-    if (options.photos?.length) {
+    if (!isSandbox && options.photos?.length) {
       if (!tokenToUse) {
         photoUploadError = 'Fotos não enviadas: conecte sua conta Google e tente novamente em uma próxima edição.';
       } else {
@@ -957,13 +996,13 @@ export default function App() {
       driveFolderUrl,
       driveFolderError,
       warrantyUrl: buildWarrantyUrl(completionAppointment.serialNumber || equipment[0]?.serialNumber),
-      mainSheetSyncStatus: (equipment.length || serviceOrder) ? 'pending' : undefined,
+      mainSheetSyncStatus: (!isSandbox && (equipment.length || serviceOrder)) ? 'pending' : undefined,
       updatedAt: now,
     };
 
     // Gera a OS em PDF automaticamente e salva na pasta 01 - Ordem de Serviço.
     // A falha do PDF não impede a conclusão nem a gravação na planilha.
-    if (serviceOrder && tokenToUse && serviceOrderFolderId) {
+    if (!isSandbox && serviceOrder && tokenToUse && serviceOrderFolderId) {
       try {
         const pdfBlob = await generateServiceOrderPdfBlob(updated);
         const safeOS = serviceOrder.replace(/[^a-zA-Z0-9_-]+/g, '_');
@@ -983,7 +1022,7 @@ export default function App() {
     }
 
     // Grava imediatamente nas abas oficiais CLIENTES e O.S quando houver conexão.
-    if ((equipment.length || serviceOrder) && tokenToUse && spreadsheetId) {
+    if (!isSandbox && (equipment.length || serviceOrder) && tokenToUse && spreadsheetId) {
       try {
         await syncCompletedAppointmentToMainSheets(updated, tokenToUse, spreadsheetId);
         updated = { ...updated, mainSheetSyncStatus: 'synced', mainSheetSyncedAt: new Date().toISOString(), mainSheetSyncError: undefined };
@@ -1035,7 +1074,7 @@ export default function App() {
           driveFolderUrl: updated.driveFolderUrl,
           notes: `Cadastro confirmado na conclusão: ${updated.serviceTypeName}.`,
         });
-        saveClients(next);
+        if (!isSandbox) saveClients(next);
         return next;
       });
     }
@@ -1053,7 +1092,7 @@ export default function App() {
       }));
     }
 
-    if (tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
+    if (!isSandbox && tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
     setCompletionAppointment(null);
 
     const photoText = uploadedPhotoUrls.length ? ` • ${uploadedPhotoUrls.length} foto(s) no Drive` : (photoUploadError ? ' • Fotos pendentes' : '');
@@ -1070,6 +1109,15 @@ export default function App() {
 
   const handleReserveMaForAppointment = async (appt: Appointment) => {
     if (appt.status === 'concluido' || appt.status === 'cancelado' || appt.serviceType === 'compromisso_particular') return;
+
+    if (isSandbox) {
+      const next = getNextNumbers().nextMA;
+      const serialNumber = `MAT-${String(next).padStart(6, '0')}`;
+      setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, reservedSerialNumbers: [...(a.reservedSerialNumbers || []), serialNumber], updatedAt: new Date().toISOString() } : a));
+      setSettings(prev => ({ ...prev, lastSerialSequence: next }));
+      showGoogleNotification(`🧪 ${serialNumber} reservado somente no Sandbox.`);
+      return;
+    }
 
     const spreadsheetId = getSpreadsheetId();
     if (!spreadsheetId) {
@@ -1113,6 +1161,7 @@ export default function App() {
   };
 
   const handleRetryMainSheetSync = async (appt: Appointment) => {
+    if (isSandbox) { showGoogleNotification('🧪 Sandbox: Planilha Google bloqueada.'); return; }
     const spreadsheetId = getSpreadsheetId();
     if (!spreadsheetId) {
       const message = 'Planilha Google não configurada. Abra Nuvem e informe o link/ID da planilha.';
@@ -1318,7 +1367,7 @@ export default function App() {
   };
   const handleDeleteClient = (id: string) => {
     const target = clients.find(c => c.id === id);
-    if (target?.isTestClient) {
+    if (!isSandbox && target?.isTestClient) {
       alert('CLIENTE TESTE — MAICON AUTOMAÇÃO é o ambiente permanente de validação e está protegido contra exclusão acidental.');
       return;
     }
@@ -1419,8 +1468,32 @@ export default function App() {
         user={currentUser}
         googleConnected={!!currentUser || !!googleAccessToken}
         syncStatus={syncStatus}
-        onOpenCloudSync={() => setIsCloudSyncOpen(true)}
+        onOpenCloudSync={() => isSandbox ? showGoogleNotification('🧪 Integrações Google estão bloqueadas no Sandbox.') : setIsCloudSyncOpen(true)}
+        isSandbox={isSandbox}
+        onRequestSandbox={() => isSandbox ? exitSandbox() : setSandboxConfirmOpen(true)}
+        onRequestSandboxReset={() => setSandboxResetOpen(true)}
       />
+
+      {sandboxConfirmOpen && !isSandbox && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-zinc-900 border border-amber-500/50 p-5 shadow-2xl">
+            <div className="text-[10px] uppercase tracking-[0.2em] font-black text-amber-400">Ambiente isolado</div>
+            <h2 className="text-xl font-black text-white mt-1">Entrar no modo TESTE?</h2>
+            <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Você entrará no Sandbox da Maicon Automação. Drive, Planilha e Google Agenda ficam bloqueados. Seus testes anteriores serão carregados exatamente de onde você parou.</p>
+            <div className="flex gap-2 mt-5"><button onClick={() => setSandboxConfirmOpen(false)} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold">Cancelar</button><button onClick={enterSandbox} className="flex-1 py-3 rounded-xl bg-amber-400 text-black font-black">Entrar em TESTE</button></div>
+          </div>
+        </div>
+      )}
+      {sandboxResetOpen && isSandbox && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-zinc-900 border border-rose-700 p-5 shadow-2xl">
+            <div className="text-[10px] uppercase tracking-[0.2em] font-black text-rose-400">Ação destrutiva — somente Sandbox</div>
+            <h2 className="text-xl font-black text-white mt-1">Redefinir todos os testes?</h2>
+            <p className="text-sm text-zinc-400 mt-2">Apaga apenas clientes, agenda, MAT, OS de teste, orçamentos e históricos do Sandbox. A operação real não será tocada. O próximo número volta para MAT-000001.</p>
+            <div className="flex gap-2 mt-5"><button onClick={() => setSandboxResetOpen(false)} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold">Cancelar</button><button onClick={confirmResetSandbox} className="flex-1 py-3 rounded-xl bg-rose-600 text-white font-black">Redefinir Sandbox</button></div>
+          </div>
+        </div>
+      )}
 
       {/* Main Responsive Content Body */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 space-y-4">
@@ -1513,6 +1586,7 @@ export default function App() {
             quotes={quotes}
             onSelectTab={setCurrentTab}
             onOpenAgendaDate={(date) => { setSelectedDate(date); setAgendaFocusFilter(null); setCurrentTab('agenda'); }}
+            sandboxActive={isSandbox}
           />
         )}
 
@@ -1520,6 +1594,7 @@ export default function App() {
           <FinancialSummary
             appointments={appointments}
             onDataImported={handleDataImported}
+            sandboxActive={isSandbox}
           />
         )}
 
