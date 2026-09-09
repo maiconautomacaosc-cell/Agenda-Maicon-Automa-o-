@@ -2,7 +2,8 @@ import { Appointment, Client, Quote, WarrantyPeriod } from '../types';
 
 export type FollowUpKind = 'atrasado' | 'amanha' | 'garantia' | 'orcamento' | 'pos_venda';
 export type FollowUpPriority = 'alta' | 'media' | 'baixa';
-export type FollowUpMode = 'operacao' | 'teste';
+export type FollowUpMode = 'operacao' | 'sandbox';
+export type FollowUpActionStatus = 'adiado' | 'resolvido' | 'dispensado';
 
 export interface FollowUpItem {
   id: string;
@@ -14,8 +15,19 @@ export interface FollowUpItem {
   clientId?: string;
   appointmentId?: string;
   quoteId?: string;
-  simulated?: boolean;
 }
+
+export interface FollowUpAction {
+  id: string;
+  status: FollowUpActionStatus;
+  until?: string;
+  updatedAt: string;
+}
+
+const ACTION_KEYS = {
+  operacao: 'maicon_followup_actions_v440',
+  sandbox: 'maicon_followup_actions_sandbox_v440',
+};
 
 const warrantyMonths: Record<WarrantyPeriod, number> = {
   'Sem garantia': 0,
@@ -43,63 +55,48 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
-const getTestFallbackItems = (clients: Client[], existing: FollowUpItem[]): FollowUpItem[] => {
-  const testClient = clients.find(c => c.isTestClient);
-  if (!testClient) return [];
+export const loadFollowUpActions = (sandbox = false): Record<string, FollowUpAction> => {
+  try {
+    const raw = localStorage.getItem(sandbox ? ACTION_KEYS.sandbox : ACTION_KEYS.operacao);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
 
-  const ma = testClient.equipment?.[0]?.serialNumber || testClient.serialNumber || 'MA TESTE';
-  const has = (kind: FollowUpKind) => existing.some(item => item.kind === kind);
-  const safeName = testClient.name || 'CLIENTE TESTE — MAICON AUTOMAÇÃO';
+export const saveFollowUpAction = (action: FollowUpAction, sandbox = false) => {
+  const actions = loadFollowUpActions(sandbox);
+  actions[action.id] = action;
+  localStorage.setItem(sandbox ? ACTION_KEYS.sandbox : ACTION_KEYS.operacao, JSON.stringify(actions));
+};
 
-  const demo: FollowUpItem[] = [
-    {
-      id: 'test-sim-atrasado',
-      kind: 'atrasado',
-      priority: 'alta',
-      title: `${safeName} • atendimento atrasado`,
-      subtitle: 'SIMULAÇÃO • serviço pendente desde ontem',
-      clientId: testClient.id,
-      simulated: true,
-    },
-    {
-      id: 'test-sim-amanha',
-      kind: 'amanha',
-      priority: 'media',
-      title: `${safeName} • serviço de amanhã`,
-      subtitle: 'SIMULAÇÃO • agendamento para amanhã às 09:00',
-      clientId: testClient.id,
-      simulated: true,
-    },
-    {
-      id: 'test-sim-garantia',
-      kind: 'garantia',
-      priority: 'media',
-      title: `${safeName} • garantia perto do vencimento`,
-      subtitle: `SIMULAÇÃO • ${ma} • vence em 15 dias`,
-      clientId: testClient.id,
-      simulated: true,
-    },
-    {
-      id: 'test-sim-orcamento',
-      kind: 'orcamento',
-      priority: 'media',
-      title: `${safeName} • orçamento aguardando retorno`,
-      subtitle: 'SIMULAÇÃO • orçamento pendente há 4 dias',
-      clientId: testClient.id,
-      simulated: true,
-    },
-    {
-      id: 'test-sim-posvenda',
-      kind: 'pos_venda',
-      priority: 'baixa',
-      title: `${safeName} • acompanhamento pós-venda`,
-      subtitle: `SIMULAÇÃO • ${ma} • último serviço há 180 dias`,
-      clientId: testClient.id,
-      simulated: true,
-    },
-  ];
+export const restoreFollowUpAction = (id: string, sandbox = false) => {
+  const actions = loadFollowUpActions(sandbox);
+  delete actions[id];
+  localStorage.setItem(sandbox ? ACTION_KEYS.sandbox : ACTION_KEYS.operacao, JSON.stringify(actions));
+};
 
-  return demo.filter(item => !has(item.kind));
+export const resetFollowUpActions = (sandbox = false) => {
+  localStorage.removeItem(sandbox ? ACTION_KEYS.sandbox : ACTION_KEYS.operacao);
+};
+
+export const filterVisibleFollowUps = (items: FollowUpItem[], todayString: string, sandbox = false) => {
+  const actions = loadFollowUpActions(sandbox);
+  return items.filter(item => {
+    const action = actions[item.id];
+    if (!action) return true;
+    if (action.status === 'resolvido' || action.status === 'dispensado') return false;
+    if (action.status === 'adiado' && action.until) return action.until <= todayString;
+    return true;
+  });
+};
+
+export const getHiddenFollowUps = (items: FollowUpItem[], todayString: string, sandbox = false) => {
+  const visible = new Set(filterVisibleFollowUps(items, todayString, sandbox).map(i => i.id));
+  const actions = loadFollowUpActions(sandbox);
+  return items
+    .filter(i => !visible.has(i.id) && actions[i.id])
+    .map(item => ({ item, action: actions[item.id] }));
 };
 
 export const getFollowUps = (
@@ -115,8 +112,9 @@ export const getFollowUps = (
 
   const isEligibleAppointment = (a: Appointment) => {
     if (a.serviceType === 'compromisso_particular' || a.status === 'cancelado') return false;
+    if (mode === 'sandbox') return true;
     const belongsToTest = !!a.isTestData || testClientIds.has(a.clientId);
-    return mode === 'teste' ? belongsToTest : !belongsToTest;
+    return !belongsToTest;
   };
 
   const items: FollowUpItem[] = [];
@@ -172,8 +170,9 @@ export const getFollowUps = (
   quotes
     .filter(q => {
       if (q.status !== 'pendente') return false;
+      if (mode === 'sandbox') return true;
       const belongsToTest = !!q.isTestData || (!!q.clientId && testClientIds.has(q.clientId));
-      return mode === 'teste' ? belongsToTest : !belongsToTest;
+      return !belongsToTest;
     })
     .forEach(q => {
       const sourceDate = (q.createdAt || q.date || '').slice(0, 10);
@@ -193,7 +192,7 @@ export const getFollowUps = (
     });
 
   clients
-    .filter(client => mode === 'teste' ? !!client.isTestClient : !client.isTestClient)
+    .filter(client => mode === 'sandbox' ? true : !client.isTestClient)
     .forEach(client => {
       const completed = appointments
         .filter(a => a.clientId === client.id && isEligibleAppointment(a) && a.status === 'concluido')
@@ -213,8 +212,6 @@ export const getFollowUps = (
         });
       }
     });
-
-  if (mode === 'teste') items.push(...getTestFallbackItems(clients, items));
 
   const weight: Record<FollowUpPriority, number> = { alta: 0, media: 1, baixa: 2 };
   return items.sort((a, b) => weight[a.priority] - weight[b.priority] || (a.date || '').localeCompare(b.date || ''));

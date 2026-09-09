@@ -471,7 +471,7 @@ const SANDBOX_KEY = 'maicon_automacao_sandbox_v432';
 export function createInitialSandboxData(): SandboxData {
   const now = new Date().toISOString();
   return {
-    version: '4.3.2',
+    version: '4.4.0',
     clients: [{
       id: 'sandbox-client-main',
       name: 'CLIENTE TESTE — MAICON AUTOMAÇÃO',
@@ -498,14 +498,14 @@ export function loadSandboxData(): SandboxData {
       return initial;
     }
     const parsed = JSON.parse(raw);
-    return { ...createInitialSandboxData(), ...parsed, version: '4.3.2' };
+    return { ...createInitialSandboxData(), ...parsed, version: '4.4.0' };
   } catch {
     return createInitialSandboxData();
   }
 }
 
 export function saveSandboxData(data: SandboxData): void {
-  try { localStorage.setItem(SANDBOX_KEY, JSON.stringify({ ...data, version: '4.3.2', updatedAt: new Date().toISOString() })); }
+  try { localStorage.setItem(SANDBOX_KEY, JSON.stringify({ ...data, version: '4.4.0', updatedAt: new Date().toISOString() })); }
   catch (err) { console.error('Failed to save sandbox:', err); }
 }
 
