@@ -27,15 +27,17 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const completedAppts = appointments.filter(a => a.status === 'concluido');
-  const pendingAppts = appointments.filter(a => a.status === 'pendente' || a.status === 'em_andamento');
+  // Ambiente de testes continua exercitando o fluxo completo, mas nunca contamina o financeiro real.
+  const realAppointments = appointments.filter(a => !a.isTestData);
+  const completedAppts = realAppointments.filter(a => a.status === 'concluido');
+  const pendingAppts = realAppointments.filter(a => a.status === 'pendente' || a.status === 'em_andamento');
   
   const totalEarned = completedAppts.reduce((acc, c) => acc + (c.price || 0), 0);
   const totalPending = pendingAppts.reduce((acc, c) => acc + (c.price || 0), 0);
   const averageTicket = completedAppts.length > 0 ? totalEarned / completedAppts.length : 0;
 
   // Breakdown by Service Type
-  const serviceBreakdown: Record<string, { count: number; total: number }> = appointments.reduce(
+  const serviceBreakdown: Record<string, { count: number; total: number }> = realAppointments.reduce(
     (acc: Record<string, { count: number; total: number }>, appt) => {
       const key = appt.serviceTypeName || 'Outros';
       if (!acc[key]) {

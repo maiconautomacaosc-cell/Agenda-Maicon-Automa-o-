@@ -85,12 +85,15 @@ export const PostSalesCenter: React.FC<PostSalesCenterProps> = ({ clients, appoi
     });
   }, [rows, search, filter]);
 
-  const metrics = useMemo(() => ({
-    equipment: rows.length,
-    active: rows.filter(r => r.warranty.overall === 'ativa').length,
-    attention: rows.filter(r => r.warranty.overall === 'vencendo' || r.warranty.overall === 'vencida').length,
-    maintenance: rows.filter(r => r.openMaintenance).length,
-  }), [rows]);
+  const metrics = useMemo(() => {
+    const realRows = rows.filter(r => !r.client.isTestClient);
+    return ({
+    equipment: realRows.length,
+    active: realRows.filter(r => r.warranty.overall === 'ativa').length,
+    attention: realRows.filter(r => r.warranty.overall === 'vencendo' || r.warranty.overall === 'vencida').length,
+    maintenance: realRows.filter(r => r.openMaintenance).length,
+    });
+  }, [rows]);
 
   const selected = rows.find(r => r.equipment.serialNumber === selectedSerial);
 

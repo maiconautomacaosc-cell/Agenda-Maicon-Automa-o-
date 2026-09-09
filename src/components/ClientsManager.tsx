@@ -145,7 +145,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     return matchesSearch && matchesFilter;
   });
 
-  const warrantyCounts = warrantyRecords.reduce((acc, item) => {
+  const warrantyCounts = warrantyRecords.filter(item => !item.client.isTestClient).reduce((acc, item) => {
     acc[item.summary.overall] = (acc[item.summary.overall] || 0) + 1;
     return acc;
   }, { ativa: 0, vencendo: 0, vencida: 0, sem_garantia: 0 } as Record<WarrantyState, number>);
@@ -251,7 +251,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="font-bold text-white text-sm">{client.name}</h3>
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-white text-sm">{client.name}</h3>{client.isTestClient && <span className="px-2 py-0.5 rounded-full border border-violet-700 bg-violet-950/60 text-violet-300 text-[9px] font-black tracking-wider">TESTE</span>}</div>
                       <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-mono mt-0.5">
                         <Phone className="w-3 h-3 text-zinc-500" />
                         <span>{client.phone}</span>
@@ -268,12 +268,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          if (window.confirm(`Deseja excluir o cliente "${client.name}"?`)) {
-                            onDeleteClient(client.id);
+                          if (client.isTestClient) {
+                            alert('Este é o ambiente permanente de testes e está protegido contra exclusão acidental.');
+                            return;
                           }
+                          if (window.confirm(`Deseja excluir o cliente "${client.name}"?`)) onDeleteClient(client.id);
                         }}
-                        className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 transition-colors cursor-pointer"
-                        title="Excluir"
+                        className={`p-1.5 rounded-lg transition-colors ${client.isTestClient ? 'bg-zinc-950 text-zinc-700 cursor-not-allowed' : 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 cursor-pointer'}`}
+                        title={client.isTestClient ? 'Cliente Teste protegido' : 'Excluir'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

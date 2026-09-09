@@ -62,7 +62,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
     const monthPrefix = today.slice(0, 7);
 
-    const active = appointments.filter(a => a.status !== 'cancelado');
+    const testClientIds = new Set(clients.filter(c => c.isTestClient).map(c => c.id));
+    const realClients = clients.filter(c => !c.isTestClient);
+    const active = appointments.filter(a => a.status !== 'cancelado' && !a.isTestData && !testClientIds.has(a.clientId));
     const todayItems = active.filter(a => a.date === today);
     const todayServices = todayItems.filter(a => a.serviceType !== 'compromisso_particular');
     const todayPrivate = todayItems.filter(a => a.serviceType === 'compromisso_particular');
@@ -86,7 +88,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
     ).length;
 
     const serials = new Set<string>();
-    clients.forEach(c => {
+    realClients.forEach(c => {
       if (c.serialNumber) serials.add(c.serialNumber);
       (c.equipment || []).forEach(eq => eq.serialNumber && serials.add(eq.serialNumber));
     });
@@ -108,9 +110,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
       ? Math.round((weekDone.length / weekServices.length) * 100)
       : 0;
 
-    const quotesWaiting = quotes.filter(q => q.status === 'pendente').length;
+    const quotesWaiting = quotes.filter(q => q.status === 'pendente' && !q.isTestData && !(q.clientId && testClientIds.has(q.clientId))).length;
 
-    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting };
+    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting, realClientsCount: realClients.length };
   }, [appointments, clients, quotes]);
 
   const goToday = () => { onSelectDate(metrics.today); onSelectTab('agenda'); };
@@ -149,7 +151,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
         <Card icon={<CalendarClock/>} title="Semana" value={`${metrics.weekDone.length} de ${metrics.weekServices.length}`} note={`concluídos • ${metrics.weekCompletionPercent}%`} onClick={() => onSelectTab('agenda')} />
         <Card icon={<DollarSign/>} title="Faturamento" value={formatCurrencyBRL(metrics.monthRevenue)} note="concluído neste mês" onClick={() => onSelectTab('financeiro')} valueSmall />
         <Card icon={<KeyRound/>} title="Equipamentos" value={String(metrics.equipment)} note="MA identificados" onClick={() => onSelectTab('clientes')} />
-        <Card icon={<Users/>} title="Clientes" value={String(clients.length)} note="na base atual" onClick={() => onSelectTab('clientes')} />
+        <Card icon={<Users/>} title="Clientes" value={String(metrics.realClientsCount)} note="clientes reais" onClick={() => onSelectTab('clientes')} />
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 space-y-3">
