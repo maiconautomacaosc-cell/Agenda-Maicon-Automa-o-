@@ -27,7 +27,7 @@ import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { createDriveBackupSnapshot, ensureClientDriveStructure, renameGoogleDriveItem, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
-import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, migratePermanentTestClientIdentityInMainSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
+import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, migratePermanentTestClientIdentityInMainSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets, updateEquipmentMasterData } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -307,7 +307,7 @@ export default function App() {
   };
 
   const exitSandbox = () => {
-    saveSandboxData({ version: '4.4.0', clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() });
+    saveSandboxData({ version: '4.4.1', clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() });
     setClients(loadClients()); setAppointments(loadAppointments()); setQuotes(loadQuotes()); setSettings(loadSettings());
     setCurrentTab('dashboard'); setSelectedDate(getTodayString()); setAgendaFocusFilter(null); setIsSandbox(false);
   };
@@ -411,7 +411,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.4.0', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.4.1', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -526,7 +526,7 @@ export default function App() {
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     if (isSandbox) return; // regra absoluta: Sandbox nunca escreve no Drive.
     const payload = {
-      version: '4.4.0',
+      version: '4.4.1',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -1346,6 +1346,21 @@ export default function App() {
     });
   };
 
+  const handleUpdateEquipment = async (client: Client, equipment: EquipmentRecord) => {
+    setClients(prev => prev.map(c => c.id !== client.id ? c : { ...c, equipment: (c.equipment || []).map(eq => eq.serialNumber === equipment.serialNumber ? { ...eq, ...equipment } : eq) }));
+    setAppointments(prev => prev.map(a => ({ ...a, equipment: (a.equipment || []).map(eq => eq.serialNumber === equipment.serialNumber ? { ...eq, brand: equipment.brand, model: equipment.model, manufacturerSerialNumber: equipment.manufacturerSerialNumber, description: equipment.description } : eq) })));
+    if (isSandbox) { showGoogleNotification(`🧪 ${equipment.serialNumber} atualizado somente no Sandbox.`); return; }
+    const token = googleAccessToken || getCachedAccessToken();
+    const spreadsheetId = getSpreadsheetId();
+    if (!token || !spreadsheetId) { showGoogleNotification('⚠️ Dados salvos no app. Conecte o Google para atualizar a planilha.'); return; }
+    try {
+      await updateEquipmentMasterData(token, spreadsheetId, equipment);
+      showGoogleNotification(`✅ ${equipment.serialNumber} atualizado sem alterar MA, QR ou OS.`);
+    } catch (err: any) {
+      showGoogleNotification(`⚠️ Salvo no app, mas a planilha não atualizou: ${err?.message || 'erro desconhecido'}`);
+    }
+  };
+
 
   const handleScheduleMaintenance = (client: Client, equipment: EquipmentRecord) => {
     const defaultDate = selectedDate || getTodayString();
@@ -1572,6 +1587,7 @@ export default function App() {
             onScheduleMaintenance={handleScheduleMaintenance}
             onOpenWhatsAppForAppt={handleOpenWhatsApp}
             onQuoteForClient={handleOpenNewQuote}
+            onUpdateEquipment={handleUpdateEquipment}
           />
         )}
 
