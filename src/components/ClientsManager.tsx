@@ -36,6 +36,7 @@ interface ClientsManagerProps {
   onScheduleMaintenance: (client: Client, equipment: EquipmentRecord) => void;
   onOpenWhatsAppForAppt: (appt: Appointment) => void;
   onQuoteForClient?: (client: Client) => void;
+  onUpdateEquipment?: (client: Client, equipment: EquipmentRecord) => Promise<void> | void;
 }
 
 export const ClientsManager: React.FC<ClientsManagerProps> = ({
@@ -46,6 +47,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   onScheduleForClient,
   onScheduleMaintenance,
   onQuoteForClient,
+  onUpdateEquipment,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,6 +57,12 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [isWarrantyCenterOpen, setIsWarrantyCenterOpen] = useState(false);
   const [warrantyFilter, setWarrantyFilter] = useState<WarrantyState | 'todos'>('todos');
   const [warrantySearch, setWarrantySearch] = useState('');
+  const [editingEquipment, setEditingEquipment] = useState<EquipmentRecord | null>(null);
+  const [equipmentBrand, setEquipmentBrand] = useState('');
+  const [equipmentModel, setEquipmentModel] = useState('');
+  const [equipmentManufacturerSerial, setEquipmentManufacturerSerial] = useState('');
+  const [equipmentDescription, setEquipmentDescription] = useState('');
+  const [savingEquipment, setSavingEquipment] = useState(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -553,9 +561,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => { onScheduleMaintenance(selectedClientForHistory, selectedEquipment); setSelectedClientForHistory(null); setSelectedEquipment(null); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold cursor-pointer">
-                      <CalendarPlus className="w-4 h-4" /> Nova manutenção deste MA
-                    </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button onClick={() => { setEditingEquipment(selectedEquipment); setEquipmentBrand(selectedEquipment.brand || ''); setEquipmentModel(selectedEquipment.model || ''); setEquipmentManufacturerSerial(selectedEquipment.manufacturerSerialNumber || ''); setEquipmentDescription(selectedEquipment.description || ''); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold cursor-pointer">
+                        <Edit3 className="w-4 h-4" /> Editar dados do equipamento
+                      </button>
+                      <button onClick={() => { onScheduleMaintenance(selectedClientForHistory, selectedEquipment); setSelectedClientForHistory(null); setSelectedEquipment(null); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold cursor-pointer">
+                        <CalendarPlus className="w-4 h-4" /> Nova manutenção deste MA
+                      </button>
+                    </div>
                     <div className="text-white font-bold pt-1">Histórico do equipamento</div>
                     {history.length === 0 ? <div className="p-4 text-center text-zinc-500">Nenhum atendimento localizado para este MA.</div> : history.map(a => (
                       <div key={a.id} className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1">
@@ -682,6 +695,22 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {editingEquipment && selectedClientForHistory && (
+        <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-zinc-950 border border-zinc-700 shadow-2xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div><div className="text-white font-black text-lg">Editar dados do equipamento</div><div className="text-cyan-300 font-mono text-sm mt-1">{editingEquipment.serialNumber}</div></div>
+              <button onClick={() => setEditingEquipment(null)} className="p-2 rounded-xl bg-zinc-900 text-zinc-400"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="rounded-xl bg-emerald-950/30 border border-emerald-800/60 p-3 text-xs text-emerald-200">Edição segura pós-finalização. MA, QR, OS e data original não serão alterados.</div>
+            <div className="grid grid-cols-2 gap-2"><input value={equipmentBrand} onChange={e=>setEquipmentBrand(e.target.value)} placeholder="Marca" className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/><input value={equipmentModel} onChange={e=>setEquipmentModel(e.target.value)} placeholder="Modelo" className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/></div>
+            <input value={equipmentManufacturerSerial} onChange={e=>setEquipmentManufacturerSerial(e.target.value)} placeholder="Nº de série do fabricante" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/>
+            <input value={equipmentDescription} onChange={e=>setEquipmentDescription(e.target.value)} placeholder="Local do equipamento / descrição" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/>
+            <button disabled={savingEquipment} onClick={async()=>{ const updated={...editingEquipment,brand:equipmentBrand.trim()||undefined,model:equipmentModel.trim()||undefined,manufacturerSerialNumber:equipmentManufacturerSerial.trim()||undefined,description:equipmentDescription.trim()||undefined}; setSavingEquipment(true); try { await onUpdateEquipment?.(selectedClientForHistory, updated); setSelectedEquipment(updated); setEditingEquipment(null); } finally { setSavingEquipment(false); } }} className="w-full py-3 rounded-xl bg-cyan-500 text-black font-black disabled:opacity-50 flex items-center justify-center gap-2"><Save className="w-4 h-4"/>{savingEquipment?'Salvando...':'Salvar dados do equipamento'}</button>
           </div>
         </div>
       )}
