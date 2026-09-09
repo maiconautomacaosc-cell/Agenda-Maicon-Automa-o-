@@ -35,6 +35,9 @@ interface HeaderProps {
   googleConnected?: boolean;
   syncStatus: 'synced' | 'syncing' | 'offline' | 'error';
   onOpenCloudSync: () => void;
+  isSandbox?: boolean;
+  onRequestSandbox?: () => void;
+  onRequestSandboxReset?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -53,9 +56,12 @@ export const Header: React.FC<HeaderProps> = ({
   googleConnected,
   syncStatus,
   onOpenCloudSync,
+  isSandbox = false,
+  onRequestSandbox,
+  onRequestSandboxReset,
 }) => {
   return (
-    <header className="sticky top-0 z-40 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800 px-3 sm:px-6 py-2.5">
+    <header className={`sticky top-0 z-40 backdrop-blur-md border-b px-3 sm:px-6 py-2.5 transition-colors ${isSandbox ? 'bg-amber-400/95 border-amber-300 text-black' : 'bg-zinc-900/95 border-zinc-800'}`}>
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
         {/* Brand identity with uploaded logo emblem */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -71,13 +77,11 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="text-[15px] sm:text-base font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors whitespace-nowrap">
-                  MAICON <span className="text-cyan-400">AUTOMAÇÃO</span>
+                <span className={`text-[15px] sm:text-base font-black tracking-tight transition-colors whitespace-nowrap ${isSandbox ? 'text-black' : 'text-white group-hover:text-cyan-400'}`}>
+                  MAICON <span className={isSandbox ? "text-black" : "text-cyan-400"}>AUTOMAÇÃO</span>
                 </span>
               </div>
-              <span className="text-[10px] sm:text-[11px] text-zinc-400 font-medium tracking-tight whitespace-nowrap">
-                Instalação de Fechaduras Eletrônicas
-              </span>
+              <span className={`text-[10px] sm:text-[11px] font-medium tracking-tight whitespace-nowrap ${isSandbox ? 'text-amber-950' : 'text-zinc-400'}`}>{isSandbox ? 'AMBIENTE DE TESTES • integrações bloqueadas' : 'Instalação de Fechaduras Eletrônicas'}</span>
             </div>
           </button>
         </div>
@@ -171,12 +175,17 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Actions: Cloud Sync, Alarm Notifier & New Appointment Button */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          <button onClick={onRequestSandbox} className={`px-2.5 py-1.5 rounded-xl border text-[10px] font-black tracking-wide transition-all ${isSandbox ? 'bg-black text-amber-300 border-black' : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-amber-300'}`} title={isSandbox ? 'Voltar para Operação' : 'Entrar no ambiente de testes'}>{isSandbox ? 'TESTE' : <><span className="hidden sm:inline">OPERAÇÃO</span><span className="sm:hidden">TESTE</span></>}</button>
+          {isSandbox && <button onClick={onRequestSandboxReset} className="inline-flex px-2 py-1.5 rounded-xl border border-amber-900/30 text-[9px] font-bold text-amber-950 hover:bg-amber-300" title="Redefinir somente o Sandbox"><span className="hidden sm:inline">Reset</span><span className="sm:hidden">↻</span></button>}
+
           {/* Cloud Sync Status Button */}
           <button
             id="btn-header-cloud-sync"
             onClick={onOpenCloudSync}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
-              user || googleConnected
+              isSandbox
+                ? 'bg-amber-300 border-amber-700 text-black cursor-not-allowed'
+                : user || googleConnected
                 ? syncStatus === 'syncing'
                   ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300'
                   : 'bg-emerald-950/40 border-emerald-800 text-emerald-300 hover:bg-emerald-900/50'
@@ -184,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
             title={user || googleConnected ? `Google Drive conectado (${user?.email || 'Nuvem'})` : 'Conectar Google Drive para sincronizar aparelhos'}
           >
-            {user || googleConnected ? (
+            {isSandbox ? (<CloudOff className="w-3.5 h-3.5 text-black" />) : user || googleConnected ? (
               syncStatus === 'syncing' ? (
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
               ) : (
@@ -194,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
               <CloudOff className="w-3.5 h-3.5 text-amber-400" />
             )}
             <span className="hidden sm:inline text-[11px] font-semibold">
-              {user || googleConnected ? (syncStatus === 'syncing' ? 'Sincronizando Drive...' : 'Google Drive Conectado') : 'Google Drive (Grátis)'}
+              {isSandbox ? 'Sandbox isolado' : user || googleConnected ? (syncStatus === 'syncing' ? 'Sincronizando Drive...' : 'Google Drive Conectado') : 'Google Drive (Grátis)'}
             </span>
           </button>
 

@@ -10,6 +10,7 @@ interface FollowUpCenterProps {
   quotes: Quote[];
   onSelectTab: (tab: ViewTab) => void;
   onOpenAgendaDate: (date: string) => void;
+  sandboxActive?: boolean;
 }
 
 const labels: Record<'todos' | FollowUpKind, string> = {
@@ -29,11 +30,12 @@ const destinationLabel: Record<FollowUpKind, string> = {
   pos_venda: 'Pós-venda',
 };
 
-export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, clients, quotes, onSelectTab, onOpenAgendaDate }) => {
+export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, clients, quotes, onSelectTab, onOpenAgendaDate, sandboxActive = false }) => {
   const [filter, setFilter] = useState<'todos' | FollowUpKind>('todos');
   const [mode, setMode] = useState<FollowUpMode>('operacao');
+  const effectiveMode: FollowUpMode = sandboxActive ? 'operacao' : mode;
   const [testItem, setTestItem] = useState<FollowUpItem | null>(null);
-  const items = useMemo(() => getFollowUps(appointments, clients, quotes, getTodayString(), mode), [appointments, clients, quotes, mode]);
+  const items = useMemo(() => getFollowUps(appointments, clients, quotes, getTodayString(), effectiveMode), [appointments, clients, quotes, effectiveMode]);
   const filtered = filter === 'todos' ? items : items.filter(i => i.kind === filter);
   const counts = useMemo(() => ({
     atrasado: items.filter(i => i.kind === 'atrasado').length,
@@ -65,10 +67,10 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
       <div>
         <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-cyan-400">Acompanhamento automático</p>
         <h1 className="text-2xl font-black text-white">Central de Lembretes</h1>
-        <p className="text-xs text-zinc-500 mt-1">Operação real separada de um ambiente seguro para validar todas as regras.</p>
+        <p className="text-xs text-zinc-500 mt-1">{sandboxActive ? 'Lembretes calculados com os dados persistentes do Sandbox.' : 'Operação real separada de um ambiente seguro para validar todas as regras.'}</p>
       </div>
 
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-1 flex gap-1">
+      {false && <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-1 flex gap-1">
         <button
           onClick={() => changeMode('operacao')}
           className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-colors ${mode === 'operacao' ? 'bg-cyan-500 text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
@@ -81,9 +83,9 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
         >
           <FlaskConical className="w-3.5 h-3.5" /> Teste
         </button>
-      </div>
+      </div>}
 
-      {mode === 'teste' && (
+      {false && mode === 'teste' && (
         <div className="rounded-2xl border border-violet-800/70 bg-violet-950/30 px-3.5 py-3">
           <div className="flex items-center gap-2 text-violet-300 font-black text-[10px] uppercase tracking-[0.16em]"><FlaskConical className="w-3.5 h-3.5" /> Ambiente de testes</div>
           <p className="text-[11px] text-violet-200/70 mt-1 leading-relaxed">Considera somente o CLIENTE TESTE — MAICON AUTOMAÇÃO. Cenários ausentes são simulados na tela para que as 5 regras possam ser validadas sem criar, editar ou excluir dados reais.</p>

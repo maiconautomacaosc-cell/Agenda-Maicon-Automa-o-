@@ -19,11 +19,13 @@ import { exportBackupData, importBackupData } from '../utils/storage';
 interface FinancialSummaryProps {
   appointments: Appointment[];
   onDataImported: () => void;
+  sandboxActive?: boolean;
 }
 
 export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   appointments,
   onDataImported,
+  sandboxActive = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +53,7 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   );
 
   const handleExport = () => {
+    if (sandboxActive) { alert('Sandbox: backup oficial bloqueado para proteger a operação real.'); return; }
     const dataStr = exportBackupData();
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -62,6 +65,7 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (sandboxActive) { alert('Sandbox: restauração de backup oficial bloqueada.'); e.target.value = ''; return; }
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -174,6 +178,8 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
           ))}
         </div>
       </div>
+
+      {sandboxActive && <div className="rounded-2xl border border-amber-800/60 bg-amber-950/20 px-4 py-3 text-xs text-amber-300"><strong>Sandbox:</strong> relatórios usam somente os dados de teste. Importação/exportação do backup oficial fica bloqueada para proteger a produção.</div>}
 
       {/* Backup and Database Sync Actions */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 shadow-xl space-y-3">
