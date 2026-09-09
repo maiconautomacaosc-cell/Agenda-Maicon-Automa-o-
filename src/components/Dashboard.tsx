@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays, DollarSign, KeyRound,
-  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock
+  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen
 } from 'lucide-react';
 import { Appointment, Client, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
+import { DAILY_BIBLE_REFERENCES } from '../data/dailyBibleReferences';
 
 interface DashboardProps {
   appointments: Appointment[];
@@ -19,6 +20,24 @@ const warrantyMonths: Record<WarrantyPeriod, number> = {
   '12 Meses': 12, '24 Meses': 24, '36 Meses': 36,
 };
 
+
+const getLocalDayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const getDailyBibleReference = (dayKey: string) => {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  const current = new Date(year, month - 1, day);
+  const start = new Date(year, 0, 1);
+  const dayOfYear = Math.floor((current.getTime() - start.getTime()) / 86400000);
+  // Em ano bissexto, 29/02 compartilha a referência do dia anterior;
+  // a partir de 01/03 o calendário volta a acompanhar as 365 posições anuais.
+  const isLeap = new Date(year, 1, 29).getMonth() === 1;
+  const adjustedIndex = isLeap && dayOfYear >= 59 ? Math.max(0, dayOfYear - 1) : dayOfYear;
+  return DAILY_BIBLE_REFERENCES[Math.min(adjustedIndex, DAILY_BIBLE_REFERENCES.length - 1)];
+};
+
 const addMonths = (date: string, months: number) => {
   const d = new Date(`${date}T12:00:00`);
   d.setMonth(d.getMonth() + months);
@@ -26,6 +45,17 @@ const addMonths = (date: string, months: number) => {
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onSelectTab, onSelectDate, onOpenMaintenanceAgenda }) => {
+  const [dayKey, setDayKey] = useState(getLocalDayKey);
+  const dailyVerse = useMemo(() => getDailyBibleReference(dayKey), [dayKey]);
+
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 50);
+    const timer = window.setTimeout(() => setDayKey(getLocalDayKey()), nextMidnight.getTime() - now.getTime());
+    return () => window.clearTimeout(timer);
+  }, [dayKey]);
+
   const metrics = useMemo(() => {
     const today = getTodayString();
     const now = new Date(`${today}T12:00:00`);
@@ -92,7 +122,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-cyan-400">Visão geral</p>
           <h1 className="text-2xl font-black text-white">Dashboard</h1>
-          <p className="text-xs text-zinc-500 mt-1">Operação da Maicon Automação em um só lugar.</p>
+          <a
+            href={dailyVerse.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 max-w-xl flex items-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2 hover:border-cyan-900 transition-colors"
+            aria-label={`Ler ${dailyVerse.reference} na NTLH`}
+          >
+            <BookOpen className="w-4 h-4 text-cyan-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-zinc-500">Versículo do dia</p>
+              <p className="text-sm text-zinc-200 font-semibold">{dailyVerse.reference}</p>
+              <p className="text-[10px] text-cyan-500/80 mt-0.5">Toque para ler na NTLH</p>
+            </div>
+          </a>
         </div>
       </div>
 
