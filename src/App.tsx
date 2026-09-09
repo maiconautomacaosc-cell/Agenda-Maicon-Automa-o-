@@ -26,7 +26,7 @@ import {
 import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
-import { createDriveBackupSnapshot, ensureClientDriveStructure, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
+import { createDriveBackupSnapshot, ensureClientDriveStructure, renameGoogleDriveItem, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
 import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
@@ -283,6 +283,54 @@ export default function App() {
     saveSettings(settings);
   }, [settings]);
 
+
+  // v4.2.9 — ambiente permanente de testes. Migra o último cliente validado sem trocar ID, MA, OS, QR ou pasta.
+  const TEST_CLIENT_NAME = 'CLIENTE TESTE — MAICON AUTOMAÇÃO';
+  const LEGACY_TEST_CLIENT_NAME = 'CLIENTE TESTE V.4.0.7';
+
+  useEffect(() => {
+    const testClient = clients.find(c => c.isTestClient || c.name.trim().toUpperCase() === LEGACY_TEST_CLIENT_NAME);
+    if (!testClient) return;
+
+    const needsClientMigration = !testClient.isTestClient || testClient.name !== TEST_CLIENT_NAME;
+    if (needsClientMigration) {
+      setClients(prev => prev.map(c => c.id === testClient.id ? { ...c, name: TEST_CLIENT_NAME, isTestClient: true } : c));
+    }
+
+    setAppointments(prev => {
+      let changed = false;
+      const next = prev.map(a => {
+        const belongs = a.clientId === testClient.id || a.clientName.trim().toUpperCase() === LEGACY_TEST_CLIENT_NAME;
+        if (!belongs || (a.isTestData && a.clientName === TEST_CLIENT_NAME)) return a;
+        changed = true;
+        return { ...a, clientId: testClient.id, clientName: TEST_CLIENT_NAME, isTestData: true, updatedAt: new Date().toISOString() };
+      });
+      return changed ? next : prev;
+    });
+
+    setQuotes(prev => {
+      let changed = false;
+      const next = prev.map(q => {
+        const belongs = q.clientId === testClient.id || q.clientName.trim().toUpperCase() === LEGACY_TEST_CLIENT_NAME;
+        if (!belongs || (q.isTestData && q.clientName === TEST_CLIENT_NAME)) return q;
+        changed = true;
+        return { ...q, clientId: testClient.id, clientName: TEST_CLIENT_NAME, isTestData: true, updatedAt: new Date().toISOString() };
+      });
+      return changed ? next : prev;
+    });
+  }, [clients]);
+
+  // Renomeia a pasta histórica pelo ID. O ID não muda, portanto todos os vínculos permanecem válidos.
+  useEffect(() => {
+    const testClient = clients.find(c => c.isTestClient);
+    const token = googleAccessToken || getCachedAccessToken();
+    if (!testClient?.driveFolderId || testClient.testDriveFolderRenamed || !token) return;
+    const reference = testClient.serialNumber || testClient.equipment?.find(e => e.serialNumber)?.serialNumber || 'CLIENTE';
+    renameGoogleDriveItem(testClient.driveFolderId, `${reference} - ${TEST_CLIENT_NAME}`, token)
+      .then(() => setClients(prev => prev.map(c => c.id === testClient.id ? { ...c, testDriveFolderRenamed: true } : c)))
+      .catch(err => console.warn('Não foi possível renomear a pasta do Cliente Teste; vínculo preservado:', err));
+  }, [clients, googleAccessToken]);
+
   // Auto-sync para a mesma Planilha Google + backup no Drive
   useEffect(() => {
     const spreadsheetId = getSpreadsheetId();
@@ -293,7 +341,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.2.8', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.2.9', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -406,7 +454,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.2.8',
+      version: '4.2.9',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -557,6 +605,8 @@ export default function App() {
   };
 
   const handleSaveAppointment = (appt: Appointment, _saveClientToDb: boolean) => {
+    const linkedClient = clients.find(c => c.id === appt.clientId);
+    if (linkedClient?.isTestClient) appt = { ...appt, clientName: linkedClient.name, isTestData: true };
     const previous = appointments.find(a => a.id === appt.id);
     const justCompleted = appt.serviceType !== 'compromisso_particular' && appt.status === 'concluido' && previous?.status !== 'concluido';
 
@@ -1094,6 +1144,8 @@ export default function App() {
   };
 
   const handleSaveQuote = (quote: Quote, saveClientToDb: boolean, sendImmediately: boolean = false) => {
+    const linkedClient = clients.find(c => c.id === quote.clientId);
+    if (linkedClient?.isTestClient) quote = { ...quote, clientName: linkedClient.name, isTestData: true };
     setQuotes((prev) => {
       const exists = prev.some((q) => q.id === quote.id);
       if (exists) {
@@ -1233,6 +1285,11 @@ export default function App() {
     setIsAppointmentModalOpen(true);
   };
   const handleDeleteClient = (id: string) => {
+    const target = clients.find(c => c.id === id);
+    if (target?.isTestClient) {
+      alert('CLIENTE TESTE — MAICON AUTOMAÇÃO é o ambiente permanente de validação e está protegido contra exclusão acidental.');
+      return;
+    }
     setClients((prev) => prev.filter((c) => c.id !== id));
   };
 
