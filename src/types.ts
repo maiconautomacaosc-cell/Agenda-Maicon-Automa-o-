@@ -46,8 +46,12 @@ export interface Client {
   driveFolderUrl?: string;
   /** Registro permanente usado para validar novas versões sem contaminar indicadores reais. */
   isTestClient?: boolean;
-  /** Confirma que a pasta histórica do Drive já recebeu o nome oficial do ambiente de testes. */
+  /** Confirma que a pasta histórica do Drive já recebeu uma primeira renomeação de migração. */
   testDriveFolderRenamed?: boolean;
+  /** Confirma que a pasta principal foi normalizada para o nome canônico do cliente, sem prefixo MA. */
+  testDriveFolderCanonicalRenamed?: boolean;
+  /** Confirma que o nome do Cliente Teste foi propagado para as abas oficiais CLIENTES e O.S. */
+  testMainSheetsMigrated?: boolean;
   createdAt: string;
 }
 
