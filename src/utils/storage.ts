@@ -454,3 +454,63 @@ export function importBackupData(jsonString: string): boolean {
     return false;
   }
 }
+
+// v4.3.2 — Sandbox operacional totalmente isolado da produção.
+export interface SandboxData {
+  version: string;
+  clients: Client[];
+  appointments: Appointment[];
+  quotes: Quote[];
+  settings: AppSettings;
+  ui?: { currentTab?: string; selectedDate?: string };
+  updatedAt: string;
+}
+
+const SANDBOX_KEY = 'maicon_automacao_sandbox_v432';
+
+export function createInitialSandboxData(): SandboxData {
+  const now = new Date().toISOString();
+  return {
+    version: '4.3.2',
+    clients: [{
+      id: 'sandbox-client-main',
+      name: 'CLIENTE TESTE — MAICON AUTOMAÇÃO',
+      phone: '(47) 90000-0000',
+      address: 'AMBIENTE DE TESTES',
+      city: 'Joinville',
+      notes: 'Cliente permanente do Sandbox. Nenhum dado deste ambiente é enviado às integrações oficiais.',
+      createdAt: now,
+    }],
+    appointments: [],
+    quotes: [],
+    settings: { ...DEFAULT_SETTINGS, lastSerialSequence: 0, lastServiceOrderSequence: 0 },
+    ui: { currentTab: 'dashboard', selectedDate: getTodayString() },
+    updatedAt: now,
+  };
+}
+
+export function loadSandboxData(): SandboxData {
+  try {
+    const raw = localStorage.getItem(SANDBOX_KEY);
+    if (!raw) {
+      const initial = createInitialSandboxData();
+      localStorage.setItem(SANDBOX_KEY, JSON.stringify(initial));
+      return initial;
+    }
+    const parsed = JSON.parse(raw);
+    return { ...createInitialSandboxData(), ...parsed, version: '4.3.2' };
+  } catch {
+    return createInitialSandboxData();
+  }
+}
+
+export function saveSandboxData(data: SandboxData): void {
+  try { localStorage.setItem(SANDBOX_KEY, JSON.stringify({ ...data, version: '4.3.2', updatedAt: new Date().toISOString() })); }
+  catch (err) { console.error('Failed to save sandbox:', err); }
+}
+
+export function resetSandboxData(): SandboxData {
+  const initial = createInitialSandboxData();
+  localStorage.setItem(SANDBOX_KEY, JSON.stringify(initial));
+  return initial;
+}
