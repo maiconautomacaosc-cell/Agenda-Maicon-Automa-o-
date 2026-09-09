@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays, DollarSign, KeyRound,
-  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen
+  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen, FileText
 } from 'lucide-react';
-import { Appointment, Client, ViewTab, WarrantyPeriod } from '../types';
+import { Appointment, Client, Quote, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
-import { DAILY_BIBLE_REFERENCES } from '../data/dailyBibleReferences';
+import { DAILY_BIBLE_INSPIRATIONS } from '../data/dailyBibleInspirations';
 
 interface DashboardProps {
   appointments: Appointment[];
   clients: Client[];
+  quotes: Quote[];
   onSelectTab: (tab: ViewTab) => void;
   onSelectDate: (date: string) => void;
   onOpenMaintenanceAgenda: () => void;
@@ -26,16 +27,12 @@ const getLocalDayKey = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const getDailyBibleReference = (dayKey: string) => {
+const getDailyBibleInspiration = (dayKey: string) => {
   const [year, month, day] = dayKey.split('-').map(Number);
   const current = new Date(year, month - 1, day);
   const start = new Date(year, 0, 1);
   const dayOfYear = Math.floor((current.getTime() - start.getTime()) / 86400000);
-  // Em ano bissexto, 29/02 compartilha a referência do dia anterior;
-  // a partir de 01/03 o calendário volta a acompanhar as 365 posições anuais.
-  const isLeap = new Date(year, 1, 29).getMonth() === 1;
-  const adjustedIndex = isLeap && dayOfYear >= 59 ? Math.max(0, dayOfYear - 1) : dayOfYear;
-  return DAILY_BIBLE_REFERENCES[Math.min(adjustedIndex, DAILY_BIBLE_REFERENCES.length - 1)];
+  return DAILY_BIBLE_INSPIRATIONS[dayOfYear % DAILY_BIBLE_INSPIRATIONS.length];
 };
 
 const addMonths = (date: string, months: number) => {
@@ -44,9 +41,9 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onSelectTab, onSelectDate, onOpenMaintenanceAgenda }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quotes, onSelectTab, onSelectDate, onOpenMaintenanceAgenda }) => {
   const [dayKey, setDayKey] = useState(getLocalDayKey);
-  const dailyVerse = useMemo(() => getDailyBibleReference(dayKey), [dayKey]);
+  const dailyVerse = useMemo(() => getDailyBibleInspiration(dayKey), [dayKey]);
 
   useEffect(() => {
     const now = new Date();
@@ -111,8 +108,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
       ? Math.round((weekDone.length / weekServices.length) * 100)
       : 0;
 
-    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon };
-  }, [appointments, clients]);
+    const quotesWaiting = quotes.filter(q => q.status === 'pendente').length;
+
+    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting };
+  }, [appointments, clients, quotes]);
 
   const goToday = () => { onSelectDate(metrics.today); onSelectTab('agenda'); };
 
@@ -122,20 +121,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-cyan-400">Visão geral</p>
           <h1 className="text-2xl font-black text-white">Dashboard</h1>
-          <a
-            href={dailyVerse.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 max-w-xl flex items-center gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2 hover:border-cyan-900 transition-colors"
-            aria-label={`Ler ${dailyVerse.reference} na NTLH`}
-          >
-            <BookOpen className="w-4 h-4 text-cyan-400 shrink-0" />
+          <div className="mt-2 max-w-xl flex items-start gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/40 px-3 py-2.5">
+            <BookOpen className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-zinc-500">Versículo do dia</p>
-              <p className="text-sm text-zinc-200 font-semibold">{dailyVerse.reference}</p>
-              <p className="text-[10px] text-cyan-500/80 mt-0.5">Toque para ler na NTLH</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-zinc-500">Inspiração bíblica do dia</p>
+              <p className="text-sm text-zinc-100 font-semibold leading-snug mt-0.5">“{dailyVerse.text}”</p>
+              <p className="text-[10px] text-cyan-500/80 mt-1">{dailyVerse.reference}</p>
             </div>
-          </a>
+          </div>
         </div>
       </div>
 
@@ -161,13 +154,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, onS
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 space-y-3">
         <div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400"/><h2 className="font-bold">Pós-venda</h2><button onClick={() => onSelectTab('posvenda')} className="ml-auto text-[9px] font-bold uppercase tracking-wider text-cyan-500">abrir central →</button></div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-2.5">
           <button onClick={onOpenMaintenanceAgenda} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-amber-800/70 transition-colors">
             <Wrench className="w-4 h-4 text-amber-400 mb-2"/><div className="text-xl font-black">{metrics.maintenanceOpen}</div><div className="text-[10px] text-zinc-500">manutenções abertas</div>
           </button>
           <button onClick={() => onSelectTab('posvenda')} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-zinc-700">
             <ShieldCheck className="w-4 h-4 text-emerald-400 mb-2"/><div className="text-xl font-black">{metrics.warrantySoon}</div><div className="text-[10px] text-zinc-500">garantias em até 30 dias</div>
           </button>
+          <button onClick={() => onSelectTab('orcamentos')} className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 text-left hover:border-cyan-800/70 transition-colors">
+            <FileText className="w-4 h-4 text-cyan-400 mb-2"/><div className="text-xl font-black">{metrics.quotesWaiting}</div><div className="text-[10px] text-zinc-500">orçamentos aguardando</div>
+          </button>
+
         </div>
       </div>
 
