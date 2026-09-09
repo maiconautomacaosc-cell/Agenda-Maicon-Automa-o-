@@ -58,11 +58,11 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800 px-3 sm:px-6 py-2.5">
       <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
         {/* Brand identity with uploaded logo emblem */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <button
             id="btn-header-brand-logo"
             onClick={onPlayIntroAnimation || onOpenBrandInfo}
-            className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
+            className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer min-w-0 max-w-[245px] sm:max-w-[330px]"
             title="Clique para ver a animação de abertura da logo"
           >
             <div className="relative transform group-hover:scale-105 transition-transform">
@@ -71,11 +71,11 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm sm:text-base font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors">
+                <span className="text-[15px] sm:text-base font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors whitespace-nowrap">
                   MAICON <span className="text-cyan-400">AUTOMAÇÃO</span>
                 </span>
               </div>
-              <span className="text-[10px] text-zinc-400 font-medium tracking-tight truncate max-w-[140px] sm:max-w-none">
+              <span className="text-[10px] sm:text-[11px] text-zinc-400 font-medium tracking-tight whitespace-nowrap">
                 Instalação de Fechaduras Eletrônicas
               </span>
             </div>
