@@ -155,7 +155,7 @@ export interface Quote {
   isTestData?: boolean;
 }
 
-export type ViewTab = 'dashboard' | 'agenda' | 'diario' | 'orcamentos' | 'clientes' | 'posvenda' | 'financeiro' | 'consultoria';
+export type ViewTab = 'dashboard' | 'agenda' | 'diario' | 'orcamentos' | 'clientes' | 'posvenda' | 'acompanhamentos' | 'financeiro' | 'consultoria';
 
 export interface FilterState {
   searchTerm: string;
