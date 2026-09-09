@@ -34,6 +34,7 @@ interface CalendarViewProps {
   onClearFocusFilter?: () => void;
   newAppointmentSelectionMode?: boolean;
   onSelectDateForNewAppointment?: (date: string) => void;
+  sandboxActive?: boolean;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -51,6 +52,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onClearFocusFilter,
   newAppointmentSelectionMode = false,
   onSelectDateForNewAppointment,
+  sandboxActive = false,
 }) => {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
@@ -521,6 +523,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onRetryMainSheetSync={onRetryMainSheetSync}
                   onRetryCalendarSync={onRetryCalendarSync}
                   onReserveMa={onReserveMa}
+                  sandboxActive={sandboxActive}
                 />
               ))}
           </div>

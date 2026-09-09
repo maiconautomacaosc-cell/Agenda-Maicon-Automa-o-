@@ -49,6 +49,7 @@ interface AppointmentCardProps {
   onRetryCalendarSync?: (appt: Appointment) => void | Promise<void>;
   onReserveMa?: (appt: Appointment) => void | Promise<void>;
   onTriggerAlarmTest?: (appt: Appointment) => void;
+  sandboxActive?: boolean;
 }
 
 export const AppointmentCard: React.FC<AppointmentCardProps> = ({
@@ -60,6 +61,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onRetryMainSheetSync,
   onRetryCalendarSync,
   onReserveMa,
+  sandboxActive = false,
 }) => {
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -269,7 +271,19 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           </div>
         )}
 
-        {!isParticular && !isExistingMaMaintenance && appointment.status !== 'concluido' && appointment.status !== 'cancelado' && onReserveMa && (
+        {!isParticular && !isExistingMaMaintenance && appointment.status !== 'concluido' && appointment.status !== 'cancelado' && sandboxActive && (
+          <div className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-2.5">
+            <div className="flex items-start gap-2">
+              <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[11px] font-bold text-amber-300">QR de garantia bloqueado no Sandbox</div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">O QR oficial depende do Web App e da base Google. Para proteger a sequência MA real, a reserva e a geração de QR ficam desativadas no Ambiente de Testes. Os MAT são gerados normalmente ao concluir os serviços.</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isParticular && !isExistingMaMaintenance && appointment.status !== 'concluido' && appointment.status !== 'cancelado' && !sandboxActive && onReserveMa && (
           <div className="rounded-xl border border-cyan-800/60 bg-cyan-950/20 p-2.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>

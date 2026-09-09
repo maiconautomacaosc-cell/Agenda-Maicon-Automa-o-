@@ -31,6 +31,7 @@ interface DayScheduleViewProps {
   onRetryMainSheetSync?: (appt: Appointment) => void;
   onRetryCalendarSync?: (appt: Appointment) => void | Promise<void>;
   onReserveMa?: (appt: Appointment) => void | Promise<void>;
+  sandboxActive?: boolean;
 }
 
 export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
@@ -45,6 +46,7 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
   onRetryMainSheetSync,
   onRetryCalendarSync,
   onReserveMa,
+  sandboxActive = false,
 }) => {
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
@@ -273,6 +275,7 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
               onRetryMainSheetSync={onRetryMainSheetSync}
               onRetryCalendarSync={onRetryCalendarSync}
               onReserveMa={onReserveMa}
+              sandboxActive={sandboxActive}
             />
           ))
         )}
