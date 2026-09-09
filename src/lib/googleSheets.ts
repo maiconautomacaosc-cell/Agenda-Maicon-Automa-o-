@@ -653,6 +653,60 @@ export async function syncCompletedAppointmentToMainSheets(
   }
 }
 
+/**
+ * v4.2.9 R2 — propaga a identidade do Cliente Teste para as abas oficiais históricas.
+ * Não altera MA, OS, datas, PDFs, QR ou qualquer outro campo: somente a coluna Cliente.
+ */
+export async function migratePermanentTestClientIdentityInMainSheets(
+  accessToken: string,
+  spreadsheetId = getSpreadsheetId(),
+  officialName = 'CLIENTE TESTE — MAICON AUTOMAÇÃO',
+  knownMAs: string[] = ['MA-000061', 'MA-000062', 'MA-000063', 'MA-000064', 'MA-000065']
+): Promise<{ clientsUpdated: number; serviceOrdersUpdated: number }> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  const known = new Set(knownMAs.map(v => String(v).trim().toUpperCase()));
+  const normalizeIdentity = (value: unknown) => String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const officialNormalized = normalizeIdentity(officialName);
+  const isTestName = (value: unknown) => {
+    const n = normalizeIdentity(value);
+    return n === 'CLIENTETESTEV407' || n === officialNormalized;
+  };
+  const hasKnownMA = (value: unknown) => String(value || '')
+    .split('|').map(v => v.trim().toUpperCase()).some(v => known.has(v));
+
+  const [clientRows, osRows] = await Promise.all([
+    readValues(spreadsheetId, sheetRange(tabs.clients, 'A2:D'), accessToken),
+    readValues(spreadsheetId, sheetRange(tabs.serviceOrders, 'A2:D'), accessToken),
+  ]);
+
+  let clientsUpdated = 0;
+  for (let i = 0; i < clientRows.length; i++) {
+    const row = clientRows[i] || [];
+    const ma = String(row[0] || '').trim().toUpperCase();
+    const currentName = row[3];
+    if ((known.has(ma) || isTestName(currentName)) && String(currentName || '') !== officialName) {
+      await updateValues(spreadsheetId, sheetRange(tabs.clients, `D${i + 2}`), [[officialName]], accessToken);
+      clientsUpdated++;
+    }
+  }
+
+  let serviceOrdersUpdated = 0;
+  for (let i = 0; i < osRows.length; i++) {
+    const row = osRows[i] || [];
+    const serials = row[1];
+    const currentName = row[3];
+    if ((hasKnownMA(serials) || isTestName(currentName)) && String(currentName || '') !== officialName) {
+      await updateValues(spreadsheetId, sheetRange(tabs.serviceOrders, `D${i + 2}`), [[officialName]], accessToken);
+      serviceOrdersUpdated++;
+    }
+  }
+
+  return { clientsUpdated, serviceOrdersUpdated };
+}
+
 export async function loadDatabaseFromGoogleSheets(
   accessToken: string,
   spreadsheetId = getSpreadsheetId()

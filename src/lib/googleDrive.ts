@@ -428,17 +428,22 @@ export async function ensureClientDriveStructure(
 ): Promise<ClientDriveStructure> {
   const cleanClientName = safeDriveFolderName(clientName) || 'Cliente';
   const cleanReference = safeDriveFolderName(reference || 'CLIENTE');
-  const targetName = `${cleanReference} - ${cleanClientName}`;
+  // v4.2.9 R2: a pasta principal representa o CLIENTE, não um MA específico.
+  // O MA continua identificando equipamentos e documentos, mas não comanda mais o nome da pasta principal.
+  const targetName = cleanClientName;
+  const legacyTargetName = `${cleanReference} - ${cleanClientName}`;
   const normalizedClient = normalizeDriveName(cleanClientName);
   const normalizedTarget = normalizeDriveName(targetName);
+  const normalizedLegacyTarget = normalizeDriveName(legacyTargetName);
 
   const rootChildren = await listChildFolders(rootFolderId, accessToken);
   let clientFolder = rootChildren.find(f => normalizeDriveName(f.name) === normalizedTarget);
   if (!clientFolder) {
-    // Reaproveita uma pasta anterior do mesmo cliente, mesmo que o prefixo MA/OS seja diferente.
+    // Compatibilidade com a estrutura antiga "MA-xxxxxx - Cliente".
+    // Reutiliza a mesma pasta/ID para nunca duplicar o histórico.
     clientFolder = rootChildren.find(f => {
       const n = normalizeDriveName(f.name);
-      return n === normalizedClient || n.endsWith(` - ${normalizedClient}`);
+      return n === normalizedLegacyTarget || n === normalizedClient || n.endsWith(` - ${normalizedClient}`);
     });
   }
 
