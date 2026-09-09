@@ -2,6 +2,7 @@ import { Appointment, Client, Quote, WarrantyPeriod } from '../types';
 
 export type FollowUpKind = 'atrasado' | 'amanha' | 'garantia' | 'orcamento' | 'pos_venda';
 export type FollowUpPriority = 'alta' | 'media' | 'baixa';
+export type FollowUpMode = 'operacao' | 'teste';
 
 export interface FollowUpItem {
   id: string;
@@ -13,6 +14,7 @@ export interface FollowUpItem {
   clientId?: string;
   appointmentId?: string;
   quoteId?: string;
+  simulated?: boolean;
 }
 
 const warrantyMonths: Record<WarrantyPeriod, number> = {
@@ -41,24 +43,85 @@ const addMonths = (date: string, months: number) => {
   return d;
 };
 
+const getTestFallbackItems = (clients: Client[], existing: FollowUpItem[]): FollowUpItem[] => {
+  const testClient = clients.find(c => c.isTestClient);
+  if (!testClient) return [];
+
+  const ma = testClient.equipment?.[0]?.serialNumber || testClient.serialNumber || 'MA TESTE';
+  const has = (kind: FollowUpKind) => existing.some(item => item.kind === kind);
+  const safeName = testClient.name || 'CLIENTE TESTE — MAICON AUTOMAÇÃO';
+
+  const demo: FollowUpItem[] = [
+    {
+      id: 'test-sim-atrasado',
+      kind: 'atrasado',
+      priority: 'alta',
+      title: `${safeName} • atendimento atrasado`,
+      subtitle: 'SIMULAÇÃO • serviço pendente desde ontem',
+      clientId: testClient.id,
+      simulated: true,
+    },
+    {
+      id: 'test-sim-amanha',
+      kind: 'amanha',
+      priority: 'media',
+      title: `${safeName} • serviço de amanhã`,
+      subtitle: 'SIMULAÇÃO • agendamento para amanhã às 09:00',
+      clientId: testClient.id,
+      simulated: true,
+    },
+    {
+      id: 'test-sim-garantia',
+      kind: 'garantia',
+      priority: 'media',
+      title: `${safeName} • garantia perto do vencimento`,
+      subtitle: `SIMULAÇÃO • ${ma} • vence em 15 dias`,
+      clientId: testClient.id,
+      simulated: true,
+    },
+    {
+      id: 'test-sim-orcamento',
+      kind: 'orcamento',
+      priority: 'media',
+      title: `${safeName} • orçamento aguardando retorno`,
+      subtitle: 'SIMULAÇÃO • orçamento pendente há 4 dias',
+      clientId: testClient.id,
+      simulated: true,
+    },
+    {
+      id: 'test-sim-posvenda',
+      kind: 'pos_venda',
+      priority: 'baixa',
+      title: `${safeName} • acompanhamento pós-venda`,
+      subtitle: `SIMULAÇÃO • ${ma} • último serviço há 180 dias`,
+      clientId: testClient.id,
+      simulated: true,
+    },
+  ];
+
+  return demo.filter(item => !has(item.kind));
+};
+
 export const getFollowUps = (
   appointments: Appointment[],
   clients: Client[],
   quotes: Quote[],
   todayString: string,
+  mode: FollowUpMode = 'operacao',
 ): FollowUpItem[] => {
   const today = atNoon(todayString);
   const tomorrowString = addDays(today, 1).toISOString().slice(0, 10);
   const testClientIds = new Set(clients.filter(c => c.isTestClient).map(c => c.id));
-  const isRealAppointment = (a: Appointment) =>
-    !a.isTestData &&
-    !testClientIds.has(a.clientId) &&
-    a.serviceType !== 'compromisso_particular' &&
-    a.status !== 'cancelado';
+
+  const isEligibleAppointment = (a: Appointment) => {
+    if (a.serviceType === 'compromisso_particular' || a.status === 'cancelado') return false;
+    const belongsToTest = !!a.isTestData || testClientIds.has(a.clientId);
+    return mode === 'teste' ? belongsToTest : !belongsToTest;
+  };
 
   const items: FollowUpItem[] = [];
 
-  appointments.filter(isRealAppointment).forEach(a => {
+  appointments.filter(isEligibleAppointment).forEach(a => {
     const open = a.status === 'pendente' || a.status === 'em_andamento';
     if (open && a.date < todayString) {
       const daysLate = Math.max(1, -dayDiff(atNoon(a.date), today));
@@ -107,7 +170,11 @@ export const getFollowUps = (
   });
 
   quotes
-    .filter(q => q.status === 'pendente' && !q.isTestData && !(q.clientId && testClientIds.has(q.clientId)))
+    .filter(q => {
+      if (q.status !== 'pendente') return false;
+      const belongsToTest = !!q.isTestData || (!!q.clientId && testClientIds.has(q.clientId));
+      return mode === 'teste' ? belongsToTest : !belongsToTest;
+    })
     .forEach(q => {
       const sourceDate = (q.createdAt || q.date || '').slice(0, 10);
       if (!sourceDate) return;
@@ -125,25 +192,29 @@ export const getFollowUps = (
       }
     });
 
-  clients.filter(c => !c.isTestClient).forEach(client => {
-    const completed = appointments
-      .filter(a => a.clientId === client.id && isRealAppointment(a) && a.status === 'concluido')
-      .sort((a, b) => b.date.localeCompare(a.date));
-    if (!completed.length) return;
-    const latest = completed[0];
-    const daysSince = Math.max(0, -dayDiff(atNoon(latest.date), today));
-    if (daysSince >= 180) {
-      items.push({
-        id: `aftercare-${client.id}`,
-        kind: 'pos_venda',
-        priority: 'baixa',
-        title: `${client.name} • acompanhamento pós-venda`,
-        subtitle: `Último serviço há ${daysSince} dias (${formatDate(latest.date)})`,
-        clientId: client.id,
-        date: latest.date,
-      });
-    }
-  });
+  clients
+    .filter(client => mode === 'teste' ? !!client.isTestClient : !client.isTestClient)
+    .forEach(client => {
+      const completed = appointments
+        .filter(a => a.clientId === client.id && isEligibleAppointment(a) && a.status === 'concluido')
+        .sort((a, b) => b.date.localeCompare(a.date));
+      if (!completed.length) return;
+      const latest = completed[0];
+      const daysSince = Math.max(0, -dayDiff(atNoon(latest.date), today));
+      if (daysSince >= 180) {
+        items.push({
+          id: `aftercare-${client.id}`,
+          kind: 'pos_venda',
+          priority: 'baixa',
+          title: `${client.name} • acompanhamento pós-venda`,
+          subtitle: `Último serviço há ${daysSince} dias (${formatDate(latest.date)})`,
+          clientId: client.id,
+          date: latest.date,
+        });
+      }
+    });
+
+  if (mode === 'teste') items.push(...getTestFallbackItems(clients, items));
 
   const weight: Record<FollowUpPriority, number> = { alta: 0, media: 1, baixa: 2 };
   return items.sort((a, b) => weight[a.priority] - weight[b.priority] || (a.date || '').localeCompare(b.date || ''));
