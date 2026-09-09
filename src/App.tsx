@@ -1525,6 +1525,7 @@ export default function App() {
             onClearFocusFilter={() => setAgendaFocusFilter(null)}
             newAppointmentSelectionMode={newAppointmentSelectionMode}
             onSelectDateForNewAppointment={handleSelectDateForNewAppointment}
+            sandboxActive={isSandbox}
           />
         )}
 
@@ -1540,6 +1541,7 @@ export default function App() {
             onRetryMainSheetSync={handleRetryMainSheetSync}
             onRetryCalendarSync={handleRetryCalendarSync}
             onReserveMa={handleReserveMaForAppointment}
+            sandboxActive={isSandbox}
           />
         )}
 
