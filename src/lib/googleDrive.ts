@@ -504,3 +504,17 @@ export async function uploadBlobToDriveFolder(
   }
   return { fileId: created.id, url: `https://drive.google.com/file/d/${created.id}/view` };
 }
+
+
+/** Renomeia um arquivo/pasta do Drive pelo ID sem alterar o ID nem os vínculos existentes. */
+export async function renameGoogleDriveItem(fileId: string, newName: string, accessToken: string): Promise<void> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Erro ${res.status} ao renomear pasta no Drive`);
+  }
+}
