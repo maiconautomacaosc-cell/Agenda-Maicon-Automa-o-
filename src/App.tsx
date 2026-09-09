@@ -286,10 +286,29 @@ export default function App() {
 
   // v4.2.9 — ambiente permanente de testes. Migra o último cliente validado sem trocar ID, MA, OS, QR ou pasta.
   const TEST_CLIENT_NAME = 'CLIENTE TESTE — MAICON AUTOMAÇÃO';
-  const LEGACY_TEST_CLIENT_NAME = 'CLIENTE TESTE V.4.0.7';
+  const TEST_CLIENT_KNOWN_MAS = new Set(['MA-000061', 'MA-000062', 'MA-000063', 'MA-000064', 'MA-000065']);
+
+  const normalizeTestIdentity = (value?: string) =>
+    (value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+
+  const isLegacyTestClientName = (value?: string) => {
+    const normalized = normalizeTestIdentity(value);
+    return normalized === 'CLIENTETESTEV407' || normalized === 'CLIENTETESTEMAICONAUTOMACAO';
+  };
+
+  const hasKnownTestEquipment = (client: Client) => {
+    const mas = [client.serialNumber, ...(client.equipment || []).map(e => e.serialNumber)].filter(Boolean) as string[];
+    return mas.some(ma => TEST_CLIENT_KNOWN_MAS.has(ma.trim().toUpperCase()));
+  };
 
   useEffect(() => {
-    const testClient = clients.find(c => c.isTestClient || c.name.trim().toUpperCase() === LEGACY_TEST_CLIENT_NAME);
+    // Reconhece tanto "Cliente Teste V.4.0.7" quanto "Cliente Teste V. 4.0.7" e outras variações de espaço/pontuação.
+    // Como proteção adicional para esta migração única, também reconhece o conjunto histórico MA-000061..MA-000065.
+    const testClient = clients.find(c => c.isTestClient || isLegacyTestClientName(c.name) || hasKnownTestEquipment(c));
     if (!testClient) return;
 
     const needsClientMigration = !testClient.isTestClient || testClient.name !== TEST_CLIENT_NAME;
@@ -300,7 +319,7 @@ export default function App() {
     setAppointments(prev => {
       let changed = false;
       const next = prev.map(a => {
-        const belongs = a.clientId === testClient.id || a.clientName.trim().toUpperCase() === LEGACY_TEST_CLIENT_NAME;
+        const belongs = a.clientId === testClient.id || isLegacyTestClientName(a.clientName);
         if (!belongs || (a.isTestData && a.clientName === TEST_CLIENT_NAME)) return a;
         changed = true;
         return { ...a, clientId: testClient.id, clientName: TEST_CLIENT_NAME, isTestData: true, updatedAt: new Date().toISOString() };
@@ -311,7 +330,7 @@ export default function App() {
     setQuotes(prev => {
       let changed = false;
       const next = prev.map(q => {
-        const belongs = q.clientId === testClient.id || q.clientName.trim().toUpperCase() === LEGACY_TEST_CLIENT_NAME;
+        const belongs = q.clientId === testClient.id || isLegacyTestClientName(q.clientName);
         if (!belongs || (q.isTestData && q.clientName === TEST_CLIENT_NAME)) return q;
         changed = true;
         return { ...q, clientId: testClient.id, clientName: TEST_CLIENT_NAME, isTestData: true, updatedAt: new Date().toISOString() };
