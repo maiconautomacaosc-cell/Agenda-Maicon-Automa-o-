@@ -293,7 +293,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.2.6', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.2.7', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -406,7 +406,7 @@ export default function App() {
   // substitui todas as cópias anteriores de uma vez.
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     const payload = {
-      version: '4.2.6',
+      version: '4.2.7',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -1339,6 +1339,7 @@ export default function App() {
           <Dashboard
             appointments={appointments}
             clients={clients}
+            quotes={quotes}
             onSelectTab={setCurrentTab}
             onSelectDate={setSelectedDate}
             onOpenMaintenanceAgenda={handleOpenMaintenanceAgenda}
