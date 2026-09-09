@@ -34,6 +34,7 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { FollowUpCenter } from './components/FollowUpCenter';
+import { resetFollowUpActions } from './utils/followUps';
 import { PostSalesCenter } from './components/PostSalesCenter';
 import { DayScheduleView } from './components/DayScheduleView';
 import { QuotesManager } from './components/QuotesManager';
@@ -306,13 +307,14 @@ export default function App() {
   };
 
   const exitSandbox = () => {
-    saveSandboxData({ version: '4.3.2', clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() });
+    saveSandboxData({ version: '4.4.0', clients, appointments, quotes, settings, ui: { currentTab, selectedDate }, updatedAt: new Date().toISOString() });
     setClients(loadClients()); setAppointments(loadAppointments()); setQuotes(loadQuotes()); setSettings(loadSettings());
     setCurrentTab('dashboard'); setSelectedDate(getTodayString()); setAgendaFocusFilter(null); setIsSandbox(false);
   };
 
   const confirmResetSandbox = () => {
     const d = resetSandboxData();
+    resetFollowUpActions(true);
     setClients(d.clients); setAppointments(d.appointments); setQuotes(d.quotes); setSettings(d.settings);
     setCurrentTab('dashboard'); setSelectedDate(getTodayString()); setAgendaFocusFilter(null); setSandboxResetOpen(false);
   };
@@ -409,7 +411,7 @@ export default function App() {
         setSyncStatus('syncing');
         setSyncErrorMessage(undefined);
         const updatedAt = new Date().toISOString();
-        const payload = { version: '4.3.2', updatedAt, clients, appointments, quotes, settings };
+        const payload = { version: '4.4.0', updatedAt, clients, appointments, quotes, settings };
         await saveDatabaseToGoogleSheets(payload, googleAccessToken, spreadsheetId);
         await saveDatabaseToGoogleDrive(payload, googleAccessToken).catch(() => null);
 
@@ -524,7 +526,7 @@ export default function App() {
   const backupAgendaMutation = (nextAppointments: Appointment[], reason: string) => {
     if (isSandbox) return; // regra absoluta: Sandbox nunca escreve no Drive.
     const payload = {
-      version: '4.3.2',
+      version: '4.4.0',
       updatedAt: new Date().toISOString(),
       clients,
       appointments: nextAppointments,
@@ -1506,6 +1508,7 @@ export default function App() {
             onSelectDate={setSelectedDate}
             onOpenMaintenanceAgenda={handleOpenMaintenanceAgenda}
             onOpenFollowUps={() => setCurrentTab('acompanhamentos')}
+            sandboxActive={isSandbox}
           />
         )}
 
