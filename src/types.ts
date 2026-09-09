@@ -44,6 +44,10 @@ export interface Client {
   notes?: string;
   driveFolderId?: string;
   driveFolderUrl?: string;
+  /** Registro permanente usado para validar novas versões sem contaminar indicadores reais. */
+  isTestClient?: boolean;
+  /** Confirma que a pasta histórica do Drive já recebeu o nome oficial do ambiente de testes. */
+  testDriveFolderRenamed?: boolean;
   createdAt: string;
 }
 
@@ -89,6 +93,8 @@ export interface Appointment {
   syncedToCalendar?: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Atendimento do ambiente permanente de testes; continua sincronizando integrações, mas não entra em métricas reais. */
+  isTestData?: boolean;
   // Sincronização com as abas oficiais CLIENTES / O.S da planilha principal.
   mainSheetSyncStatus?: 'pending' | 'synced' | 'error';
   mainSheetSyncedAt?: string;
@@ -141,6 +147,8 @@ export interface Quote {
   date: string;
   createdAt: string;
   updatedAt: string;
+  /** Orçamento do ambiente permanente de testes; não entra em indicadores reais. */
+  isTestData?: boolean;
 }
 
 export type ViewTab = 'dashboard' | 'agenda' | 'diario' | 'orcamentos' | 'clientes' | 'posvenda' | 'financeiro' | 'consultoria';
