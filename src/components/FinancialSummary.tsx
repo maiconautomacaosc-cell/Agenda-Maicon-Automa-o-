@@ -34,8 +34,10 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   const completedAppts = realAppointments.filter(a => a.status === 'concluido');
   const pendingAppts = realAppointments.filter(a => a.status === 'pendente' || a.status === 'em_andamento');
   
-  const totalEarned = completedAppts.reduce((acc, c) => acc + (c.price || 0), 0);
-  const totalPending = pendingAppts.reduce((acc, c) => acc + (c.price || 0), 0);
+  const receivedFor = (a: Appointment) => a.payments !== undefined ? a.payments.reduce((n,p)=>n+(p.amount||0),0) : (a.status === 'concluido' ? (a.price || 0) : 0);
+  const totalEarned = realAppointments.reduce((acc, c) => acc + receivedFor(c), 0);
+  const totalContracted = realAppointments.reduce((acc,c)=>acc+(c.price||0),0);
+  const totalPending = Math.max(0, totalContracted - totalEarned);
   const averageTicket = completedAppts.length > 0 ? totalEarned / completedAppts.length : 0;
 
   // Breakdown by Service Type
@@ -117,7 +119,7 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             {formatCurrencyBRL(totalPending)}
           </div>
           <div className="text-[10px] text-zinc-500 font-mono">
-            {pendingAppts.length} serviços agendados
+            saldo dos serviços cadastrados
           </div>
         </div>
 

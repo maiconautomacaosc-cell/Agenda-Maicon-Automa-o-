@@ -22,7 +22,7 @@ import {
   ShieldX,
   ChevronRight
 } from 'lucide-react';
-import { Client, Appointment, EquipmentRecord } from '../types';
+import { Client, Appointment, EquipmentRecord, PaymentRecord } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { getClientEquipmentRecords, getEquipmentHistory, getEquipmentWarrantySummary, WarrantyState } from '../utils/warranty';
 import { openWhatsApp } from '../utils/whatsapp';
@@ -37,6 +37,7 @@ interface ClientsManagerProps {
   onOpenWhatsAppForAppt: (appt: Appointment) => void;
   onQuoteForClient?: (client: Client) => void;
   onUpdateEquipment?: (client: Client, equipment: EquipmentRecord) => Promise<void> | void;
+  onUpdateAppointmentFinancial?: (appointment: Appointment) => Promise<void> | void;
 }
 
 export const ClientsManager: React.FC<ClientsManagerProps> = ({
@@ -48,6 +49,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   onScheduleMaintenance,
   onQuoteForClient,
   onUpdateEquipment,
+  onUpdateAppointmentFinancial,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,6 +65,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [equipmentManufacturerSerial, setEquipmentManufacturerSerial] = useState('');
   const [equipmentDescription, setEquipmentDescription] = useState('');
   const [savingEquipment, setSavingEquipment] = useState(false);
+  const [editingFinance, setEditingFinance] = useState<Appointment | null>(null);
+  const [financePrice, setFinancePrice] = useState('');
+  const [financeMethod, setFinanceMethod] = useState<Appointment['paymentMethod']>('pix');
+  const [financePayments, setFinancePayments] = useState<PaymentRecord[]>([]);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState<PaymentRecord['method']>('pix');
+  const [payKind, setPayKind] = useState<PaymentRecord['kind']>('sinal');
+  const [savingFinance, setSavingFinance] = useState(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -93,6 +103,19 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setCity(client.city || '');
     setNotes(client.notes || '');
     setIsModalOpen(true);
+  };
+
+  const printPaymentReceipt = (payment: PaymentRecord) => {
+    if (!editingFinance) return;
+    const total = Number(financePrice) || 0;
+    const receivedThroughThis = financePayments.slice(0, financePayments.findIndex(p => p.id === payment.id) + 1).reduce((n,p)=>n+p.amount,0);
+    const balance = Math.max(0, total - receivedThroughThis);
+    const method = payment.method.replaceAll('_', ' ');
+    const kind = payment.kind === 'sinal' ? 'Sinal / entrada' : payment.kind === 'pagamento_final' ? 'Pagamento final' : 'Pagamento';
+    const w = window.open('', '_blank', 'width=760,height=900');
+    if (!w) { alert('Permita pop-ups para gerar o recibo.'); return; }
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo ${editingFinance.serviceOrder || ''}</title><style>body{font-family:Arial,sans-serif;color:#111;padding:42px;max-width:700px;margin:auto}h1{font-size:22px;margin:0 0 4px}.brand{font-weight:800}.sub{color:#555;margin-bottom:28px}.box{border:1px solid #bbb;border-radius:12px;padding:18px;margin:16px 0}.row{display:flex;justify-content:space-between;gap:20px;padding:7px 0;border-bottom:1px solid #eee}.row:last-child{border:0}.value{font-weight:800}.foot{margin-top:36px;color:#555;font-size:12px}@media print{button{display:none}body{padding:15px}}</style></head><body><div class="brand">MAICON AUTOMAÇÃO</div><div class="sub">Recibo de pagamento</div><h1>RECIBO DE PAGAMENTO</h1><div class="box"><div class="row"><span>Cliente</span><b>${editingFinance.clientName}</b></div><div class="row"><span>Referente a</span><b>${editingFinance.serviceTypeName || editingFinance.description || 'Serviço'}</b></div><div class="row"><span>OS</span><b>${editingFinance.serviceOrder || 'Não informada'}</b></div><div class="row"><span>Equipamento</span><b>${editingFinance.equipment?.map(e=>e.serialNumber).filter(Boolean).join(' | ') || editingFinance.serialNumber || 'Não informado'}</b></div><div class="row"><span>Tipo</span><b>${kind}</b></div><div class="row"><span>Forma</span><b>${method}</b></div><div class="row"><span>Data</span><b>${formatDateBR(payment.date)}</b></div><div class="row"><span>Valor total do serviço</span><b>${formatCurrencyBRL(total)}</b></div><div class="row"><span>Valor recebido neste comprovante</span><b class="value">${formatCurrencyBRL(payment.amount)}</b></div><div class="row"><span>Saldo restante após este pagamento</span><b>${formatCurrencyBRL(balance)}</b></div></div><p>Recebemos de <b>${editingFinance.clientName}</b> o valor acima referente ao serviço descrito neste recibo.</p><div class="foot">Documento gerado pelo sistema Maicon Automação em ${new Date().toLocaleString('pt-BR')}.</div><br><button onclick="window.print()">Imprimir / Salvar PDF</button></body></html>`);
+    w.document.close();
   };
 
   const handlePhoneChange = (val: string) => {
@@ -578,7 +601,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${a.status === 'concluido' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : a.status === 'cancelado' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}`}>{a.status === 'concluido' ? 'Concluído' : a.status === 'cancelado' ? 'Cancelado' : 'Aberto'}</span>
                         </div>
                         {a.description && <div className="text-zinc-300">{a.description}</div>}
-                        {a.price != null && <div className="text-emerald-400 font-semibold">{formatCurrencyBRL(a.price)}</div>}
+                        <div className="flex items-center justify-between gap-2"><div className="text-emerald-400 font-semibold">{a.price != null ? formatCurrencyBRL(a.price) : 'Valor não informado'}</div><button onClick={()=>{ setEditingFinance(a); setFinancePrice(String(a.price ?? '')); setFinanceMethod(a.paymentMethod || 'pix'); setFinancePayments(a.payments !== undefined ? a.payments : (a.status==='concluido' && (a.price||0)>0 ? [{id:`legacy-${a.id}`,amount:a.price||0,method:a.paymentMethod||'pix',kind:'pagamento_final',date:a.date,createdAt:a.updatedAt||a.createdAt}] : [])); setPayAmount(''); }} className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-cyan-300 font-bold">Financeiro</button></div>
                       </div>
                     ))}
                   </>
@@ -695,6 +718,20 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {editingFinance && (
+        <div className="fixed inset-0 z-[90] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-zinc-950 border border-zinc-700 shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between gap-3"><div><div className="text-white font-black text-lg">Financeiro do atendimento</div><div className="text-amber-300 font-mono text-sm">OS {editingFinance.serviceOrder || 'sem OS'}</div></div><button onClick={()=>setEditingFinance(null)} className="p-2 rounded-xl bg-zinc-900 text-zinc-400"><X className="w-5 h-5"/></button></div>
+            <div className="rounded-xl bg-emerald-950/30 border border-emerald-800/60 p-3 text-xs text-emerald-200">Correção segura: valor e pagamentos podem ser ajustados sem reabrir o atendimento e sem alterar MA, QR, OS ou data.</div>
+            <div className="grid grid-cols-2 gap-2"><div><label className="text-xs text-zinc-400">Valor total</label><input type="number" step="0.01" min="0" value={financePrice} onChange={e=>setFinancePrice(e.target.value)} className="w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"/></div><div><label className="text-xs text-zinc-400">Forma combinada</label><select value={financeMethod} onChange={e=>setFinanceMethod(e.target.value as Appointment['paymentMethod'])} className="w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"><option value="pix">Pix</option><option value="cartao_credito">Cartão crédito</option><option value="cartao_debito">Cartão débito</option><option value="dinheiro">Dinheiro</option><option value="faturado">Faturado</option><option value="a_combinar">A combinar</option></select></div></div>
+            <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2"><div className="font-bold text-white">Registrar recebimento</div><div className="grid grid-cols-2 gap-2"><input type="number" step="0.01" min="0" placeholder="Valor recebido" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/><select value={payKind} onChange={e=>setPayKind(e.target.value as PaymentRecord['kind'])} className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"><option value="sinal">Sinal / entrada</option><option value="pagamento">Pagamento</option><option value="pagamento_final">Pagamento final</option></select></div><select value={payMethod} onChange={e=>setPayMethod(e.target.value as PaymentRecord['method'])} className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"><option value="pix">Pix</option><option value="cartao_credito">Cartão crédito</option><option value="cartao_debito">Cartão débito</option><option value="dinheiro">Dinheiro</option><option value="faturado">Faturado</option></select><button onClick={()=>{const amount=Number(payAmount); if(!amount||amount<=0)return; setFinancePayments(p=>[...p,{id:`pay-${Date.now()}`,amount,method:payMethod,kind:payKind,date:new Date().toISOString().slice(0,10),createdAt:new Date().toISOString()}]); setPayAmount('');}} className="w-full py-2 rounded-xl bg-amber-500 text-black font-black">+ Adicionar recebimento</button></div>
+            <div className="space-y-2">{financePayments.map((p,i)=><div key={p.id} className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex justify-between items-center gap-2"><div><div className="text-white font-bold">{p.kind==='sinal'?'Sinal / entrada':p.kind==='pagamento_final'?'Pagamento final':'Pagamento'} • {formatCurrencyBRL(p.amount)}</div><div className="text-[11px] text-zinc-500">{p.method.replaceAll('_',' ')} • {formatDateBR(p.date)}</div></div><div className="flex gap-1"><button onClick={()=>printPaymentReceipt(p)} className="text-cyan-300 px-2 font-bold">Recibo</button><button onClick={()=>setFinancePayments(x=>x.filter((_,j)=>j!==i))} className="text-rose-400 px-2">Excluir</button></div></div>)}</div>
+            {(()=>{const total=Number(financePrice)||0; const received=financePayments.length?financePayments.reduce((n,p)=>n+p.amount,0):(editingFinance.status==='concluido' && editingFinance.payments===undefined ? total:0); const balance=Math.max(0,total-received); return <div className="grid grid-cols-3 gap-2 text-center"><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">TOTAL</div><div className="text-white font-bold">{formatCurrencyBRL(total)}</div></div><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">RECEBIDO</div><div className="text-emerald-400 font-bold">{formatCurrencyBRL(received)}</div></div><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">SALDO</div><div className="text-amber-300 font-bold">{formatCurrencyBRL(balance)}</div></div></div>})()}
+            <button disabled={savingFinance} onClick={async()=>{const updated={...editingFinance,price:Number(financePrice)||0,paymentMethod:financeMethod,payments:financePayments}; setSavingFinance(true); try{await onUpdateAppointmentFinancial?.(updated); setEditingFinance(null);}finally{setSavingFinance(false)}}} className="w-full py-3 rounded-xl bg-cyan-500 text-black font-black disabled:opacity-50"><Save className="w-4 h-4 inline mr-2"/>{savingFinance?'Salvando...':'Salvar financeiro'}</button>
           </div>
         </div>
       )}
