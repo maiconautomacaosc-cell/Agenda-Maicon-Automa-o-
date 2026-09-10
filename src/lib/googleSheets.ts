@@ -731,6 +731,22 @@ export async function updateEquipmentMasterData(
   await updateValues(spreadsheetId, sheetRange(tabs.clients, `${originalSerialColumn}${row}`), [[equipment.manufacturerSerialNumber || '']], accessToken);
 }
 
+
+/** v4.5 — corrige somente dados financeiros de uma OS existente. Não recria OS/MA/QR. */
+export async function updateServiceOrderFinancialData(
+  accessToken: string, spreadsheetId: string, appointment: Pick<import('../types').Appointment, 'serviceOrder' | 'price' | 'paymentMethod'>
+): Promise<void> {
+  if (!spreadsheetId) throw new Error('Planilha Google não configurada.');
+  const os = String(appointment.serviceOrder || '').trim();
+  if (!os) throw new Error('OS não informada para este atendimento.');
+  const tabs = await resolveMainTabs(spreadsheetId, accessToken);
+  const rows = await readValues(spreadsheetId, sheetRange(tabs.serviceOrders, 'A2:A'), accessToken);
+  const index = rows.findIndex(r => String(r[0] || '').trim() === os);
+  if (index < 0) throw new Error(`OS ${os} não localizada na aba O.S.`);
+  const row = index + 2;
+  await updateValues(spreadsheetId, sheetRange(tabs.serviceOrders, `I${row}:J${row}`), [[appointment.price ?? '', paymentLabel(appointment.paymentMethod)]], accessToken);
+}
+
 export async function loadDatabaseFromGoogleSheets(
   accessToken: string,
   spreadsheetId = getSpreadsheetId()
