@@ -22,11 +22,13 @@ import {
   ShieldX,
   ChevronRight
 } from 'lucide-react';
-import { Client, Appointment, EquipmentRecord, PaymentRecord } from '../types';
+import { Client, Appointment, EquipmentRecord, PaymentRecord, CommercialClosing } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { getClientEquipmentRecords, getEquipmentHistory, getEquipmentWarrantySummary, WarrantyState } from '../utils/warranty';
 import { openWhatsApp } from '../utils/whatsapp';
 import { PaymentReceiptModal } from './PaymentReceiptModal';
+import { CommercialClosingModal } from './CommercialClosingModal';
+import { loadCommercialClosings, saveCommercialClosings, nextClosingId, findClosingForAppointment } from '../utils/commercialClosings';
 
 interface ClientsManagerProps {
   clients: Client[];
@@ -39,6 +41,7 @@ interface ClientsManagerProps {
   onQuoteForClient?: (client: Client) => void;
   onUpdateEquipment?: (client: Client, equipment: EquipmentRecord) => Promise<void> | void;
   onUpdateAppointmentFinancial?: (appointment: Appointment) => Promise<void> | void;
+  sandboxActive?: boolean;
 }
 
 export const ClientsManager: React.FC<ClientsManagerProps> = ({
@@ -51,6 +54,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   onQuoteForClient,
   onUpdateEquipment,
   onUpdateAppointmentFinancial,
+  sandboxActive = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -78,6 +82,8 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null);
   const [savingFinance, setSavingFinance] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<PaymentRecord | null>(null);
+  const [commercialClosings, setCommercialClosings] = useState<CommercialClosing[]>(() => loadCommercialClosings(sandboxActive));
+  const [closingPreview, setClosingPreview] = useState<CommercialClosing | null>(null);
 
   // Form states
   const [name, setName] = useState('');
@@ -111,6 +117,22 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   };
 
   const openPaymentReceipt = (payment: PaymentRecord) => setReceiptPreview(payment);
+
+  const openCommercialClosing = (appointment: Appointment) => {
+    const latest = loadCommercialClosings(sandboxActive);
+    setCommercialClosings(latest);
+    const existing = findClosingForAppointment(latest, appointment.id);
+    if (existing) { setClosingPreview(existing); return; }
+    const now = new Date().toISOString();
+    setClosingPreview({ id: nextClosingId(latest), clientId: appointment.clientId, clientName: appointment.clientName, appointmentIds: [appointment.id], extraItems: [], discountType: 'valor', discountValue: 0, payments: appointment.payments ? [...appointment.payments] : [], status: 'em_andamento', createdAt: now, updatedAt: now });
+  };
+  const persistCommercialClosing = (closing: CommercialClosing) => {
+    const current = loadCommercialClosings(sandboxActive);
+    // Uma OS só pode pertencer a um fechamento comercial por vez. Remanejamento é explícito e atômico.
+    const cleaned = current.map(c => c.id === closing.id ? c : ({...c, appointmentIds: c.appointmentIds.filter(id => !closing.appointmentIds.includes(id))}));
+    const next = [...cleaned.filter(c=>c.id!==closing.id && c.appointmentIds.length>0), closing];
+    saveCommercialClosings(next, sandboxActive); setCommercialClosings(next); setClosingPreview(null);
+  };
 
   const handlePhoneChange = (val: string) => {
     const digits = val.replace(/\D/g, '');
@@ -595,7 +617,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${a.status === 'concluido' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : a.status === 'cancelado' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}`}>{a.status === 'concluido' ? 'Concluído' : a.status === 'cancelado' ? 'Cancelado' : 'Aberto'}</span>
                         </div>
                         {a.description && <div className="text-zinc-300">{a.description}</div>}
-                        <div className="flex items-center justify-between gap-2"><div className="text-emerald-400 font-semibold">{a.price != null ? formatCurrencyBRL(a.price) : 'Valor não informado'}</div><button onClick={()=>{ setEditingFinance(a); setFinancePrice(String(a.price ?? '')); setFinanceMethod(a.paymentMethod || 'pix'); setFinancePayments(a.payments !== undefined ? a.payments : (a.status==='concluido' && (a.price||0)>0 ? [{id:`legacy-${a.id}`,amount:a.price||0,method:a.paymentMethod||'pix',kind:'pagamento_final',date:a.date,createdAt:a.updatedAt||a.createdAt}] : [])); setPayAmount(''); setPayDate(new Date().toISOString().slice(0,10)); setPayNote(''); setEditPaymentId(null); }} className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-cyan-300 font-bold">Financeiro</button></div>
+                        <div className="flex items-center justify-between gap-2"><div className="text-emerald-400 font-semibold">{a.price != null ? formatCurrencyBRL(a.price) : 'Valor não informado'}</div><button onClick={()=>{ setEditingFinance(a); setFinancePrice(String(a.price ?? '')); setFinanceMethod(a.paymentMethod || 'pix'); setFinancePayments(a.payments !== undefined ? a.payments : (a.status==='concluido' && (a.price||0)>0 ? [{id:`legacy-${a.id}`,amount:a.price||0,method:a.paymentMethod||'pix',kind:'pagamento_final',date:a.date,createdAt:a.updatedAt||a.createdAt}] : [])); setPayAmount(''); setPayDate(new Date().toISOString().slice(0,10)); setPayNote(''); setEditPaymentId(null); }} className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-cyan-300 font-bold">Financeiro</button><button onClick={()=>openCommercialClosing(a)} className="px-2.5 py-1.5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-200 font-bold">OS → Fechamento</button></div>
                       </div>
                     ))}
                   </>
@@ -736,6 +758,10 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
         </div>
       )}
 
+
+      {closingPreview && selectedClientForHistory && (
+        <CommercialClosingModal closing={closingPreview} client={selectedClientForHistory} appointments={appointments} onSave={persistCommercialClosing} onClose={()=>setClosingPreview(null)} />
+      )}
 
       {receiptPreview && editingFinance && (
         <PaymentReceiptModal

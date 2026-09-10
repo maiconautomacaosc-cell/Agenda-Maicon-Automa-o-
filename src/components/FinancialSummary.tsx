@@ -12,6 +12,7 @@ import {
   CalendarDays,
 } from 'lucide-react';
 import { Appointment } from '../types';
+import { loadCommercialClosings, closingTotal } from '../utils/commercialClosings';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { exportBackupData, importBackupData } from '../utils/storage';
 
@@ -69,15 +70,17 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   }, [realAppointments, period]);
 
   const completedAppts = filteredAppointments.filter((a) => a.status === 'concluido');
-  const totalReceived = filteredAppointments.reduce((acc, a) => acc + receivedFor(a), 0);
-  const totalSold = filteredAppointments.reduce((acc, a) => acc + Number(a.price || 0), 0);
-  const totalPending = filteredAppointments.reduce(
-    (acc, a) => acc + Math.max(0, Number(a.price || 0) - receivedFor(a)),
-    0,
-  );
+  const commercialClosings = loadCommercialClosings(sandboxActive);
+  const groupedAppointmentIds = new Set(commercialClosings.flatMap(c => c.appointmentIds));
+  const legacyFinancialAppointments = filteredAppointments.filter(a => !groupedAppointmentIds.has(a.id));
+  const closingReceived = commercialClosings.reduce((sum,c)=>sum+c.payments.reduce((n,p)=>n+Number(p.amount||0),0),0);
+  const closingSold = commercialClosings.reduce((sum,c)=>sum+closingTotal(c, realAppointments),0);
+  const totalReceived = closingReceived + legacyFinancialAppointments.reduce((acc, a) => acc + receivedFor(a), 0);
+  const totalSold = closingSold + legacyFinancialAppointments.reduce((acc, a) => acc + Number(a.price || 0), 0);
+  const totalPending = Math.max(0, totalSold-totalReceived);
   const averageTicket = completedAppts.length > 0 ? totalSold / completedAppts.length : 0;
 
-  const statusCounts = filteredAppointments.reduce(
+  const statusCounts = legacyFinancialAppointments.reduce(
     (acc, a) => {
       if (Number(a.price || 0) <= 0) return acc;
       acc[financeStatus(a)] += 1;
@@ -86,7 +89,7 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     { pago: 0, parcial: 0, receber: 0 } as Record<FinanceStatus, number>,
   );
 
-  const receivables = filteredAppointments
+  const receivables = legacyFinancialAppointments
     .map((a) => ({ a, balance: Math.max(0, Number(a.price || 0) - receivedFor(a)), status: financeStatus(a) }))
     .filter((item) => item.balance > 0.005)
     .sort((x, y) => x.a.date.localeCompare(y.a.date));
