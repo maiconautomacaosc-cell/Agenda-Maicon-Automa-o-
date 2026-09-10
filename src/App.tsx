@@ -1604,6 +1604,7 @@ export default function App() {
             onQuoteForClient={handleOpenNewQuote}
             onUpdateEquipment={handleUpdateEquipment}
             onUpdateAppointmentFinancial={handleUpdateAppointmentFinancial}
+            sandboxActive={isSandbox}
           />
         )}
 
