@@ -175,3 +175,24 @@ export interface FilterState {
   serviceType: ServiceType | 'todos';
   dateRange: 'todos' | 'hoje' | 'amanha' | 'esta_semana' | 'este_mes' | 'futuros' | 'passados';
 }
+
+// v4.6.1 — camada comercial acima das OS. Não altera MA/QR/Drive/planilhas oficiais.
+export interface CommercialExtraItem {
+  id: string;
+  description: string;
+  amount: number;
+}
+export interface CommercialClosing {
+  id: string; // F-000001 (controle interno do app)
+  clientId: string;
+  clientName: string;
+  appointmentIds: string[]; // OS/atendimentos pertencentes ao mesmo fechamento
+  extraItems: CommercialExtraItem[];
+  discountType: 'valor' | 'percentual';
+  discountValue: number;
+  payments: PaymentRecord[];
+  status: 'em_andamento' | 'finalizado';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
