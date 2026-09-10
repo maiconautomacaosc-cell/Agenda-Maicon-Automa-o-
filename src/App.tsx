@@ -27,7 +27,7 @@ import { getTodayString } from './utils/date';
 import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { createDriveBackupSnapshot, ensureClientDriveStructure, renameGoogleDriveItem, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
-import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, migratePermanentTestClientIdentityInMainSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets, updateEquipmentMasterData } from './lib/googleSheets';
+import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, migratePermanentTestClientIdentityInMainSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets, updateEquipmentMasterData, updateServiceOrderFinancialData } from './lib/googleSheets';
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './lib/googleCalendar';
 import { Header } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -1362,6 +1362,21 @@ export default function App() {
   };
 
 
+  const handleUpdateAppointmentFinancial = async (appointment: Appointment) => {
+    setAppointments(prev => prev.map(a => a.id === appointment.id ? { ...a, price: appointment.price, paymentMethod: appointment.paymentMethod, payments: appointment.payments, updatedAt: new Date().toISOString() } : a));
+    if (isSandbox) { showGoogleNotification(`🧪 Financeiro da ${appointment.serviceOrder || 'OS de teste'} atualizado somente no Sandbox.`); return; }
+    if (!appointment.serviceOrder) { showGoogleNotification('✅ Financeiro salvo no app. Atendimento sem OS para sincronizar.'); return; }
+    const token = googleAccessToken || getCachedAccessToken();
+    const spreadsheetId = getSpreadsheetId();
+    if (!token || !spreadsheetId) { showGoogleNotification('⚠️ Financeiro salvo no app. Conecte o Google para atualizar a O.S.'); return; }
+    try {
+      await updateServiceOrderFinancialData(token, spreadsheetId, appointment);
+      showGoogleNotification(`✅ Financeiro da OS ${appointment.serviceOrder} atualizado sem refazer a conclusão.`);
+    } catch (err: any) {
+      showGoogleNotification(`⚠️ Salvo no app, mas a O.S não atualizou: ${err?.message || 'erro desconhecido'}`);
+    }
+  };
+
   const handleScheduleMaintenance = (client: Client, equipment: EquipmentRecord) => {
     const defaultDate = selectedDate || getTodayString();
     setEditingAppointment({
@@ -1588,6 +1603,7 @@ export default function App() {
             onOpenWhatsAppForAppt={handleOpenWhatsApp}
             onQuoteForClient={handleOpenNewQuote}
             onUpdateEquipment={handleUpdateEquipment}
+            onUpdateAppointmentFinancial={handleUpdateAppointmentFinancial}
           />
         )}
 
