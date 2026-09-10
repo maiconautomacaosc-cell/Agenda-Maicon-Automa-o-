@@ -477,7 +477,13 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
     });
     const jpeg = new Uint8Array(await jpegBlob.arrayBuffer());
     const pageWidth = 595.28;
-    const pageHeight = pageWidth * (canvas.height / canvas.width);
+    const pageHeight = 841.89;
+    const printMargin = 18;
+    const scale = Math.min((pageWidth - printMargin * 2) / canvas.width, (pageHeight - printMargin * 2) / canvas.height);
+    const drawWidth = canvas.width * scale;
+    const drawHeight = canvas.height * scale;
+    const drawX = (pageWidth - drawWidth) / 2;
+    const drawY = (pageHeight - drawHeight) / 2;
     const encoder = new TextEncoder();
     const chunks: Uint8Array[] = [];
     const offsets: number[] = [0];
@@ -499,7 +505,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
     addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
     addObject(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth.toFixed(2)} ${pageHeight.toFixed(2)}] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>`);
     addObject(4, `<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`, jpeg, '\nendstream');
-    const content = `q ${pageWidth.toFixed(2)} 0 0 ${pageHeight.toFixed(2)} 0 0 cm /Im1 Do Q`;
+    const content = `q ${drawWidth.toFixed(2)} 0 0 ${drawHeight.toFixed(2)} ${drawX.toFixed(2)} ${drawY.toFixed(2)} cm /Im1 Do Q`;
     addObject(5, `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`);
 
     const xrefOffset = length;
@@ -566,7 +572,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
               className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-3 py-2 text-[11px] font-black text-black transition hover:bg-cyan-400 disabled:opacity-50"
             >
               <ImageDown className="h-3.5 w-3.5" />
-              {exporting === 'image' ? 'Gerando...' : 'Imagem'}
+              {exporting === 'image' ? 'Gerando...' : 'Salvar imagem'}
             </button>
             <button
               onClick={handleDownloadPdf}
@@ -574,7 +580,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
               className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-800 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-zinc-700 disabled:opacity-50"
             >
               <Download className="h-3.5 w-3.5" />
-              {exporting === 'pdf' ? 'Gerando...' : 'PDF'}
+              {exporting === 'pdf' ? 'Gerando...' : 'PDF A4'}
             </button>
             <button
               onClick={onClose}
