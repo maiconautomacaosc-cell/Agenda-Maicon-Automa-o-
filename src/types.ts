@@ -55,6 +55,16 @@ export interface Client {
   createdAt: string;
 }
 
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'faturado' | 'a_combinar';
+  kind: 'sinal' | 'pagamento' | 'pagamento_final';
+  date: string;
+  note?: string;
+  createdAt: string;
+}
+
 export interface Appointment {
   id: string;
   clientId: string;
@@ -79,6 +89,8 @@ export interface Appointment {
   lockModel?: string;
   price?: number;
   paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'faturado' | 'a_combinar';
+  /** v4.5: recebimentos reais do serviço. Ausente = legado; concluído é tratado como quitado pelo valor total. */
+  payments?: PaymentRecord[];
   status: AppointmentStatus;
   notes?: string;
   photoUrls?: string[]; // fotos gerais registradas na finalização do atendimento
