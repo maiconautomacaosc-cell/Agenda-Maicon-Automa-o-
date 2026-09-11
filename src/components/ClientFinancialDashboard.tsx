@@ -3,6 +3,7 @@ import { X, WalletCards, CheckCircle2, Clock3, ReceiptText, ChevronRight, Layers
 import { Appointment, Client, CommercialClosing } from '../types';
 import { closingTotal, closingUndefinedAppointmentIds } from '../utils/commercialClosings';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
+import { appointmentReceivedAmount } from '../utils/finance';
 
 interface Props {
   client: Client;
@@ -16,13 +17,6 @@ interface Props {
 type Row =
   | { type: 'closing'; key: string; date: string; closing: CommercialClosing; total: number; received: number; balance: number; undefinedCount: number }
   | { type: 'appointment'; key: string; date: string; appointment: Appointment; total: number; received: number; balance: number; undefinedCount: number };
-
-const receivedForAppointment = (a: Appointment) =>
-  a.payments !== undefined
-    ? a.payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-    : a.status === 'concluido'
-      ? Number(a.price || 0)
-      : 0;
 
 export const ClientFinancialDashboard: React.FC<Props> = ({ client, appointments, closings, onClose, onOpenClosing, onOpenAppointment }) => {
   const data = useMemo(() => {
@@ -47,7 +41,7 @@ export const ClientFinancialDashboard: React.FC<Props> = ({ client, appointments
 
     const legacyRows: Row[] = clientAppointments.filter(a => !groupedIds.has(a.id)).map(a => {
       const total = Number(a.price || 0);
-      const received = receivedForAppointment(a);
+      const received = appointmentReceivedAmount(a);
       return {
         type: 'appointment',
         key: a.id,

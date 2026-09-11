@@ -801,7 +801,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
 
 
       {closingPreview && (selectedClientForHistory || selectedClientFinance) && (
-        <CommercialClosingModal closing={closingPreview} client={(selectedClientForHistory || selectedClientFinance)!} appointments={appointments} onSave={persistCommercialClosing} onClose={()=>setClosingPreview(null)} />
+        <CommercialClosingModal closing={closingPreview} client={(selectedClientForHistory || selectedClientFinance)!} appointments={appointments} allClosings={commercialClosings} onSave={persistCommercialClosing} onClose={()=>setClosingPreview(null)} />
       )}
 
       {receiptPreview && editingFinance && (
