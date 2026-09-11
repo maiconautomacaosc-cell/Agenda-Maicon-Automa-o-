@@ -782,15 +782,16 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-zinc-300 font-semibold mb-1">Valor Cobrado (R$)</label>
+                  <label className="block text-zinc-300 font-semibold mb-1">Valor estimado / combinado (R$)</label>
                   <input
                     id="input-price"
                     type="text"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
-                    placeholder="Ex: 250,00"
+                    placeholder="Pode deixar em branco"
                     className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-mono font-semibold focus:outline-none focus:border-cyan-500"
                   />
+                  <div className="text-[10px] text-zinc-500 mt-1">Opcional. Se você ainda vai avaliar o serviço no local, deixe em branco e defina depois no fechamento.</div>
                 </div>
 
                 <div>

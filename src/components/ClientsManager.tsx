@@ -124,7 +124,26 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     const existing = findClosingForAppointment(latest, appointment.id);
     if (existing) { setClosingPreview(existing); return; }
     const now = new Date().toISOString();
-    setClosingPreview({ id: nextClosingId(latest), clientId: appointment.clientId, clientName: appointment.clientName, appointmentIds: [appointment.id], extraItems: [], discountType: 'valor', discountValue: 0, payments: appointment.payments ? [...appointment.payments] : [], status: 'em_andamento', createdAt: now, updatedAt: now });
+    const migratedPayments = (appointment.payments || []).map((payment) => ({
+      ...payment,
+      origin: 'migrado_os' as const,
+      sourceAppointmentId: appointment.id,
+      sourceServiceOrder: appointment.serviceOrder,
+    }));
+    setClosingPreview({
+      id: nextClosingId(latest),
+      clientId: appointment.clientId,
+      clientName: appointment.clientName,
+      appointmentIds: [appointment.id],
+      appointmentValues: { [appointment.id]: appointment.price == null ? null : Number(appointment.price) },
+      extraItems: [],
+      discountType: 'valor',
+      discountValue: 0,
+      payments: migratedPayments,
+      status: appointment.price == null ? 'em_composicao' : 'em_andamento',
+      createdAt: now,
+      updatedAt: now,
+    });
   };
   const persistCommercialClosing = (closing: CommercialClosing) => {
     const current = loadCommercialClosings(sandboxActive);
@@ -617,7 +636,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${a.status === 'concluido' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : a.status === 'cancelado' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}`}>{a.status === 'concluido' ? 'Concluído' : a.status === 'cancelado' ? 'Cancelado' : 'Aberto'}</span>
                         </div>
                         {a.description && <div className="text-zinc-300">{a.description}</div>}
-                        <div className="flex items-center justify-between gap-2"><div className="text-emerald-400 font-semibold">{a.price != null ? formatCurrencyBRL(a.price) : 'Valor não informado'}</div><button onClick={()=>{ setEditingFinance(a); setFinancePrice(String(a.price ?? '')); setFinanceMethod(a.paymentMethod || 'pix'); setFinancePayments(a.payments !== undefined ? a.payments : (a.status==='concluido' && (a.price||0)>0 ? [{id:`legacy-${a.id}`,amount:a.price||0,method:a.paymentMethod||'pix',kind:'pagamento_final',date:a.date,createdAt:a.updatedAt||a.createdAt}] : [])); setPayAmount(''); setPayDate(new Date().toISOString().slice(0,10)); setPayNote(''); setEditPaymentId(null); }} className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-cyan-300 font-bold">Financeiro</button><button onClick={()=>openCommercialClosing(a)} className="px-2.5 py-1.5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-200 font-bold">OS → Fechamento</button></div>
+                        <div className="flex items-center justify-between gap-2"><div className="text-emerald-400 font-semibold">{a.price != null ? formatCurrencyBRL(a.price) : 'Valor ainda não definido'}</div><button onClick={()=>openCommercialClosing(a)} className="px-3 py-1.5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-200 font-bold">Abrir financeiro da OS</button></div>
                       </div>
                     ))}
                   </>

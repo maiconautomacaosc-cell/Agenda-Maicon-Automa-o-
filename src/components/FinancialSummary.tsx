@@ -12,7 +12,7 @@ import {
   CalendarDays,
 } from 'lucide-react';
 import { Appointment } from '../types';
-import { loadCommercialClosings, closingTotal } from '../utils/commercialClosings';
+import { loadCommercialClosings, closingTotal, closingUndefinedAppointmentIds } from '../utils/commercialClosings';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { exportBackupData, importBackupData } from '../utils/storage';
 
@@ -73,12 +73,32 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   const commercialClosings = loadCommercialClosings(sandboxActive);
   const groupedAppointmentIds = new Set(commercialClosings.flatMap(c => c.appointmentIds));
   const legacyFinancialAppointments = filteredAppointments.filter(a => !groupedAppointmentIds.has(a.id));
-  const closingReceived = commercialClosings.reduce((sum,c)=>sum+c.payments.reduce((n,p)=>n+Number(p.amount||0),0),0);
-  const closingSold = commercialClosings.reduce((sum,c)=>sum+closingTotal(c, realAppointments),0);
+
+  const dateInPeriod = (iso: string) => {
+    if (period === 'todos') return true;
+    const today = new Date();
+    const start = new Date(today);
+    if (period === 'mes') { start.setDate(1); start.setHours(0,0,0,0); }
+    else { start.setDate(today.getDate()-29); start.setHours(0,0,0,0); }
+    const date = new Date(iso);
+    return !Number.isNaN(date.getTime()) && date >= start && date <= today;
+  };
+  const filteredClosings = commercialClosings.filter(c => dateInPeriod(c.createdAt));
+  const closingRows = filteredClosings.map(c => {
+    const total = closingTotal(c, realAppointments);
+    const received = c.payments.reduce((n,p)=>n+Number(p.amount||0),0);
+    const undefinedCount = closingUndefinedAppointmentIds(c, realAppointments).length;
+    const balance = Math.max(0,total-received);
+    const status: FinanceStatus = undefinedCount > 0 ? (received > 0 ? 'parcial' : 'receber') : (total > 0 && received >= total-0.005 ? 'pago' : received > 0 ? 'parcial' : 'receber');
+    return { c, total, received, balance, undefinedCount, status };
+  });
+  const closingReceived = closingRows.reduce((sum,row)=>sum+row.received,0);
+  const closingSold = closingRows.reduce((sum,row)=>sum+row.total,0);
   const totalReceived = closingReceived + legacyFinancialAppointments.reduce((acc, a) => acc + receivedFor(a), 0);
   const totalSold = closingSold + legacyFinancialAppointments.reduce((acc, a) => acc + Number(a.price || 0), 0);
   const totalPending = Math.max(0, totalSold-totalReceived);
-  const averageTicket = completedAppts.length > 0 ? totalSold / completedAppts.length : 0;
+  const averageTicketBase = closingRows.length + completedAppts.filter(a=>!groupedAppointmentIds.has(a.id)).length;
+  const averageTicket = averageTicketBase > 0 ? totalSold / averageTicketBase : 0;
 
   const statusCounts = legacyFinancialAppointments.reduce(
     (acc, a) => {
@@ -88,11 +108,16 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     },
     { pago: 0, parcial: 0, receber: 0 } as Record<FinanceStatus, number>,
   );
+  closingRows.forEach(row => { if (row.total > 0 || row.undefinedCount > 0 || row.received > 0) statusCounts[row.status] += 1; });
 
-  const receivables = legacyFinancialAppointments
-    .map((a) => ({ a, balance: Math.max(0, Number(a.price || 0) - receivedFor(a)), status: financeStatus(a) }))
-    .filter((item) => item.balance > 0.005)
-    .sort((x, y) => x.a.date.localeCompare(y.a.date));
+  const legacyReceivables = legacyFinancialAppointments
+    .map((a) => ({ type:'os' as const, a, balance: Math.max(0, Number(a.price || 0) - receivedFor(a)), status: financeStatus(a) }))
+    .filter((item) => item.balance > 0.005);
+  const closingReceivables = closingRows
+    .filter(row => row.balance > 0.005 || row.undefinedCount > 0)
+    .map(row => ({ type:'closing' as const, ...row }));
+  const receivables = [...closingReceivables, ...legacyReceivables];
+  const composingClosings = closingRows.filter(row=>row.undefinedCount>0).length;
 
   const serviceBreakdown: Record<string, { count: number; total: number }> = filteredAppointments.reduce(
     (acc: Record<string, { count: number; total: number }>, appt) => {
@@ -178,7 +203,7 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3.5 space-y-1">
           <div className="flex items-center justify-between"><span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">Ticket médio</span><div className="p-1.5 rounded-lg bg-zinc-950 text-cyan-400 border border-zinc-800"><TrendingUp className="w-4 h-4" /></div></div>
           <div className="text-lg sm:text-xl font-mono font-bold text-white">{formatCurrencyBRL(averageTicket)}</div>
-          <div className="text-[10px] text-zinc-500 font-mono">{completedAppts.length} concluídos</div>
+          <div className="text-[10px] text-zinc-500 font-mono">{averageTicketBase} fechamento(s)/serviço(s)</div>
         </div>
       </div>
 
@@ -187,6 +212,7 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3 text-center"><div className="text-[10px] uppercase font-bold text-zinc-500">Parcial</div><div className="text-xl font-black text-amber-300 mt-1">{statusCounts.parcial}</div></div>
         <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3 text-center"><div className="text-[10px] uppercase font-bold text-zinc-500">A receber</div><div className="text-xl font-black text-cyan-400 mt-1">{statusCounts.receber}</div></div>
       </div>
+      {composingClosings > 0 && <div className="rounded-2xl border border-amber-800/50 bg-amber-950/20 px-4 py-3 text-xs text-amber-300"><strong>{composingClosings} fechamento(s) em composição:</strong> existe OS com valor ainda não definido, então o total financeiro ainda pode aumentar.</div>}
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 shadow-xl space-y-3">
         <button onClick={() => setShowReceivables((v) => !v)} className="w-full flex items-center justify-between text-left">
@@ -195,10 +221,15 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         </button>
         {showReceivables && (
           <div className="space-y-2 pt-2 border-t border-zinc-800">
-            {receivables.length === 0 ? <div className="text-xs text-zinc-500 py-2 text-center">Nenhum saldo em aberto neste período.</div> : receivables.map(({ a, balance, status }) => (
-              <div key={a.id} className="rounded-xl bg-zinc-950 border border-zinc-800 p-3 flex items-center justify-between gap-3">
-                <div className="min-w-0"><div className="text-xs font-bold text-zinc-200 truncate">{a.clientName}</div><div className="text-[10px] text-zinc-500 mt-0.5">{a.serviceOrder ? `OS ${a.serviceOrder} • ` : ''}{formatDateBR(a.date)} • {status === 'parcial' ? 'Parcial' : 'A receber'}</div></div>
-                <div className="text-sm font-black text-amber-300 whitespace-nowrap">{formatCurrencyBRL(balance)}</div>
+            {receivables.length === 0 ? <div className="text-xs text-zinc-500 py-2 text-center">Nenhum saldo em aberto neste período.</div> : receivables.map((item) => item.type === 'closing' ? (
+              <div key={item.c.id} className="rounded-xl bg-zinc-950 border border-zinc-800 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0"><div className="text-xs font-bold text-zinc-200 truncate">{item.c.clientName}</div><div className="text-[10px] text-zinc-500 mt-0.5">Fechamento {item.c.id} • {item.undefinedCount > 0 ? 'Em composição' : item.status === 'parcial' ? 'Parcial' : 'A receber'}</div></div>
+                <div className="text-sm font-black text-amber-300 whitespace-nowrap">{item.undefinedCount > 0 ? 'Valor em aberto' : formatCurrencyBRL(item.balance)}</div>
+              </div>
+            ) : (
+              <div key={item.a.id} className="rounded-xl bg-zinc-950 border border-zinc-800 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0"><div className="text-xs font-bold text-zinc-200 truncate">{item.a.clientName}</div><div className="text-[10px] text-zinc-500 mt-0.5">{item.a.serviceOrder ? `OS ${item.a.serviceOrder} • ` : ''}{formatDateBR(item.a.date)} • {item.status === 'parcial' ? 'Parcial' : 'A receber'}</div></div>
+                <div className="text-sm font-black text-amber-300 whitespace-nowrap">{formatCurrencyBRL(item.balance)}</div>
               </div>
             ))}
           </div>
