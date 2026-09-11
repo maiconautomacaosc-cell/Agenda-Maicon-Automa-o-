@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Download, Printer, X } from 'lucide-react';
 import { Appointment, Client, CommercialClosing, PaymentRecord } from '../types';
 import { closingTotal } from '../utils/commercialClosings';
@@ -51,8 +52,9 @@ export const CommercialClosingReceiptModal: React.FC<Props> = ({ closing, client
     const win=window.open('','_blank'); if(!win)return; win.document.open();win.document.write(html);win.document.close();
   };
 
-  return <div className="fixed inset-0 z-[95] bg-black/90 backdrop-blur-sm overflow-y-auto p-3">
-    <div className="max-w-2xl mx-auto my-4">
+  const modal = <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-sm overflow-y-auto overscroll-contain">
+    <div className="min-h-full w-full flex items-start sm:items-center justify-center p-3 sm:p-4">
+    <div className="w-full max-w-2xl my-2 sm:my-4">
       <div className="flex justify-between items-center mb-3"><div><div className="text-[10px] text-cyan-400 font-black tracking-widest">RECIBO DO FECHAMENTO</div><div className="text-white font-black text-lg">{receiptCode}</div></div><button onClick={onClose} className="p-2 rounded-xl bg-zinc-900 text-zinc-300"><X/></button></div>
       <div id="closing-receipt-card" className="bg-white text-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-200 relative">
         <div className="px-5 py-5 bg-gradient-to-r from-[#05090d] via-[#071722] to-[#0b3040] border-b-[3px] border-cyan-500 flex items-center justify-between gap-4"><img src={logoMaicon} className="w-44 h-20 object-contain object-left"/><div className="hidden sm:block text-right text-white"><div className="font-black text-lg">MAICON AUTOMAÇÃO</div><div className="text-[10px] text-cyan-200">Instalação de Fechaduras Eletrônicas</div></div></div>
@@ -62,7 +64,9 @@ export const CommercialClosingReceiptModal: React.FC<Props> = ({ closing, client
         <div className="text-xs text-slate-600 border-l-4 border-cyan-500 bg-slate-50 p-3">Recebemos de <b>{client.name}</b> o valor de <b>{formatCurrencyBRL(payment.amount)}</b>, referente ao fechamento <b>{closing.id}</b>.</div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 mt-3"><button onClick={saveImage} className="py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold flex items-center justify-center gap-2"><Download className="w-4 h-4"/>Salvar imagem</button><button onClick={printReceipt} className="py-3 rounded-xl bg-cyan-500 text-black font-black flex items-center justify-center gap-2"><Printer className="w-4 h-4"/>PDF / Imprimir</button></div>
+      <div className="grid grid-cols-2 gap-2 mt-3 pb-[max(0px,env(safe-area-inset-bottom))]"><button onClick={saveImage} className="py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold flex items-center justify-center gap-2"><Download className="w-4 h-4"/>Salvar imagem</button><button onClick={printReceipt} className="py-3 rounded-xl bg-cyan-500 text-black font-black flex items-center justify-center gap-2"><Printer className="w-4 h-4"/>PDF / Imprimir</button></div>
+    </div>
     </div>
   </div>;
+  return createPortal(modal, document.body);
 };

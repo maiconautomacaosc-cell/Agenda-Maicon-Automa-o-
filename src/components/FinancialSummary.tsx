@@ -212,12 +212,12 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         {showReceivables && (
           <div className="space-y-2 pt-2 border-t border-zinc-800">
             {receivables.length === 0 ? <div className="text-xs text-zinc-500 py-2 text-center">Nenhum saldo em aberto neste período.</div> : receivables.map((item) => item.type === 'closing' ? (
-              <button key={item.c.id} onClick={() => onOpenClosing?.(item.c)} className="w-full rounded-xl bg-zinc-950 border border-zinc-800 hover:border-amber-700 p-3 flex items-center justify-between gap-3 text-left transition-colors">
+              <button type="button" key={item.c.id} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenClosing?.(item.c); }} className="relative z-10 touch-manipulation cursor-pointer w-full rounded-xl bg-zinc-950 border border-zinc-800 hover:border-amber-700 active:border-cyan-500 p-3 flex items-center justify-between gap-3 text-left transition-colors">
                 <div className="min-w-0"><div className="text-xs font-bold text-zinc-200 truncate">{item.c.clientName}</div><div className="text-[10px] text-zinc-500 mt-0.5">Fechamento {item.c.id} • {item.undefinedCount > 0 ? 'Em composição' : item.status === 'parcial' ? 'Parcial' : 'A receber'} • toque para abrir</div></div>
                 <div className="text-sm font-black text-amber-300 whitespace-nowrap">{item.undefinedCount > 0 ? 'Valor em aberto' : formatCurrencyBRL(item.balance)}</div>
               </button>
             ) : (
-              <button key={item.a.id} onClick={() => onOpenAppointment?.(item.a)} className="w-full rounded-xl bg-zinc-950 border border-zinc-800 hover:border-amber-700 p-3 flex items-center justify-between gap-3 text-left transition-colors">
+              <button type="button" key={item.a.id} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenAppointment?.(item.a); }} className="relative z-10 touch-manipulation cursor-pointer w-full rounded-xl bg-zinc-950 border border-zinc-800 hover:border-amber-700 active:border-cyan-500 p-3 flex items-center justify-between gap-3 text-left transition-colors">
                 <div className="min-w-0"><div className="text-xs font-bold text-zinc-200 truncate">{item.a.clientName}</div><div className="text-[10px] text-zinc-500 mt-0.5">{item.a.serviceOrder ? `OS ${item.a.serviceOrder} • ` : ''}{formatDateBR(item.a.date)} • {item.status === 'parcial' ? 'Parcial' : 'A receber'} • toque para abrir</div></div>
                 <div className="text-sm font-black text-amber-300 whitespace-nowrap">{formatCurrencyBRL(item.balance)}</div>
               </button>

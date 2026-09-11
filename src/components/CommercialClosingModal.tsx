@@ -4,6 +4,7 @@ import { Appointment, Client, CommercialClosing, PaymentRecord } from '../types'
 import { appointmentCommercialValue, closingSubtotal, closingTotal, closingUndefinedAppointmentIds } from '../utils/commercialClosings';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { CommercialClosingReceiptModal } from './CommercialClosingReceiptModal';
+import { appointmentReceivedAmount } from '../utils/finance';
 
 interface Props { closing: CommercialClosing; client: Client; appointments: Appointment[]; allClosings?: CommercialClosing[]; onSave:(c:CommercialClosing)=>void; onClose:()=>void; }
 
@@ -16,6 +17,7 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
  const [draft,setDraft]=useState<CommercialClosing>(closing);
  const [extraDesc,setExtraDesc]=useState('');
  const [extraValue,setExtraValue]=useState('');
+ const [discountValueInput,setDiscountValueInput]=useState(()=>closing.discountValue > 0 ? String(closing.discountValue) : '');
  const [payValue,setPayValue]=useState('');
  const [payKind,setPayKind]=useState<PaymentRecord['kind']>('sinal');
  const [payMethod,setPayMethod]=useState<PaymentRecord['method']>('pix');
@@ -30,9 +32,26 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
  const initialUndefined=closingUndefinedAppointmentIds(closing,appointments).length;
  const initiallyPaid=closing.status==='finalizado' && initialUndefined===0 && initialTotal>0 && initialReceived>=initialTotal-0.009;
  const paidProtected=initiallyPaid && !correctionUnlocked;
- const paidElsewhereIds=useMemo(()=>new Set(allClosings.filter(c=>c.id!==closing.id && c.status==='finalizado').flatMap(c=>c.appointmentIds)),[allClosings,closing.id]);
+ const paidElsewhereIds=useMemo(()=>{
+   const paidIds=new Set<string>();
+   allClosings.filter(c=>c.id!==closing.id).forEach(c=>{
+     const cTotal=closingTotal(c,appointments);
+     const cReceived=c.payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
+     const cUndefined=closingUndefinedAppointmentIds(c,appointments).length;
+     const effectivelyPaid=c.status==='finalizado' || (cUndefined===0 && cTotal>0 && cReceived>=cTotal-0.009);
+     if(effectivelyPaid) c.appointmentIds.forEach(id=>paidIds.add(id));
+   });
+   return paidIds;
+ },[allClosings,closing.id,appointments]);
+ const standalonePaidIds=useMemo(()=>new Set(appointments.filter(a=>{
+   const total=Number(a.price||0);
+   return total>0 && appointmentReceivedAmount(a)>=total-0.005;
+ }).map(a=>a.id)),[appointments]);
  const openClosingByAppointment=useMemo(()=>{ const m=new Map<string,string>(); allClosings.filter(c=>c.id!==closing.id && c.status!=='finalizado').forEach(c=>c.appointmentIds.forEach(id=>m.set(id,c.id))); return m; },[allClosings,closing.id]);
- const clientOS=useMemo(()=>appointments.filter(a=>a.clientId===client.id && a.serviceOrder && (closing.appointmentIds.includes(a.id) || (!paidProtected && !paidElsewhereIds.has(a.id)))),[appointments,client.id,closing.appointmentIds,paidProtected,paidElsewhereIds]);
+ const clientOS=useMemo(()=>appointments.filter(a=>a.clientId===client.id && a.serviceOrder && (
+   closing.appointmentIds.includes(a.id) ||
+   (!paidProtected && !paidElsewhereIds.has(a.id) && !standalonePaidIds.has(a.id))
+ )),[appointments,client.id,closing.appointmentIds,paidProtected,paidElsewhereIds,standalonePaidIds]);
  const pendingExtraValue=Number(extraValue)||0;
  const effectiveDraft=useMemo<CommercialClosing>(()=>{
    if(!extraDesc.trim() || pendingExtraValue<=0) return draft;
@@ -114,9 +133,9 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
       </div>})}
    </div>
 
-   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Serviços / valores extras</div>{draft.extraItems.map(x=><div key={x.id} className="flex justify-between items-center py-2 border-b border-zinc-800"><span className="text-sm text-zinc-300">{x.description}</span><div className="flex gap-2 items-center"><b className="text-white">{formatCurrencyBRL(x.amount)}</b>{!paidProtected&&<button onClick={()=>setDraft(d=>({...d,extraItems:d.extraItems.filter(i=>i.id!==x.id)}))}><Trash2 className="w-4 h-4 text-red-400"/></button>}</div></div>)}{!paidProtected&&<div className="grid grid-cols-[1fr_120px] gap-2 mt-3"><input value={extraDesc} onChange={e=>setExtraDesc(e.target.value)} placeholder="Ex.: configuração extra" className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/><input type="number" step="0.01" min="0" value={extraValue} onChange={e=>setExtraValue(e.target.value)} placeholder="R$" className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"/></div>}{!paidProtected&&extraDesc.trim()&&pendingExtraValue>0&&<div className="mt-2 text-[11px] text-emerald-300">Prévia automática: + {formatCurrencyBRL(pendingExtraValue)} • já incluído nos totais abaixo. Ao apagar, o valor é retirado da prévia.</div>}</div>
+   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Serviços / valores extras</div>{draft.extraItems.map(x=><div key={x.id} className="flex justify-between items-center py-2 border-b border-zinc-800"><span className="text-sm text-zinc-300">{x.description}</span><div className="flex gap-2 items-center"><b className="text-white">{formatCurrencyBRL(x.amount)}</b>{!paidProtected&&<button onClick={()=>setDraft(d=>({...d,extraItems:d.extraItems.filter(i=>i.id!==x.id)}))}><Trash2 className="w-4 h-4 text-red-400"/></button>}</div></div>)}{!paidProtected&&<div className="grid grid-cols-[minmax(0,1fr)_minmax(0,110px)] sm:grid-cols-[minmax(0,1fr)_120px] gap-2 mt-3"><input value={extraDesc} onChange={e=>setExtraDesc(e.target.value)} placeholder="Ex.: configuração extra" className="min-w-0 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/><input type="number" step="0.01" min="0" value={extraValue} onChange={e=>setExtraValue(e.target.value)} placeholder="R$" className="min-w-0 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"/></div>}{!paidProtected&&extraDesc.trim()&&pendingExtraValue>0&&<div className="mt-2 text-[11px] text-emerald-300">Prévia automática: + {formatCurrencyBRL(pendingExtraValue)} • já incluído nos totais abaixo. Ao apagar, o valor é retirado da prévia.</div>}</div>
 
-   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Desconto do fechamento</div><div className="grid grid-cols-2 gap-2"><select disabled={paidProtected} value={draft.discountType} onChange={e=>setDraft(d=>({...d,discountType:e.target.value as any}))} className="bg-zinc-950 border border-zinc-700 rounded-xl p-2 text-white"><option value="valor">Valor (R$)</option><option value="percentual">Percentual (%)</option></select><input disabled={paidProtected} type="number" min="0" value={draft.discountValue} onChange={e=>setDraft(d=>({...d,discountValue:Number(e.target.value)||0}))} className="bg-zinc-950 border border-zinc-700 rounded-xl p-2 text-white"/></div></div>
+   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Desconto do fechamento</div><div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2"><select disabled={paidProtected} value={draft.discountType} onChange={e=>setDraft(d=>({...d,discountType:e.target.value as any}))} className="min-w-0 w-full bg-zinc-950 border border-zinc-700 rounded-xl p-2 text-white"><option value="valor">Valor (R$)</option><option value="percentual">Percentual (%)</option></select><input disabled={paidProtected} type="number" min="0" step={draft.discountType==='percentual'?'0.1':'0.01'} value={discountValueInput} onChange={e=>{const raw=e.target.value;setDiscountValueInput(raw);setDraft(d=>({...d,discountValue:raw.trim()===''?0:Math.max(0,Number(raw)||0)}));}} placeholder={draft.discountType==='percentual'?'%':'R$'} className="min-w-0 w-full bg-zinc-950 border border-zinc-700 rounded-xl p-2 text-white"/></div></div>
 
    {undefinedIds.length>0 && <div className="p-3 rounded-2xl bg-amber-950/20 border border-amber-800/50 text-amber-200 text-xs flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/><div><b>Fechamento em composição.</b> {undefinedIds.length} OS {undefinedIds.length===1?'ainda está sem valor definido':'ainda estão sem valor definido'}. Você pode salvar assim e completar depois; o total ainda não é definitivo.</div></div>}
 
