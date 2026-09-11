@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { X, Plus, Trash2, Link2, WalletCards, Pencil, Save, AlertTriangle } from 'lucide-react';
+import { X, Plus, Trash2, Link2, WalletCards, Save, AlertTriangle, ReceiptText } from 'lucide-react';
 import { Appointment, Client, CommercialClosing, PaymentRecord } from '../types';
 import { appointmentCommercialValue, closingSubtotal, closingTotal, closingUndefinedAppointmentIds } from '../utils/commercialClosings';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
+import { CommercialClosingReceiptModal } from './CommercialClosingReceiptModal';
 
 interface Props { closing: CommercialClosing; client: Client; appointments: Appointment[]; onSave:(c:CommercialClosing)=>void; onClose:()=>void; }
 
@@ -21,6 +22,7 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
  const [payDate,setPayDate]=useState(new Date().toISOString().slice(0,10));
  const [payNote,setPayNote]=useState('');
  const [editingPaymentId,setEditingPaymentId]=useState<string|null>(null);
+ const [receiptPayment,setReceiptPayment]=useState<PaymentRecord|null>(null);
 
  const clientOS=useMemo(()=>appointments.filter(a=>a.clientId===client.id && a.serviceOrder),[appointments,client.id]);
  const subtotal=closingSubtotal(draft,appointments);
@@ -91,10 +93,10 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
 
    <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
     <div className="flex items-center gap-2 font-bold text-white mb-2"><WalletCards className="w-4 h-4 text-emerald-400"/>Pagamentos do fechamento</div>
-    {draft.payments.length===0?<div className="text-sm text-zinc-500 mb-3">Nenhum recebimento lançado.</div>:draft.payments.map(p=><button key={p.id} onClick={()=>editPayment(p)} className={`w-full flex justify-between items-start gap-3 py-3 border-b border-zinc-800 text-left ${editingPaymentId===p.id?'bg-amber-950/20':''}`}>
-      <div><div className="text-zinc-200 font-bold">{paymentKindLabel(p.kind)}</div><div className="text-xs text-zinc-500">{formatDateBR(p.date)} • {paymentMethodLabel(p.method)}</div>{p.origin==='migrado_os' && <div className="text-[11px] text-amber-300 mt-0.5">Origem: migrado da OS {p.sourceServiceOrder||''}</div>}{p.note&&<div className="text-[11px] text-zinc-500">{p.note}</div>}<div className="text-[10px] text-cyan-400 mt-1">Toque para editar ou excluir</div></div>
-      <span className="text-emerald-400 font-bold whitespace-nowrap">{formatCurrencyBRL(p.amount)}</span>
-    </button>)}
+    {draft.payments.length===0?<div className="text-sm text-zinc-500 mb-3">Nenhum recebimento lançado.</div>:draft.payments.map(p=><div key={p.id} className={`w-full flex justify-between items-start gap-3 py-3 border-b border-zinc-800 ${editingPaymentId===p.id?'bg-amber-950/20':''}`}>
+      <button onClick={()=>editPayment(p)} className="flex-1 text-left min-w-0"><div className="text-zinc-200 font-bold">{paymentKindLabel(p.kind)}</div><div className="text-xs text-zinc-500">{formatDateBR(p.date)} • {paymentMethodLabel(p.method)}</div>{p.origin==='migrado_os' && <div className="text-[11px] text-amber-300 mt-0.5">Origem: migrado da OS {p.sourceServiceOrder||''}</div>}{p.note&&<div className="text-[11px] text-zinc-500">{p.note}</div>}<div className="text-[10px] text-cyan-400 mt-1">Toque para editar ou excluir</div></button>
+      <div className="text-right shrink-0"><div className="text-emerald-400 font-bold whitespace-nowrap">{formatCurrencyBRL(p.amount)}</div><button onClick={()=>setReceiptPayment(p)} className="mt-2 px-2.5 py-1.5 rounded-lg bg-cyan-950/60 border border-cyan-800/60 text-cyan-300 text-[11px] font-bold inline-flex items-center gap-1"><ReceiptText className="w-3.5 h-3.5"/>Recibo</button></div>
+    </div>)}
 
     <div className="mt-3 p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
       <div className="font-bold text-white text-sm">{editingPaymentId?'Editar lançamento':'Novo recebimento'}</div>
@@ -108,5 +110,7 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
 
    <div className="p-3 rounded-2xl border border-amber-900/40 bg-amber-950/20 text-xs text-amber-200"><b>Regra de segurança:</b> este fechamento é uma camada interna do app. Vincular, retirar ou ajustar o valor comercial de uma OS aqui não altera MA, QR, OS oficial, Drive, fotos, garantia ou planilhas.</div>
    <div className="flex gap-2"><button onClick={onClose} className="flex-1 py-3 rounded-xl bg-zinc-900 text-zinc-300">Cancelar</button><button onClick={()=>onSave({...draft,status:undefinedIds.length?'em_composicao':balance<=0.009?'finalizado':'em_andamento',updatedAt:new Date().toISOString()})} className="flex-[2] py-3 rounded-xl bg-cyan-500 text-black font-black">Salvar fechamento</button></div>
-  </div></div></div>
+  </div></div>
+  {receiptPayment && <CommercialClosingReceiptModal closing={draft} client={client} appointments={appointments} payment={receiptPayment} onClose={()=>setReceiptPayment(null)} />}
+ </div>
 }
