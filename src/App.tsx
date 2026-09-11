@@ -10,7 +10,7 @@ import {
   Quote, 
   QuoteStatus, 
   ViewTab, 
-  AppointmentStatus, EquipmentRecord
+  AppointmentStatus, EquipmentRecord, CommercialClosing
 } from './types';
 import { 
   loadClients, 
@@ -35,6 +35,7 @@ import { CalendarView } from './components/CalendarView';
 import { Dashboard } from './components/Dashboard';
 import { FollowUpCenter } from './components/FollowUpCenter';
 import { resetFollowUpActions } from './utils/followUps';
+import { resetCommercialClosings, loadCommercialClosings, saveCommercialClosings, nextClosingId, findClosingForAppointment } from './utils/commercialClosings';
 import { PostSalesCenter } from './components/PostSalesCenter';
 import { DayScheduleView } from './components/DayScheduleView';
 import { QuotesManager } from './components/QuotesManager';
@@ -50,6 +51,7 @@ import { BrandInfoModal } from './components/BrandInfoModal';
 import { AppSplashScreen } from './components/AppSplashScreen';
 import { CloudSyncModal } from './components/CloudSyncModal';
 import { CompletionOptions, ServiceCompletionModal } from './components/ServiceCompletionModal';
+import { CommercialClosingModal } from './components/CommercialClosingModal';
 import { buildWarrantyUrl, generateServiceOrderPdfBlob } from './lib/serviceOrderPdf';
 
 export default function App() {
@@ -111,6 +113,8 @@ export default function App() {
   const [completionAppointment, setCompletionAppointment] = useState<Appointment | null>(null);
   const [completionOfficialNumbers, setCompletionOfficialNumbers] = useState<{ nextMA: number; nextOS: number } | null>(null);
   const [completionNumberingLoading, setCompletionNumberingLoading] = useState(false);
+  const [postCompletionAppointment, setPostCompletionAppointment] = useState<Appointment | null>(null);
+  const [quickCommercialClosing, setQuickCommercialClosing] = useState<CommercialClosing | null>(null);
 
   // Navegação Android/PWA: existe apenas um nível interno acima do Painel.
   // Assim, o botão físico/gesto "Voltar" retorna qualquer tela/submenu ao Dashboard;
@@ -123,7 +127,9 @@ export default function App() {
     isQuoteWhatsAppOpen ||
     isQuoteDetailOpen ||
     isBrandInfoOpen ||
-    completionAppointment
+    completionAppointment ||
+    postCompletionAppointment ||
+    quickCommercialClosing
   );
   const isInsideAppSection = currentTab !== 'dashboard' || hasNavigationOverlay;
   const navigationContextRef = useRef({ currentTab, hasNavigationOverlay });
@@ -165,6 +171,8 @@ export default function App() {
       setDetailQuote(null);
       setIsBrandInfoOpen(false);
       setCompletionAppointment(null);
+      setPostCompletionAppointment(null);
+      setQuickCommercialClosing(null);
       internalHistoryActiveRef.current = false;
     };
 
@@ -315,6 +323,7 @@ export default function App() {
   const confirmResetSandbox = () => {
     const d = resetSandboxData();
     resetFollowUpActions(true);
+    resetCommercialClosings(true);
     setClients(d.clients); setAppointments(d.appointments); setQuotes(d.quotes); setSettings(d.settings);
     setCurrentTab('dashboard'); setSelectedDate(getTodayString()); setAgendaFocusFilter(null); setSandboxResetOpen(false);
   };
@@ -867,6 +876,47 @@ export default function App() {
     return () => { cancelled = true; };
   }, [completionAppointment?.id, googleAccessToken]);
 
+  const openQuickFinanceForAppointment = (appointment: Appointment) => {
+    const current = loadCommercialClosings(isSandbox);
+    const existing = findClosingForAppointment(current, appointment.id);
+    if (existing) {
+      setQuickCommercialClosing(existing);
+      setPostCompletionAppointment(null);
+      return;
+    }
+    const now = new Date().toISOString();
+    const migratedPayments = (appointment.payments || []).map(payment => ({
+      ...payment,
+      origin: 'migrado_os' as const,
+      sourceAppointmentId: appointment.id,
+      sourceServiceOrder: appointment.serviceOrder,
+    }));
+    setQuickCommercialClosing({
+      id: nextClosingId(current),
+      clientId: appointment.clientId,
+      clientName: appointment.clientName,
+      appointmentIds: [appointment.id],
+      appointmentValues: { [appointment.id]: appointment.price == null ? null : Number(appointment.price) },
+      extraItems: [],
+      discountType: 'valor',
+      discountValue: 0,
+      payments: migratedPayments,
+      status: appointment.price == null ? 'em_composicao' : 'em_andamento',
+      createdAt: now,
+      updatedAt: now,
+    });
+    setPostCompletionAppointment(null);
+  };
+
+  const persistQuickCommercialClosing = (closing: CommercialClosing) => {
+    const current = loadCommercialClosings(isSandbox);
+    const cleaned = current.map(c => c.id === closing.id ? c : ({ ...c, appointmentIds: c.appointmentIds.filter(id => !closing.appointmentIds.includes(id)) }));
+    const next = [...cleaned.filter(c => c.id !== closing.id && c.appointmentIds.length > 0), closing];
+    saveCommercialClosings(next, isSandbox);
+    setQuickCommercialClosing(null);
+    showGoogleNotification(`✅ ${closing.id} salvo no financeiro.`);
+  };
+
   const handleConfirmCompletion = async (options: CompletionOptions) => {
     if (!completionAppointment) return;
     const now = new Date().toISOString();
@@ -1096,6 +1146,7 @@ export default function App() {
 
     if (!isSandbox && tokenToUse) updateGoogleCalendarEvent(updated, tokenToUse).catch(console.warn);
     setCompletionAppointment(null);
+    setPostCompletionAppointment(updated);
 
     const photoText = uploadedPhotoUrls.length ? ` • ${uploadedPhotoUrls.length} foto(s) no Drive` : (photoUploadError ? ' • Fotos pendentes' : '');
     const folderText = updated.driveFolderUrl ? ' • Pasta do cliente criada' : (updated.driveFolderError ? ' • Pasta do Drive pendente' : '');
@@ -1521,7 +1572,7 @@ export default function App() {
           <div className="w-full max-w-sm rounded-3xl bg-zinc-900 border border-rose-700 p-5 shadow-2xl">
             <div className="text-[10px] uppercase tracking-[0.2em] font-black text-rose-400">Ação destrutiva — somente Sandbox</div>
             <h2 className="text-xl font-black text-white mt-1">Redefinir todos os testes?</h2>
-            <p className="text-sm text-zinc-400 mt-2">Apaga apenas clientes, agenda, MAT, OS de teste, orçamentos e históricos do Sandbox. A operação real não será tocada. O próximo número volta para MAT-000001.</p>
+            <p className="text-sm text-zinc-400 mt-2">Apaga apenas clientes, agenda, MAT, OS de teste, orçamentos, históricos, fechamentos comerciais e pagamentos do Sandbox. A operação real não será tocada. Os contadores voltam para MAT-000001 e OST-000001.</p>
             <div className="flex gap-2 mt-5"><button onClick={() => setSandboxResetOpen(false)} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-300 font-bold">Cancelar</button><button onClick={confirmResetSandbox} className="flex-1 py-3 rounded-xl bg-rose-600 text-white font-black">Redefinir Sandbox</button></div>
           </div>
         </div>
@@ -1697,6 +1748,39 @@ export default function App() {
         onClose={() => setCompletionAppointment(null)}
         onConfirm={handleConfirmCompletion}
       />
+
+
+      {/* Atalho pós-conclusão: evita navegar Cliente > Equipamento > OS para chegar ao financeiro. */}
+      {postCompletionAppointment && (
+        <div className="fixed inset-0 z-[85] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-zinc-950 border border-zinc-700 shadow-2xl overflow-hidden">
+            <div className="p-5 bg-gradient-to-r from-zinc-950 via-cyan-950/40 to-zinc-950 border-b border-cyan-900/50">
+              <div className="text-[10px] font-black tracking-widest text-emerald-400">SERVIÇO CONCLUÍDO</div>
+              <div className="text-xl font-black text-white mt-1">{postCompletionAppointment.clientName}</div>
+              <div className="text-xs text-zinc-400 mt-1">{postCompletionAppointment.serviceOrder || 'Atendimento sem OS'}{postCompletionAppointment.serialNumber ? ` • ${postCompletionAppointment.serialNumber}` : ''}</div>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3 text-sm text-zinc-300">A parte técnica foi finalizada. Se quiser registrar sinal, pagamento, desconto ou conferir saldo, você pode ir direto ao fechamento financeiro deste atendimento.</div>
+              <button onClick={() => openQuickFinanceForAppointment(postCompletionAppointment)} className="w-full py-3.5 rounded-2xl bg-cyan-500 text-black font-black">Ir para Financeiro</button>
+              <button onClick={() => setPostCompletionAppointment(null)} className="w-full py-3 rounded-2xl bg-zinc-900 text-zinc-300 font-bold">Agora não</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {quickCommercialClosing && (() => {
+        const appointment = appointments.find(a => quickCommercialClosing.appointmentIds.includes(a.id));
+        const client = clients.find(c => c.id === quickCommercialClosing.clientId) || (appointment ? {
+          id: appointment.clientId,
+          name: appointment.clientName,
+          phone: appointment.clientPhone,
+          address: appointment.address,
+          neighborhood: appointment.neighborhood,
+          city: appointment.city,
+          createdAt: appointment.createdAt,
+        } as Client : null);
+        return client ? <CommercialClosingModal closing={quickCommercialClosing} client={client} appointments={appointments} onSave={persistQuickCommercialClosing} onClose={() => setQuickCommercialClosing(null)} /> : null;
+      })()}
 
       {/* Modal: New / Edit Appointment */}
       <AppointmentModal
