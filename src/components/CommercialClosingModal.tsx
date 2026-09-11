@@ -25,11 +25,16 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
  const [receiptPayment,setReceiptPayment]=useState<PaymentRecord|null>(null);
 
  const clientOS=useMemo(()=>appointments.filter(a=>a.clientId===client.id && a.serviceOrder),[appointments,client.id]);
- const subtotal=closingSubtotal(draft,appointments);
- const total=closingTotal(draft,appointments);
+ const pendingExtraValue=Number(extraValue)||0;
+ const effectiveDraft=useMemo<CommercialClosing>(()=>{
+   if(!extraDesc.trim() || pendingExtraValue<=0) return draft;
+   return {...draft,extraItems:[...draft.extraItems,{id:'__pending-extra__',description:extraDesc.trim(),amount:pendingExtraValue}]};
+ },[draft,extraDesc,pendingExtraValue]);
+ const subtotal=closingSubtotal(effectiveDraft,appointments);
+ const total=closingTotal(effectiveDraft,appointments);
  const received=draft.payments.reduce((s,p)=>s+(p.amount||0),0);
  const balance=Math.max(0,total-received);
- const undefinedIds=closingUndefinedAppointmentIds(draft,appointments);
+ const undefinedIds=closingUndefinedAppointmentIds(effectiveDraft,appointments);
 
  const toggleOS=(id:string)=>setDraft(d=>{
    const selected=d.appointmentIds.includes(id);
@@ -53,6 +58,11 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
  const savePayment=()=>{
    const amount=Number(payValue);
    if(!amount || amount<=0) return;
+   if(undefinedIds.length>0){ alert('Este fechamento ainda está em composição. Defina os valores das OS antes de lançar um recebimento.'); return; }
+   const editingCurrent=editingPaymentId ? (draft.payments.find(p=>p.id===editingPaymentId)?.amount||0) : 0;
+   const maxAllowed=Math.max(0,total-(received-editingCurrent));
+   if(!editingPaymentId && balance<=0.009){ alert('Este fechamento já está quitado. Para lançar novo valor, primeiro aumente o total do fechamento ou ajuste/exclua um pagamento existente.'); return; }
+   if(amount>maxAllowed+0.009){ alert(`O valor informado ultrapassa o saldo disponível (${formatCurrencyBRL(maxAllowed)}). Ajuste o total do fechamento ou corrija os pagamentos existentes.`); return; }
    if(editingPaymentId){
      setDraft(d=>({...d,payments:d.payments.map(p=>p.id===editingPaymentId?{...p,amount,kind:payKind,method:payMethod,date:payDate||p.date,note:payNote.trim()||undefined}:p),updatedAt:new Date().toISOString()}));
    }else{
@@ -60,6 +70,13 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
      setDraft(d=>({...d,payments:[...d.payments,p],updatedAt:new Date().toISOString()}));
    }
    clearPaymentEditor();
+ };
+ const saveClosing=()=>{
+   if(undefinedIds.length===0 && received>total+0.009){ alert(`Os pagamentos registrados (${formatCurrencyBRL(received)}) são maiores que o total atual (${formatCurrencyBRL(total)}). Corrija os pagamentos ou aumente o valor do fechamento antes de salvar.`); return; }
+   const finalDraft=extraDesc.trim()&&pendingExtraValue>0
+     ? {...draft,extraItems:[...draft.extraItems,{id:`extra-${Date.now()}`,description:extraDesc.trim(),amount:pendingExtraValue}]}
+     : draft;
+   onSave({...finalDraft,status:undefinedIds.length?'em_composicao':balance<=0.009?'finalizado':'em_andamento',updatedAt:new Date().toISOString()});
  };
 
  return <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm overflow-y-auto p-3"><div className="max-w-2xl mx-auto my-4 bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
@@ -83,7 +100,7 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
       </div>})}
    </div>
 
-   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Serviços / valores extras</div>{draft.extraItems.map(x=><div key={x.id} className="flex justify-between items-center py-2 border-b border-zinc-800"><span className="text-sm text-zinc-300">{x.description}</span><div className="flex gap-2 items-center"><b className="text-white">{formatCurrencyBRL(x.amount)}</b><button onClick={()=>setDraft(d=>({...d,extraItems:d.extraItems.filter(i=>i.id!==x.id)}))}><Trash2 className="w-4 h-4 text-red-400"/></button></div></div>)}<div className="grid grid-cols-[1fr_110px_40px] gap-2 mt-3"><input value={extraDesc} onChange={e=>setExtraDesc(e.target.value)} placeholder="Ex.: configuração extra" className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/><input type="number" value={extraValue} onChange={e=>setExtraValue(e.target.value)} placeholder="R$" className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"/><button onClick={()=>{const v=Number(extraValue);if(!extraDesc.trim()||!v)return;setDraft(d=>({...d,extraItems:[...d.extraItems,{id:`extra-${Date.now()}`,description:extraDesc.trim(),amount:v}]}));setExtraDesc('');setExtraValue('')}} className="rounded-xl bg-cyan-500 text-black"><Plus className="mx-auto"/></button></div></div>
+   <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Serviços / valores extras</div>{draft.extraItems.map(x=><div key={x.id} className="flex justify-between items-center py-2 border-b border-zinc-800"><span className="text-sm text-zinc-300">{x.description}</span><div className="flex gap-2 items-center"><b className="text-white">{formatCurrencyBRL(x.amount)}</b><button onClick={()=>setDraft(d=>({...d,extraItems:d.extraItems.filter(i=>i.id!==x.id)}))}><Trash2 className="w-4 h-4 text-red-400"/></button></div></div>)}<div className="grid grid-cols-[1fr_120px] gap-2 mt-3"><input value={extraDesc} onChange={e=>setExtraDesc(e.target.value)} placeholder="Ex.: configuração extra" className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/><input type="number" step="0.01" min="0" value={extraValue} onChange={e=>setExtraValue(e.target.value)} placeholder="R$" className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"/></div>{extraDesc.trim()&&pendingExtraValue>0&&<div className="mt-2 text-[11px] text-emerald-300">Prévia automática: + {formatCurrencyBRL(pendingExtraValue)} • já incluído nos totais abaixo. Ao apagar, o valor é retirado da prévia.</div>}</div>
 
    <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800"><div className="font-bold text-white mb-2">Desconto do fechamento</div><div className="grid grid-cols-2 gap-2"><select value={draft.discountType} onChange={e=>setDraft(d=>({...d,discountType:e.target.value as any}))} className="bg-zinc-950 border border-zinc-700 rounded-xl p-2 text-white"><option value="valor">Valor (R$)</option><option value="percentual">Percentual (%)</option></select><input type="number" min="0" value={draft.discountValue} onChange={e=>setDraft(d=>({...d,discountValue:Number(e.target.value)||0}))} className="bg-zinc-950 border border-zinc-700 rounded-xl p-2 text-white"/></div></div>
 
@@ -100,16 +117,17 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
 
     <div className="mt-3 p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
       <div className="font-bold text-white text-sm">{editingPaymentId?'Editar lançamento':'Novo recebimento'}</div>
+      {!editingPaymentId && undefinedIds.length===0 && balance<=0.009 && <div className="p-2.5 rounded-xl border border-emerald-900/60 bg-emerald-950/20 text-emerald-200 text-[11px]"><b>Fechamento quitado.</b> Não há saldo para novo recebimento. Para cobrar um valor adicional, acrescente/ajuste o serviço; para corrigir o que já foi pago, toque no lançamento existente.</div>}
       <div className="grid grid-cols-2 gap-2"><input type="number" step="0.01" min="0" value={payValue} onChange={e=>setPayValue(e.target.value)} placeholder="Valor recebido" className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/><select value={payKind} onChange={e=>setPayKind(e.target.value as PaymentRecord['kind'])} className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"><option value="sinal">Sinal / entrada</option><option value="pagamento">Pagamento</option><option value="pagamento_final">Pagamento final</option></select></div>
       <div className="grid grid-cols-2 gap-2"><select value={payMethod} onChange={e=>setPayMethod(e.target.value as PaymentRecord['method'])} className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"><option value="pix">Pix</option><option value="cartao_credito">Cartão crédito</option><option value="cartao_debito">Cartão débito</option><option value="dinheiro">Dinheiro</option><option value="faturado">Faturado</option><option value="a_combinar">A combinar</option></select><input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} className="bg-zinc-950 border border-zinc-700 rounded-xl px-2 py-2 text-white"/></div>
       <input value={payNote} onChange={e=>setPayNote(e.target.value)} placeholder="Observação (opcional)" className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white"/>
-      <div className="flex gap-2"><button onClick={savePayment} className="flex-1 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black flex items-center justify-center gap-2">{editingPaymentId?<><Save className="w-4 h-4"/>Salvar alteração</>:<><Plus className="w-4 h-4"/>LANÇAR</>}</button>{editingPaymentId&&<button onClick={clearPaymentEditor} className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-300 font-bold">Cancelar</button>}</div>
+      <div className="flex gap-2"><button onClick={savePayment} disabled={!editingPaymentId && undefinedIds.length===0 && balance<=0.009} className="flex-1 py-2 rounded-xl bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-300 text-black font-black flex items-center justify-center gap-2">{editingPaymentId?<><Save className="w-4 h-4"/>Salvar alteração</>:<><Plus className="w-4 h-4"/>LANÇAR</>}</button>{editingPaymentId&&<button onClick={clearPaymentEditor} className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-300 font-bold">Cancelar</button>}</div>
       {editingPaymentId&&<button onClick={()=>{if(confirm('Excluir este lançamento? O recebido e o saldo serão recalculados.')){setDraft(d=>({...d,payments:d.payments.filter(p=>p.id!==editingPaymentId),updatedAt:new Date().toISOString()}));clearPaymentEditor();}}} className="w-full py-2 rounded-xl border border-rose-900/70 bg-rose-950/20 text-rose-300 font-bold flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>Excluir lançamento</button>}
     </div>
    </div>
 
    <div className="p-3 rounded-2xl border border-amber-900/40 bg-amber-950/20 text-xs text-amber-200"><b>Regra de segurança:</b> este fechamento é uma camada interna do app. Vincular, retirar ou ajustar o valor comercial de uma OS aqui não altera MA, QR, OS oficial, Drive, fotos, garantia ou planilhas.</div>
-   <div className="flex gap-2"><button onClick={onClose} className="flex-1 py-3 rounded-xl bg-zinc-900 text-zinc-300">Cancelar</button><button onClick={()=>onSave({...draft,status:undefinedIds.length?'em_composicao':balance<=0.009?'finalizado':'em_andamento',updatedAt:new Date().toISOString()})} className="flex-[2] py-3 rounded-xl bg-cyan-500 text-black font-black">Salvar fechamento</button></div>
+   <div className="flex gap-2"><button onClick={onClose} className="flex-1 py-3 rounded-xl bg-zinc-900 text-zinc-300">Cancelar</button><button onClick={saveClosing} className="flex-[2] py-3 rounded-xl bg-cyan-500 text-black font-black">Salvar fechamento</button></div>
   </div></div>
   {receiptPayment && <CommercialClosingReceiptModal closing={draft} client={client} appointments={appointments} payment={receiptPayment} onClose={()=>setReceiptPayment(null)} />}
  </div>

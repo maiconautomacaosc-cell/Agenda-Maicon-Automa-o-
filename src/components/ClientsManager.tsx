@@ -526,8 +526,8 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
           appointments={appointments}
           closings={commercialClosings}
           onClose={() => setSelectedClientFinance(null)}
-          onOpenClosing={(closing) => { setSelectedClientFinance(null); setClosingPreview(closing); }}
-          onOpenAppointment={(appointment) => { setSelectedClientFinance(null); openCommercialClosing(appointment); }}
+          onOpenClosing={(closing) => { setClosingPreview(closing); }}
+          onOpenAppointment={(appointment) => { openCommercialClosing(appointment); }}
         />
       )}
 
@@ -800,8 +800,8 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
       )}
 
 
-      {closingPreview && selectedClientForHistory && (
-        <CommercialClosingModal closing={closingPreview} client={selectedClientForHistory} appointments={appointments} onSave={persistCommercialClosing} onClose={()=>setClosingPreview(null)} />
+      {closingPreview && (selectedClientForHistory || selectedClientFinance) && (
+        <CommercialClosingModal closing={closingPreview} client={(selectedClientForHistory || selectedClientFinance)!} appointments={appointments} onSave={persistCommercialClosing} onClose={()=>setClosingPreview(null)} />
       )}
 
       {receiptPreview && editingFinance && (
