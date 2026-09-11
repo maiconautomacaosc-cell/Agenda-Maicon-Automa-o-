@@ -93,8 +93,10 @@ export interface Appointment {
   lockModel?: string;
   price?: number;
   paymentMethod?: 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'faturado' | 'a_combinar';
-  /** v4.5: recebimentos reais do serviço. Ausente = legado; concluído é tratado como quitado pelo valor total. */
+  /** v4.5: recebimentos reais do serviço. Ausente pode representar registro legado. */
   payments?: PaymentRecord[];
+  /** v4.6.7: concluído tecnicamente, mas ainda aguardando baixa/registro financeiro. */
+  financialPending?: boolean;
   status: AppointmentStatus;
   notes?: string;
   photoUrls?: string[]; // fotos gerais registradas na finalização do atendimento
