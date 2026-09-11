@@ -62,6 +62,10 @@ export interface PaymentRecord {
   kind: 'sinal' | 'pagamento' | 'pagamento_final';
   date: string;
   note?: string;
+  /** v4.6.3: rastreia de onde surgiu o recebimento no fechamento. */
+  origin?: 'fechamento' | 'migrado_os';
+  sourceAppointmentId?: string;
+  sourceServiceOrder?: string;
   createdAt: string;
 }
 
@@ -183,15 +187,17 @@ export interface CommercialExtraItem {
   amount: number;
 }
 export interface CommercialClosing {
-  id: string; // F-000001 (controle interno do app)
+  id: string; // FC-0001 (controle interno do app)
   clientId: string;
   clientName: string;
   appointmentIds: string[]; // OS/atendimentos pertencentes ao mesmo fechamento
   extraItems: CommercialExtraItem[];
+  /** v4.6.3: valor comercial por OS dentro deste fechamento. null = ainda não definido. */
+  appointmentValues?: Record<string, number | null>;
   discountType: 'valor' | 'percentual';
   discountValue: number;
   payments: PaymentRecord[];
-  status: 'em_andamento' | 'finalizado';
+  status: 'em_composicao' | 'em_andamento' | 'finalizado';
   notes?: string;
   createdAt: string;
   updatedAt: string;
