@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   ShieldX,
-  ChevronRight
+  ChevronRight,
+  WalletCards
 } from 'lucide-react';
 import { Client, Appointment, EquipmentRecord, PaymentRecord, CommercialClosing } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
@@ -28,6 +29,7 @@ import { getClientEquipmentRecords, getEquipmentHistory, getEquipmentWarrantySum
 import { openWhatsApp } from '../utils/whatsapp';
 import { PaymentReceiptModal } from './PaymentReceiptModal';
 import { CommercialClosingModal } from './CommercialClosingModal';
+import { ClientFinancialDashboard } from './ClientFinancialDashboard';
 import { loadCommercialClosings, saveCommercialClosings, nextClosingId, findClosingForAppointment } from '../utils/commercialClosings';
 
 interface ClientsManagerProps {
@@ -84,6 +86,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [receiptPreview, setReceiptPreview] = useState<PaymentRecord | null>(null);
   const [commercialClosings, setCommercialClosings] = useState<CommercialClosing[]>(() => loadCommercialClosings(sandboxActive));
   const [closingPreview, setClosingPreview] = useState<CommercialClosing | null>(null);
+  const [selectedClientFinance, setSelectedClientFinance] = useState<Client | null>(null);
 
   // Form states
   const [name, setName] = useState('');
@@ -393,7 +396,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                 </div>
 
                 {/* Quick actions for client */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-2 border-t border-zinc-800">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-2 border-t border-zinc-800">
                   <button
                     onClick={() => onScheduleForClient(client)}
                     className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-[11px] transition-colors cursor-pointer"
@@ -421,6 +424,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                   >
                     <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
                     <span>WhatsApp</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setCommercialClosings(loadCommercialClosings(sandboxActive)); setSelectedClientFinance(client); }}
+                    className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 border border-amber-800/60 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    <WalletCards className="w-3.5 h-3.5" />
+                    <span>Financeiro</span>
                   </button>
 
                   <button
@@ -507,6 +518,17 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {selectedClientFinance && (
+        <ClientFinancialDashboard
+          client={selectedClientFinance}
+          appointments={appointments}
+          closings={commercialClosings}
+          onClose={() => setSelectedClientFinance(null)}
+          onOpenClosing={(closing) => { setSelectedClientFinance(null); setClosingPreview(closing); }}
+          onOpenAppointment={(appointment) => { setSelectedClientFinance(null); openCommercialClosing(appointment); }}
+        />
       )}
 
       {/* Modal: Client History Popover */}
