@@ -1684,6 +1684,8 @@ export default function App() {
             appointments={appointments}
             onDataImported={handleDataImported}
             sandboxActive={isSandbox}
+            onOpenClosing={(closing) => setQuickCommercialClosing(closing)}
+            onOpenAppointment={(appointment) => openQuickFinanceForAppointment(appointment)}
           />
         )}
 
@@ -1779,7 +1781,7 @@ export default function App() {
           city: appointment.city,
           createdAt: appointment.createdAt,
         } as Client : null);
-        return client ? <CommercialClosingModal closing={quickCommercialClosing} client={client} appointments={appointments} onSave={persistQuickCommercialClosing} onClose={() => setQuickCommercialClosing(null)} /> : null;
+        return client ? <CommercialClosingModal closing={quickCommercialClosing} client={client} appointments={appointments} allClosings={loadCommercialClosings(isSandbox)} onSave={persistQuickCommercialClosing} onClose={() => setQuickCommercialClosing(null)} /> : null;
       })()}
 
       {/* Modal: New / Edit Appointment */}
