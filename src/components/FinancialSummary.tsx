@@ -50,16 +50,21 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     if (period === 'todos') return realAppointments;
     const today = new Date();
     const start = new Date(today);
+    let end = new Date(today);
     if (period === 'mes') {
+      // Mês atual = mês civil completo. Isso também mantém visíveis no Sandbox
+      // atendimentos de teste concluídos com datas simuladas alguns dias à frente.
       start.setDate(1);
       start.setHours(0, 0, 0, 0);
+      end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
     } else {
       start.setDate(today.getDate() - 29);
       start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
     }
     return realAppointments.filter((a) => {
       const date = new Date(`${a.date}T12:00:00`);
-      return !Number.isNaN(date.getTime()) && date >= start && date <= today;
+      return !Number.isNaN(date.getTime()) && date >= start && date <= end;
     });
   }, [realAppointments, period]);
 
@@ -72,10 +77,14 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     if (period === 'todos') return true;
     const today = new Date();
     const start = new Date(today);
-    if (period === 'mes') { start.setDate(1); start.setHours(0,0,0,0); }
-    else { start.setDate(today.getDate()-29); start.setHours(0,0,0,0); }
+    let end = new Date(today);
+    if (period === 'mes') {
+      start.setDate(1); start.setHours(0,0,0,0);
+      end = new Date(today.getFullYear(), today.getMonth()+1, 0, 23,59,59,999);
+    }
+    else { start.setDate(today.getDate()-29); start.setHours(0,0,0,0); end.setHours(23,59,59,999); }
     const date = new Date(iso);
-    return !Number.isNaN(date.getTime()) && date >= start && date <= today;
+    return !Number.isNaN(date.getTime()) && date >= start && date <= end;
   };
   const filteredClosings = commercialClosings.filter(c => dateInPeriod(c.createdAt));
   const closingRows = filteredClosings.map(c => {
