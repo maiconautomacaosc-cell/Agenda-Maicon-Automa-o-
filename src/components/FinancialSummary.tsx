@@ -40,7 +40,11 @@ export const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   const [period, setPeriod] = useState<PeriodFilter>('mes');
   const [showReceivables, setShowReceivables] = useState(true);
 
-  const realAppointments = appointments.filter((a) => !a.isTestData && a.serviceType !== 'compromisso_particular');
+  // No Sandbox, o próprio estado `appointments` já é a base isolada de teste.
+  // Não removemos `isTestData` aqui, senão OS pendentes do Sandbox somem dos relatórios.
+  const realAppointments = appointments.filter((a) =>
+    a.serviceType !== 'compromisso_particular' && (sandboxActive || !a.isTestData)
+  );
 
   const filteredAppointments = useMemo(() => {
     if (period === 'todos') return realAppointments;

@@ -36,10 +36,16 @@ export const CommercialClosingModal:React.FC<Props>=({closing,client,appointment
    const paidIds=new Set<string>();
    allClosings.filter(c=>c.id!==closing.id).forEach(c=>{
      const cTotal=closingTotal(c,appointments);
-     const cReceived=c.payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
-     const cUndefined=closingUndefinedAppointmentIds(c,appointments).length;
-     const effectivelyPaid=c.status==='finalizado' || (cUndefined===0 && cTotal>0 && cReceived>=cTotal-0.009);
-     if(effectivelyPaid) c.appointmentIds.forEach(id=>paidIds.add(id));
+     const cReceived=(c.payments||[]).reduce((sum,p)=>sum+Number(p.amount||0),0);
+     const status=String((c as any).status||'').toLowerCase();
+     // Compatibilidade com fechamentos já existentes: além de `finalizado`,
+     // aceita rótulos antigos e, principalmente, considera o saldo real.
+     // Se houve pagamento suficiente para zerar o fechamento, suas OS nunca
+     // podem voltar a aparecer como opção em um novo FC.
+     const explicitlySettled=['finalizado','pago','quitado','paid'].includes(status);
+     const balance=Math.max(0,cTotal-cReceived);
+     const financiallySettled=cReceived>0 && balance<=0.009;
+     if(explicitlySettled || financiallySettled) c.appointmentIds.forEach(id=>paidIds.add(id));
    });
    return paidIds;
  },[allClosings,closing.id,appointments]);
