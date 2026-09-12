@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, WalletCards, CheckCircle2, Clock3, ReceiptText, ChevronRight, Layers3 } from 'lucide-react';
 import { Appointment, Client, CommercialClosing } from '../types';
 import { closingTotal, closingUndefinedAppointmentIds } from '../utils/commercialClosings';
@@ -62,10 +63,11 @@ export const ClientFinancialDashboard: React.FC<Props> = ({ client, appointments
     return { rows, total, received, balance, undefinedCount, services: clientAppointments.length };
   }, [client, appointments, closings]);
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-sm">
-      <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
-        <div className="p-4 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between gap-3">
+  const modal = (
+    <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm overflow-y-auto overscroll-contain">
+      <div className="min-h-full w-full flex items-start justify-center px-3 sm:px-4 pt-[max(16px,env(safe-area-inset-top))] pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[calc(100dvh-32px)]">
+        <div className="sticky top-0 z-20 p-4 bg-zinc-950/98 backdrop-blur border-b border-zinc-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-amber-950/50 border border-amber-800 text-amber-300"><WalletCards className="w-5 h-5" /></div>
             <div className="min-w-0">
@@ -124,6 +126,8 @@ export const ClientFinancialDashboard: React.FC<Props> = ({ client, appointments
           <div className="p-3 rounded-2xl bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-400 flex gap-2"><ReceiptText className="w-4 h-4 text-zinc-500 shrink-0"/><span>Ao abrir um item você vai direto ao fechamento/OS correspondente para consultar pagamentos, recibos, valores e serviços vinculados.</span></div>
         </div>
       </div>
+      </div>
     </div>
   );
+  return createPortal(modal, document.body);
 };
