@@ -1038,6 +1038,10 @@ export default function App() {
     let updated: Appointment = {
       ...completionAppointment,
       status: 'concluido',
+      // Concluir o serviço não significa receber. O financeiro só deixa de ficar pendente
+      // quando houver lançamento real em OS/FC. Vale igualmente no Oficial e Sandbox.
+      financialPending: true,
+      payments: completionAppointment.payments ?? [],
       equipment: Array.from(new Map([...(completionAppointment.equipment || []), ...equipment].map(eq => [eq.serialNumber, eq])).values()),
       serialNumber: completionAppointment.serialNumber || equipment[0]?.serialNumber,
       serviceOrder,
