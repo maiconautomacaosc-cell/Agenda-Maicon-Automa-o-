@@ -262,9 +262,22 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       .join(' + ');
     const primaryServiceType = isParticular ? 'compromisso_particular' : selectedTechnicalTypes[0];
 
+    // Um cliente existente só é reutilizado quando foi escolhido explicitamente
+    // na lista E o nome do campo continua exatamente igual ao cadastro escolhido.
+    // Digitar apenas um nome parecido nunca deve vincular automaticamente.
+    const explicitlySelectedClient = selectedClientId
+      ? clients.find(c => c.id === selectedClientId)
+      : undefined;
+    const selectedClientStillMatches = Boolean(
+      explicitlySelectedClient &&
+      explicitlySelectedClient.name.trim().toLocaleLowerCase('pt-BR') === clientName.trim().toLocaleLowerCase('pt-BR')
+    );
+
     const newAppt: Appointment = {
       id: initialAppointment ? initialAppointment.id : `appt-${Date.now()}`,
-      clientId: selectedClientId || (isParticular ? 'cli-particular' : `cli-${Date.now()}`),
+      clientId: isParticular
+        ? 'cli-particular'
+        : (selectedClientStillMatches ? selectedClientId : `cli-${Date.now()}`),
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim() || (isParticular ? 'Particular' : ''),
       address: address.trim() || (isParticular ? 'Compromisso Particular' : 'A combinar'),
@@ -514,7 +527,11 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
               {/* Auto-suggest dropdown while typing */}
               {!isParticular && filteredClients.length > 0 && (
-                <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden max-h-36 overflow-y-auto">
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden max-h-44 overflow-y-auto">
+                  <div className="px-3 py-2 text-[10px] leading-snug text-cyan-300 bg-cyan-950/30 border-b border-zinc-800">
+                    Sugestões apenas. Toque em um cliente somente se quiser usar o cadastro existente.
+                    Se continuar preenchendo sem selecionar, será criado um novo cliente.
+                  </div>
                   {filteredClients.map(c => (
                     <button
                       key={c.id}
