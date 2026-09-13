@@ -21,7 +21,9 @@ import {
   AlertTriangle,
   ShieldX,
   ChevronRight,
-  WalletCards
+  WalletCards,
+  QrCode,
+  Download
 } from 'lucide-react';
 import { Client, Appointment, EquipmentRecord, PaymentRecord, CommercialClosing } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
@@ -31,6 +33,8 @@ import { PaymentReceiptModal } from './PaymentReceiptModal';
 import { CommercialClosingModal } from './CommercialClosingModal';
 import { ClientFinancialDashboard } from './ClientFinancialDashboard';
 import { loadCommercialClosings, saveCommercialClosings, nextClosingId, findClosingForAppointment } from '../utils/commercialClosings';
+import { buildWarrantyUrl } from '../lib/serviceOrderPdf';
+import { appointmentReceivedAmount } from '../utils/finance';
 
 interface ClientsManagerProps {
   clients: Client[];
@@ -106,6 +110,31 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setCity('');
     setNotes('');
     setIsModalOpen(true);
+  };
+
+  const equipmentQrUrl = (serialNumber: string) => {
+    const warrantyUrl = buildWarrantyUrl(serialNumber);
+    return warrantyUrl ? `https://quickchart.io/qr?size=900&margin=2&text=${encodeURIComponent(warrantyUrl)}` : '';
+  };
+
+  const downloadEquipmentQr = async (serialNumber: string) => {
+    const qrUrl = equipmentQrUrl(serialNumber);
+    if (!qrUrl) return;
+    try {
+      const response = await fetch(qrUrl);
+      if (!response.ok) throw new Error('Falha ao gerar QR');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `QR-${serialNumber}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(qrUrl, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const openEditClientModal = (client: Client) => {
@@ -641,6 +670,14 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                         </div>
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <a href={equipmentQrUrl(selectedEquipment.serialNumber)} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-cyan-800 text-cyan-200 font-bold cursor-pointer">
+                        <QrCode className="w-4 h-4" /> Ver QR Code
+                      </a>
+                      <button onClick={() => downloadEquipmentQr(selectedEquipment.serialNumber)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-100 font-bold cursor-pointer">
+                        <Download className="w-4 h-4" /> Baixar QR Code
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button onClick={() => { setEditingEquipment(selectedEquipment); setEquipmentBrand(selectedEquipment.brand || ''); setEquipmentModel(selectedEquipment.model || ''); setEquipmentManufacturerSerial(selectedEquipment.manufacturerSerialNumber || ''); setEquipmentDescription(selectedEquipment.description || ''); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold cursor-pointer">
                         <Edit3 className="w-4 h-4" /> Editar dados do equipamento
@@ -793,7 +830,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
               <div className="flex gap-2"><button onClick={()=>{const amount=Number(payAmount); if(!amount||amount<=0)return; if(editPaymentId){setFinancePayments(items=>items.map(item=>item.id===editPaymentId?{...item,amount,method:payMethod,kind:payKind,date:payDate||item.date,note:payNote.trim()||undefined}:item));}else{setFinancePayments(items=>[...items,{id:`pay-${Date.now()}`,amount,method:payMethod,kind:payKind,date:payDate||new Date().toISOString().slice(0,10),note:payNote.trim()||undefined,createdAt:new Date().toISOString()}]);} setPayAmount(''); setPayNote(''); setPayDate(new Date().toISOString().slice(0,10)); setEditPaymentId(null);}} className="flex-1 py-2 rounded-xl bg-amber-500 text-black font-black">{editPaymentId?'Salvar correção':'+ Adicionar recebimento'}</button>{editPaymentId&&<button onClick={()=>{setEditPaymentId(null);setPayAmount('');setPayNote('');setPayDate(new Date().toISOString().slice(0,10));}} className="px-3 py-2 rounded-xl bg-zinc-800 text-zinc-300 font-bold">Cancelar</button>}</div>
             </div>
             <div className="space-y-2">{financePayments.map((p,i)=><div key={p.id} className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex justify-between items-center gap-2"><div className="min-w-0"><div className="text-white font-bold">{p.kind==='sinal'?'Sinal / entrada':p.kind==='pagamento_final'?'Pagamento final':'Pagamento'} • {formatCurrencyBRL(p.amount)}</div><div className="text-[11px] text-zinc-500">{p.method.replaceAll('_',' ')} • {formatDateBR(p.date)}{p.note?` • ${p.note}`:''}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openPaymentReceipt(p)} className="text-cyan-300 px-2 font-bold">Recibo</button><button onClick={()=>{setEditPaymentId(p.id);setPayAmount(String(p.amount));setPayMethod(p.method);setPayKind(p.kind);setPayDate(p.date);setPayNote(p.note||'');}} className="text-amber-300 px-2 font-bold">Editar</button><button onClick={()=>{if(confirm('Excluir este recebimento? O saldo será recalculado.')) setFinancePayments(x=>x.filter((_,j)=>j!==i));}} className="text-rose-400 px-2">Excluir</button></div></div>)}</div>
-            {(()=>{const total=Number(financePrice)||0; const received=financePayments.length?financePayments.reduce((n,p)=>n+p.amount,0):(editingFinance.status==='concluido' && editingFinance.payments===undefined ? total:0); const balance=Math.max(0,total-received); return <div className="grid grid-cols-3 gap-2 text-center"><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">TOTAL</div><div className="text-white font-bold">{formatCurrencyBRL(total)}</div></div><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">RECEBIDO</div><div className="text-emerald-400 font-bold">{formatCurrencyBRL(received)}</div></div><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">SALDO</div><div className="text-amber-300 font-bold">{formatCurrencyBRL(balance)}</div></div></div>})()}
+            {(()=>{const total=Number(financePrice)||0; const received=financePayments.reduce((n,p)=>n+p.amount,0); const balance=Math.max(0,total-received); return <div className="grid grid-cols-3 gap-2 text-center"><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">TOTAL</div><div className="text-white font-bold">{formatCurrencyBRL(total)}</div></div><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">RECEBIDO</div><div className="text-emerald-400 font-bold">{formatCurrencyBRL(received)}</div></div><div className="p-2 rounded-xl bg-zinc-900"><div className="text-[10px] text-zinc-500">SALDO</div><div className="text-amber-300 font-bold">{formatCurrencyBRL(balance)}</div></div></div>})()}
             <button disabled={savingFinance} onClick={async()=>{const updated={...editingFinance,price:Number(financePrice)||0,paymentMethod:financeMethod,payments:financePayments}; setSavingFinance(true); try{await onUpdateAppointmentFinancial?.(updated); setEditingFinance(null);}finally{setSavingFinance(false)}}} className="w-full py-3 rounded-xl bg-cyan-500 text-black font-black disabled:opacity-50"><Save className="w-4 h-4 inline mr-2"/>{savingFinance?'Salvando...':'Salvar financeiro'}</button>
           </div>
         </div>
