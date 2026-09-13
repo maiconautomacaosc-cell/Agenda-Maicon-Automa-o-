@@ -33,8 +33,8 @@ import { PaymentReceiptModal } from './PaymentReceiptModal';
 import { CommercialClosingModal } from './CommercialClosingModal';
 import { ClientFinancialDashboard } from './ClientFinancialDashboard';
 import { loadCommercialClosings, saveCommercialClosings, nextClosingId, findClosingForAppointment } from '../utils/commercialClosings';
-import { buildWarrantyUrl } from '../lib/serviceOrderPdf';
 import { appointmentReceivedAmount } from '../utils/finance';
+import { downloadLabeledEquipmentQr, openLabeledEquipmentQr } from '../utils/qrCode';
 
 interface ClientsManagerProps {
   clients: Client[];
@@ -110,31 +110,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
     setCity('');
     setNotes('');
     setIsModalOpen(true);
-  };
-
-  const equipmentQrUrl = (serialNumber: string) => {
-    const warrantyUrl = buildWarrantyUrl(serialNumber);
-    return warrantyUrl ? `https://quickchart.io/qr?size=900&margin=2&text=${encodeURIComponent(warrantyUrl)}` : '';
-  };
-
-  const downloadEquipmentQr = async (serialNumber: string) => {
-    const qrUrl = equipmentQrUrl(serialNumber);
-    if (!qrUrl) return;
-    try {
-      const response = await fetch(qrUrl);
-      if (!response.ok) throw new Error('Falha ao gerar QR');
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = objectUrl;
-      anchor.download = `QR-${serialNumber}.png`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      window.open(qrUrl, '_blank', 'noopener,noreferrer');
-    }
   };
 
   const openEditClientModal = (client: Client) => {
@@ -671,10 +646,10 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <a href={equipmentQrUrl(selectedEquipment.serialNumber)} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-cyan-800 text-cyan-200 font-bold cursor-pointer">
+                      <button type="button" onClick={() => openLabeledEquipmentQr(selectedEquipment.serialNumber)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-cyan-800 text-cyan-200 font-bold cursor-pointer">
                         <QrCode className="w-4 h-4" /> Ver QR Code
-                      </a>
-                      <button onClick={() => downloadEquipmentQr(selectedEquipment.serialNumber)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-100 font-bold cursor-pointer">
+                      </button>
+                      <button onClick={() => downloadLabeledEquipmentQr(selectedEquipment.serialNumber)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-100 font-bold cursor-pointer">
                         <Download className="w-4 h-4" /> Baixar QR Code
                       </button>
                     </div>

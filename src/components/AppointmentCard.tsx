@@ -37,6 +37,7 @@ import { Appointment, AppointmentStatus } from '../types';
 import { formatCurrencyBRL, formatDateBR } from '../utils/date';
 import { getGoogleCalendarUrl, downloadNativeCalendarIcs } from '../utils/calendarSync';
 import { buildWarrantyUrl } from '../lib/serviceOrderPdf';
+import { equipmentQrUrl, downloadLabeledEquipmentQr } from '../utils/qrCode';
 import confetti from 'canvas-confetti';
 
 interface AppointmentCardProps {
@@ -66,6 +67,8 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [reservingMa, setReservingMa] = useState(false);
+  const [showQrSelector, setShowQrSelector] = useState(false);
+  const [selectedQrSerial, setSelectedQrSerial] = useState<string | null>(null);
 
   const isParticular = appointment.serviceType === 'compromisso_particular';
   const inferredMaintenanceSerial = appointment.maintenanceSerialNumber || (
@@ -84,6 +87,36 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
     appointment.serialNumber ||
     appointment.reservedSerialNumbers?.[0];
   const canonicalWarrantyUrl = buildWarrantyUrl(primaryWarrantySerial);
+
+  const qrEquipmentOptions = (() => {
+    const seen = new Set<string>();
+    const options: { serialNumber: string; label: string }[] = [];
+
+    (appointment.equipment || []).forEach((item, index) => {
+      const serialNumber = item.serialNumber?.trim();
+      if (!serialNumber || seen.has(serialNumber)) return;
+      seen.add(serialNumber);
+      const equipmentName = [item.brand, item.model].filter(Boolean).join(' ').trim();
+      options.push({ serialNumber, label: equipmentName || item.description || `Equipamento ${index + 1}` });
+    });
+
+    [appointment.serialNumber, ...(appointment.reservedSerialNumbers || [])].forEach((serial) => {
+      const serialNumber = serial?.trim();
+      if (!serialNumber || seen.has(serialNumber)) return;
+      seen.add(serialNumber);
+      options.push({ serialNumber, label: 'Equipamento do atendimento' });
+    });
+
+    return options;
+  })();
+
+  const handleAppointmentQr = () => {
+    if (qrEquipmentOptions.length === 1) {
+      setSelectedQrSerial(qrEquipmentOptions[0].serialNumber);
+      return;
+    }
+    if (qrEquipmentOptions.length > 1) setShowQrSelector(true);
+  };
 
   const getStatusBadge = (status: AppointmentStatus) => {
     if (isParticular) {
@@ -701,10 +734,10 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
                         <ShieldCheck className="w-4 h-4" /> Abrir garantia
                       </a>
                     )}
-                    {canonicalWarrantyUrl && (
-                      <a href={`https://quickchart.io/qr?size=420&text=${encodeURIComponent(canonicalWarrantyUrl)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-zinc-500">
+                    {qrEquipmentOptions.length > 0 && (
+                      <button type="button" onClick={handleAppointmentQr} className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-zinc-500">
                         <QrCode className="w-4 h-4" /> Ver QR Code
-                      </a>
+                      </button>
                     )}
                     {appointment.driveFolderUrl && (
                       <a href={appointment.driveFolderUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-bold text-amber-300 hover:border-amber-700">
@@ -756,6 +789,63 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
         </div>,
         document.body
       )}
+
+      {showQrSelector && createPortal(
+        <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowQrSelector(false)}>
+          <div className="w-full max-w-md rounded-3xl border border-zinc-700 bg-zinc-950 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 p-4 border-b border-zinc-800">
+              <div>
+                <div className="text-white font-bold text-lg">QR Codes do atendimento</div>
+                <div className="text-zinc-400 text-xs mt-0.5">Escolha o equipamento / MA.</div>
+              </div>
+              <button type="button" onClick={() => setShowQrSelector(false)} className="p-2 text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              {qrEquipmentOptions.map((item) => (
+                <div key={item.serialNumber} className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                  <div className="font-mono font-bold text-cyan-300">{item.serialNumber}</div>
+                  <div className="text-zinc-300 text-sm mt-1">{item.label}</div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <button type="button" onClick={() => { setShowQrSelector(false); setSelectedQrSerial(item.serialNumber); }} className="flex items-center justify-center gap-2 rounded-xl border border-cyan-800 bg-cyan-950/40 py-2.5 text-xs font-bold text-cyan-200">
+                      <QrCode className="w-4 h-4" /> Ver QR
+                    </button>
+                    <button type="button" onClick={() => downloadLabeledEquipmentQr(item.serialNumber)} className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 py-2.5 text-xs font-bold text-zinc-200">
+                      <Download className="w-4 h-4" /> Baixar QR
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {selectedQrSerial && createPortal(
+        <div className="fixed inset-0 z-[130] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedQrSerial(null)}>
+          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-950 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 p-4 border-b border-zinc-800">
+              <div>
+                <div className="text-white font-bold">QR Code do equipamento</div>
+                <div className="font-mono text-cyan-300 font-bold mt-0.5">{selectedQrSerial}</div>
+              </div>
+              <button type="button" onClick={() => setSelectedQrSerial(null)} className="p-2 text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5">
+              <div className="bg-white rounded-2xl p-4">
+                <img src={equipmentQrUrl(selectedQrSerial, 900)} alt={`QR Code ${selectedQrSerial}`} className="w-full aspect-square object-contain" />
+                <div className="text-center text-black font-mono font-black text-xl mt-2 tracking-wide">{selectedQrSerial}</div>
+              </div>
+              <button type="button" onClick={() => downloadLabeledEquipmentQr(selectedQrSerial)} className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black py-3 font-bold">
+                <Download className="w-4 h-4" /> Baixar QR identificado
+              </button>
+              <div className="text-[10px] text-zinc-500 text-center mt-2">O MA é acrescentado somente na imagem exibida/baixada. O conteúdo do QR oficial não é alterado.</div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 };
