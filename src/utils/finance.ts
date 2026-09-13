@@ -10,18 +10,13 @@ import { Appointment } from '../types';
  *   nunca são presumidos como pagos sem um lançamento real.
  */
 export const appointmentReceivedAmount = (appointment: Appointment): number => {
-  if (appointment.payments !== undefined) {
-    return appointment.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  }
-
-  const sandboxIdentity =
-    String(appointment.serviceOrder || '').toUpperCase().startsWith('OST-') ||
-    String(appointment.serialNumber || '').toUpperCase().startsWith('MAT-') ||
-    (appointment.equipment || []).some(eq => String(eq.serialNumber || '').toUpperCase().startsWith('MAT-'));
-
-  if (appointment.financialPending || sandboxIdentity) return 0;
-
-  return appointment.status === 'concluido' ? Number(appointment.price || 0) : 0;
+  // Regra única Oficial/Sandbox: conclusão técnica nunca presume pagamento.
+  // Dinheiro recebido só existe quando há lançamento explícito em `payments`.
+  // OS pertencentes a FC são contabilizadas pelo próprio fechamento, não aqui.
+  return (appointment.payments || []).reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0
+  );
 };
 
 export const appointmentFinancialStatus = (appointment: Appointment): 'pago' | 'parcial' | 'receber' => {
