@@ -977,6 +977,7 @@ export default function App() {
       supplier: eq.supplier?.trim() || undefined,
       invoiceProof: eq.invoiceProof?.trim() || undefined,
       productWarranty: eq.productWarranty,
+      usesBattery: eq.usesBattery,
       createdAt: now,
     }));
     const serviceOrder = options.generateServiceOrder
@@ -1403,7 +1404,7 @@ export default function App() {
 
   const handleUpdateEquipment = async (client: Client, equipment: EquipmentRecord) => {
     setClients(prev => prev.map(c => c.id !== client.id ? c : { ...c, equipment: (c.equipment || []).map(eq => eq.serialNumber === equipment.serialNumber ? { ...eq, ...equipment } : eq) }));
-    setAppointments(prev => prev.map(a => ({ ...a, equipment: (a.equipment || []).map(eq => eq.serialNumber === equipment.serialNumber ? { ...eq, brand: equipment.brand, model: equipment.model, manufacturerSerialNumber: equipment.manufacturerSerialNumber, description: equipment.description } : eq) })));
+    setAppointments(prev => prev.map(a => ({ ...a, equipment: (a.equipment || []).map(eq => eq.serialNumber === equipment.serialNumber ? { ...eq, brand: equipment.brand, model: equipment.model, manufacturerSerialNumber: equipment.manufacturerSerialNumber, description: equipment.description, usesBattery: equipment.usesBattery } : eq) })));
     if (isSandbox) { showGoogleNotification(`🧪 ${equipment.serialNumber} atualizado somente no Sandbox.`); return; }
     const token = googleAccessToken || getCachedAccessToken();
     const spreadsheetId = getSpreadsheetId();
