@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, CalendarClock, FileText, ShieldCheck, Users, BellRing, X, Clock3, CheckCircle2, Archive, RotateCcw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, FileText, ShieldCheck, Users, BellRing, X, Clock3, CheckCircle2, Archive, RotateCcw, BatteryMedium, MessageCircle } from 'lucide-react';
 import { Appointment, Client, Quote, ViewTab } from '../types';
 import { getTodayString } from '../utils/date';
+import { openWhatsApp } from '../utils/whatsapp';
 import {
   FollowUpItem, FollowUpKind, getFollowUps, filterVisibleFollowUps, getHiddenFollowUps,
   saveFollowUpAction, restoreFollowUpAction
@@ -17,11 +18,11 @@ interface FollowUpCenterProps {
 }
 
 const labels: Record<'todos' | FollowUpKind, string> = {
-  todos: 'Todos', atrasado: 'Atrasados', amanha: 'Amanhã', garantia: 'Garantias', orcamento: 'Orçamentos', pos_venda: 'Pós-venda',
+  todos: 'Todos', atrasado: 'Atrasados', amanha: 'Amanhã', garantia: 'Garantias', orcamento: 'Orçamentos', pos_venda: 'Pós-venda', bateria: 'Baterias',
 };
 
 const destinationLabel: Record<FollowUpKind, string> = {
-  atrasado: 'Agenda', amanha: 'Agenda', garantia: 'Pós-venda', orcamento: 'Orçamentos', pos_venda: 'Pós-venda',
+  atrasado: 'Agenda', amanha: 'Agenda', garantia: 'Pós-venda', orcamento: 'Orçamentos', pos_venda: 'Pós-venda', bateria: 'Banco de Clientes',
 };
 
 const addDaysString = (days: number) => {
@@ -47,12 +48,14 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
     garantia: items.filter(i => i.kind === 'garantia').length,
     orcamento: items.filter(i => i.kind === 'orcamento').length,
     pos_venda: items.filter(i => i.kind === 'pos_venda').length,
+    bateria: items.filter(i => i.kind === 'bateria').length,
   }), [items]);
 
   const navigate = (item: FollowUpItem) => {
     setSelected(null);
     if ((item.kind === 'atrasado' || item.kind === 'amanha') && item.date) return onOpenAgendaDate(item.date);
     if (item.kind === 'orcamento') return onSelectTab('orcamentos');
+    if (item.kind === 'bateria') return onSelectTab('clientes');
     return onSelectTab('posvenda');
   };
 
@@ -80,12 +83,13 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
         <p className="text-xs text-zinc-500 mt-1">O sistema encontra o que precisa de atenção. Você decide quando agir.</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
         <Mini icon={<AlertTriangle/>} value={counts.atrasado} label="Atrasados" accent="text-rose-400" />
         <Mini icon={<CalendarClock/>} value={counts.amanha} label="Amanhã" accent="text-cyan-400" />
         <Mini icon={<ShieldCheck/>} value={counts.garantia} label="Garantias" accent="text-emerald-400" />
         <Mini icon={<FileText/>} value={counts.orcamento} label="Orçamentos" accent="text-amber-400" />
         <Mini icon={<Users/>} value={counts.pos_venda} label="Pós-venda" accent="text-violet-400" />
+        <Mini icon={<BatteryMedium/>} value={counts.bateria} label="Baterias" accent="text-amber-300" />
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -133,7 +137,7 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
       )}
 
       <div className="rounded-2xl border border-zinc-800/70 bg-zinc-950/50 px-3.5 py-3 text-[10px] leading-relaxed text-zinc-500">
-        Regras v4.4: atendimento atrasado, serviço de amanhã, garantia em até 30 dias, orçamento pendente há 3+ dias e pós-venda após 180 dias. Você pode abrir, adiar, resolver ou dispensar cada aviso.
+        Regras: atendimento atrasado, serviço de amanhã, garantia em até 30 dias, orçamento pendente há 3+ dias, pós-venda após 180 dias e lembrete trimestral para cada equipamento marcado como “usa bateria”. Você pode abrir, adiar, resolver ou dispensar cada aviso.
       </div>
 
       {selected && (
@@ -151,6 +155,21 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
             <button onClick={() => navigate(selected)} className={`w-full mt-4 rounded-xl py-3 text-xs font-black flex items-center justify-center gap-2 ${sandboxActive ? 'bg-amber-400 text-black' : 'bg-cyan-500 text-black'}`}>
               Abrir {destinationLabel[selected.kind]} <ArrowRight className="w-4 h-4" />
             </button>
+
+            {selected.kind === 'bateria' && (() => {
+              const client = clients.find(c => c.id === selected.clientId);
+              if (!client?.phone) return null;
+              const message = `Olá, ${client.name}! Tudo bem?
+
+Passando para lembrar que seu equipamento ${selected.serialNumber ? `(${selected.serialNumber}) ` : ''}está completando mais um ciclo de 3 meses. Recomendo ter atenção nas baterias. Se estiverem com pouca carga, substitua por pilhas alcalinas de boa marca.
+
+Maicon Automação 🔐`;
+              return (
+                <button onClick={() => openWhatsApp(client.phone, message, 'business')} className="w-full mt-2 rounded-xl py-3 text-xs font-black flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black">
+                  <MessageCircle className="w-4 h-4" /> Enviar lembrete pelo WhatsApp
+                </button>
+              );
+            })()}
 
             <div className="mt-4">
               <div className="text-[10px] uppercase tracking-wider font-bold text-zinc-600 mb-2">Adiar lembrete</div>

@@ -75,6 +75,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
   const [equipmentModel, setEquipmentModel] = useState('');
   const [equipmentManufacturerSerial, setEquipmentManufacturerSerial] = useState('');
   const [equipmentDescription, setEquipmentDescription] = useState('');
+  const [equipmentUsesBattery, setEquipmentUsesBattery] = useState(false);
   const [savingEquipment, setSavingEquipment] = useState(false);
   const [editingFinance, setEditingFinance] = useState<Appointment | null>(null);
   const [financePrice, setFinancePrice] = useState('');
@@ -654,7 +655,7 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                       </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button onClick={() => { setEditingEquipment(selectedEquipment); setEquipmentBrand(selectedEquipment.brand || ''); setEquipmentModel(selectedEquipment.model || ''); setEquipmentManufacturerSerial(selectedEquipment.manufacturerSerialNumber || ''); setEquipmentDescription(selectedEquipment.description || ''); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold cursor-pointer">
+                      <button onClick={() => { setEditingEquipment(selectedEquipment); setEquipmentBrand(selectedEquipment.brand || ''); setEquipmentModel(selectedEquipment.model || ''); setEquipmentManufacturerSerial(selectedEquipment.manufacturerSerialNumber || ''); setEquipmentDescription(selectedEquipment.description || ''); setEquipmentUsesBattery(!!selectedEquipment.usesBattery); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-bold cursor-pointer">
                         <Edit3 className="w-4 h-4" /> Editar dados do equipamento
                       </button>
                       <button onClick={() => { onScheduleMaintenance(selectedClientForHistory, selectedEquipment); setSelectedClientForHistory(null); setSelectedEquipment(null); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold cursor-pointer">
@@ -837,7 +838,11 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
             <div className="grid grid-cols-2 gap-2"><input value={equipmentBrand} onChange={e=>setEquipmentBrand(e.target.value)} placeholder="Marca" className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/><input value={equipmentModel} onChange={e=>setEquipmentModel(e.target.value)} placeholder="Modelo" className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/></div>
             <input value={equipmentManufacturerSerial} onChange={e=>setEquipmentManufacturerSerial(e.target.value)} placeholder="Nº de série do fabricante" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/>
             <input value={equipmentDescription} onChange={e=>setEquipmentDescription(e.target.value)} placeholder="Local do equipamento / descrição" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white outline-none"/>
-            <button disabled={savingEquipment} onClick={async()=>{ const updated={...editingEquipment,brand:equipmentBrand.trim()||undefined,model:equipmentModel.trim()||undefined,manufacturerSerialNumber:equipmentManufacturerSerial.trim()||undefined,description:equipmentDescription.trim()||undefined}; setSavingEquipment(true); try { await onUpdateEquipment?.(selectedClientForHistory, updated); setSelectedEquipment(updated); setEditingEquipment(null); } finally { setSavingEquipment(false); } }} className="w-full py-3 rounded-xl bg-cyan-500 text-black font-black disabled:opacity-50 flex items-center justify-center gap-2"><Save className="w-4 h-4"/>{savingEquipment?'Salvando...':'Salvar dados do equipamento'}</button>
+            <label className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-3 cursor-pointer">
+              <input type="checkbox" checked={equipmentUsesBattery} onChange={e=>setEquipmentUsesBattery(e.target.checked)} className="w-4 h-4 accent-cyan-500"/>
+              <div><div className="text-sm font-bold text-zinc-200">Equipamento usa bateria</div><div className="text-[10px] text-zinc-500 mt-0.5">Ativa lembrete preventivo trimestral para este MA.</div></div>
+            </label>
+            <button disabled={savingEquipment} onClick={async()=>{ const updated={...editingEquipment,brand:equipmentBrand.trim()||undefined,model:equipmentModel.trim()||undefined,manufacturerSerialNumber:equipmentManufacturerSerial.trim()||undefined,description:equipmentDescription.trim()||undefined,usesBattery:equipmentUsesBattery}; setSavingEquipment(true); try { await onUpdateEquipment?.(selectedClientForHistory, updated); setSelectedEquipment(updated); setEditingEquipment(null); } finally { setSavingEquipment(false); } }} className="w-full py-3 rounded-xl bg-cyan-500 text-black font-black disabled:opacity-50 flex items-center justify-center gap-2"><Save className="w-4 h-4"/>{savingEquipment?'Salvando...':'Salvar dados do equipamento'}</button>
           </div>
         </div>
       )}

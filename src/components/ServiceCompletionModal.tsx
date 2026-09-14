@@ -3,7 +3,7 @@ import { Camera, CheckCircle2, ClipboardList, KeyRound, Plus, Trash2, X } from '
 import { Appointment, EquipmentRecord, ProductSupplyType, ServiceType, WarrantyPeriod } from '../types';
 
 export interface CompletionOptions {
-  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'brand' | 'model' | 'manufacturerSerialNumber' | 'description' | 'productSupplyType' | 'supplier' | 'invoiceProof' | 'productWarranty'>>;
+  equipment: Array<Pick<EquipmentRecord, 'serviceType' | 'serviceTypeName' | 'brand' | 'model' | 'manufacturerSerialNumber' | 'description' | 'productSupplyType' | 'supplier' | 'invoiceProof' | 'productWarranty' | 'usesBattery'>>;
   photos: File[];
   generateServiceOrder: boolean;
   installationWarranty: WarrantyPeriod;
@@ -58,7 +58,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
 }) => {
   const [registerEquipment, setRegisterEquipment] = useState(false);
   const [generateOS, setGenerateOS] = useState(true);
-  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; brand: string; model: string; manufacturerSerialNumber: string; description: string; productSupplyType: ProductSupplyType; supplier: string; invoiceProof: string; productWarranty: WarrantyPeriod }>>([]);
+  const [equipment, setEquipment] = useState<Array<{ serviceType?: ServiceType; serviceTypeName?: string; brand: string; model: string; manufacturerSerialNumber: string; description: string; productSupplyType: ProductSupplyType; supplier: string; invoiceProof: string; productWarranty: WarrantyPeriod; usesBattery: boolean }>>([]);
   const [installationWarranty, setInstallationWarranty] = useState<WarrantyPeriod>('3 Meses');
   const [photos, setPhotos] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -90,7 +90,8 @@ export const ServiceCompletionModal: React.FC<Props> = ({
         serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined,
         brand: existing?.brand || '', model: existing?.model || '', manufacturerSerialNumber: existing?.manufacturerSerialNumber || '',
         description: existing?.description || '', productSupplyType: existing?.productSupplyType || ('Produto do cliente' as ProductSupplyType),
-        supplier: existing?.supplier || '', invoiceProof: existing?.invoiceProof || '', productWarranty: existing?.productWarranty || ('Sem garantia' as WarrantyPeriod)
+        supplier: existing?.supplier || '', invoiceProof: existing?.invoiceProof || '', productWarranty: existing?.productWarranty || ('Sem garantia' as WarrantyPeriod),
+        usesBattery: existing?.usesBattery ?? false
       };
     }));
     setInstallationWarranty('3 Meses');
@@ -114,7 +115,7 @@ export const ServiceCompletionModal: React.FC<Props> = ({
     setRegisterEquipment(value);
     if (value && equipment.length === 0) {
       const firstType = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular');
-      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]);
+      setEquipment([{ serviceType: firstType, serviceTypeName: firstType ? SERVICE_LABELS[firstType] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia', usesBattery: false }]);
     }
     if (!value) setEquipment([]);
   };
@@ -222,10 +223,18 @@ export const ServiceCompletionModal: React.FC<Props> = ({
                       </div>
                     )}
 
+                    <label className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2.5 cursor-pointer">
+                      <input type="checkbox" checked={item.usesBattery} onChange={e => setEquipment(prev => prev.map((x,j) => j === i ? {...x, usesBattery:e.target.checked} : x))} className="w-4 h-4 accent-cyan-500" />
+                      <div>
+                        <div className="text-xs font-bold text-zinc-200">Equipamento usa bateria</div>
+                        <div className="text-[10px] text-zinc-500 mt-0.5">Ativa o lembrete preventivo a cada 3 meses para este MA.</div>
+                      </div>
+                    </label>
+
                   </div>
                 ))}
                 <p className="text-[11px] text-zinc-500">A numeração MA é automática e não pode ser digitada manualmente.</p>
-                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia' }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
+                <button type="button" onClick={() => { const st = (appointment.serviceTypes || [appointment.serviceType]).find(t => t !== 'compromisso_particular'); setEquipment(prev => [...prev, { serviceType: st, serviceTypeName: st ? SERVICE_LABELS[st] : undefined, brand: '', model: '', manufacturerSerialNumber: '', description: '', productSupplyType: 'Produto do cliente', supplier: '', invoiceProof: '', productWarranty: 'Sem garantia', usesBattery: false }]); }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-cyan-700 text-cyan-300 text-sm font-bold"><Plus className="w-4 h-4" />Adicionar equipamento</button>
               </div>
             )}
           </section>
