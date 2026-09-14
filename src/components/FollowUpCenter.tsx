@@ -161,9 +161,9 @@ export const FollowUpCenter: React.FC<FollowUpCenterProps> = ({ appointments, cl
               if (!client?.phone) return null;
               const message = `Olá, ${client.name}! Tudo bem?
 
-Passando para lembrar que seu equipamento ${selected.serialNumber ? `(${selected.serialNumber}) ` : ''}está completando mais um ciclo de 3 meses. Recomendo ter atenção nas baterias. Se estiverem com pouca carga, substitua por pilhas alcalinas de boa marca.
+Passando para lembrar que seu equipamento ${selected.serialNumber ? `(${selected.serialNumber}) ` : ''}está completando mais um ciclo de 3 meses. Recomendo ter atenção nas baterias. Se estiverem com pouca carga, substitua por *PILHAS ALCALINAS* de boa marca.
 
-Maicon Automação 🔐`;
+*MAICON AUTOMAÇÃO* 🔐`;
               return (
                 <button onClick={() => openWhatsApp(client.phone, message, 'business')} className="w-full mt-2 rounded-xl py-3 text-xs font-black flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black">
                   <MessageCircle className="w-4 h-4" /> Enviar lembrete pelo WhatsApp
