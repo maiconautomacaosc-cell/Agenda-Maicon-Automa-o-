@@ -204,7 +204,27 @@ export const getFollowUps = (
       // O ciclo é ancorado na data de cadastro/instalação e cada trimestre recebe um ID próprio,
       // assim resolver o aviso atual nunca bloqueia os próximos.
       (client.equipment || []).filter(eq => eq.usesBattery).forEach(eq => {
-        const installedDate = String(eq.createdAt || '').slice(0, 10);
+        // A bateria deve contar a partir da instalação/atendimento do MA, e não do momento
+        // em que o registro foi criado no app. Isso também permite cadastrar hoje um
+        // atendimento antigo sem reiniciar o ciclo trimestral.
+        const relatedCompletedDates = appointments
+          .filter(a =>
+            a.clientId === client.id &&
+            isEligibleAppointment(a) &&
+            a.status === 'concluido' &&
+            (
+              a.serialNumber === eq.serialNumber ||
+              a.maintenanceSerialNumber === eq.serialNumber ||
+              (a.equipment || []).some(item => item.serialNumber === eq.serialNumber)
+            )
+          )
+          .map(a => String(a.date || '').slice(0, 10))
+          .filter(Boolean)
+          .sort();
+
+        // Usa a data mais antiga associada ao MA como referência da instalação.
+        // createdAt fica apenas como fallback para equipamentos legados sem atendimento associado.
+        const installedDate = relatedCompletedDates[0] || String(eq.createdAt || '').slice(0, 10);
         if (!installedDate) return;
         const installed = atNoon(installedDate);
         if (installed > today) return;
