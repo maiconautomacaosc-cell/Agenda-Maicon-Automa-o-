@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays, DollarSign, KeyRound,
-  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen, FileText, BellRing
+  ShieldCheck, Users, Wrench, ArrowRight, CalendarClock, BookOpen, FileText, BellRing, BatteryMedium
 } from 'lucide-react';
 import { Appointment, Client, Quote, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
@@ -117,8 +117,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
     const followUpsRaw = getFollowUps(appointments, clients, quotes, today, sandboxActive ? 'sandbox' : 'operacao');
     const followUps = filterVisibleFollowUps(followUpsRaw, today, sandboxActive);
     const followUpHigh = followUps.filter(i => i.priority === 'alta').length;
+    const batteryFollowUps = followUps.filter(i => i.kind === 'bateria').length;
 
-    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting, followUpTotal: followUps.length, followUpHigh, realClientsCount: realClients.length };
+    return { today, todayServices, todayPrivate, todayPending, todayDone, weekServices, weekDone, weekCompletionPercent, monthRevenue, maintenanceOpen, equipment: serials.size, warrantySoon, quotesWaiting, followUpTotal: followUps.length, followUpHigh, batteryFollowUps, realClientsCount: realClients.length };
   }, [appointments, clients, quotes, sandboxActive]);
 
   const goToday = () => { onSelectDate(metrics.today); onSelectTab('agenda'); };
@@ -166,6 +167,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
           <div className="text-sm font-black text-white">Acompanhamentos</div>
           <div className="text-[10px] text-zinc-500">{metrics.followUpTotal === 0 ? 'Tudo em dia' : `${metrics.followUpTotal} ${metrics.followUpTotal === 1 ? 'item' : 'itens'} pedem atenção${metrics.followUpHigh ? ` • ${metrics.followUpHigh} prioritários` : ''}`}</div>
         </div>
+        <ArrowRight className="w-4 h-4 text-zinc-600 shrink-0" />
+      </button>
+
+      <button onClick={onOpenFollowUps} className={`w-full rounded-2xl border px-4 py-3 flex items-center gap-3 text-left transition-colors ${metrics.batteryFollowUps > 0 ? 'border-amber-700/70 bg-amber-950/20 hover:border-amber-500' : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'}`}>
+        <BatteryMedium className={`w-5 h-5 shrink-0 ${metrics.batteryFollowUps > 0 ? 'text-amber-300' : 'text-zinc-500'}`} />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-black text-white">Baterias</div>
+          <div className={`text-[10px] ${metrics.batteryFollowUps > 0 ? 'text-amber-200/80' : 'text-zinc-500'}`}>
+            {metrics.batteryFollowUps === 0
+              ? 'Nenhum lembrete pendente'
+              : `${metrics.batteryFollowUps} ${metrics.batteryFollowUps === 1 ? 'equipamento completou' : 'equipamentos completaram'} um novo ciclo de 3 meses`}
+          </div>
+        </div>
+        {metrics.batteryFollowUps > 0 && (
+          <div className="min-w-7 h-7 px-2 rounded-full bg-amber-400 text-black text-xs font-black flex items-center justify-center">{metrics.batteryFollowUps}</div>
+        )}
         <ArrowRight className="w-4 h-4 text-zinc-600 shrink-0" />
       </button>
 
