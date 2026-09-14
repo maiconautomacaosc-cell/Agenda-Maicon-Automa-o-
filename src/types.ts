@@ -28,6 +28,8 @@ export interface EquipmentRecord {
   supplier?: string;
   invoiceProof?: string;
   productWarranty?: WarrantyPeriod;
+  /** Equipamento alimentado por bateria; ativa lembrete preventivo trimestral. */
+  usesBattery?: boolean;
   createdAt: string;
 }
 
