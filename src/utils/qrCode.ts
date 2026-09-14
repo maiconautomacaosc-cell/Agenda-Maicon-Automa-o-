@@ -60,14 +60,7 @@ export const openLabeledEquipmentQr = (serialNumber: string) => {
   const qrUrl = equipmentQrUrl(serialNumber, 900);
   if (!qrUrl) return;
 
-  const popup = window.open('', '_blank', 'noopener,noreferrer');
-  if (!popup) {
-    window.open(qrUrl, '_blank', 'noopener,noreferrer');
-    return;
-  }
-
-  popup.document.open();
-  popup.document.write(`<!doctype html>
+  const html = `<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
@@ -75,11 +68,22 @@ export const openLabeledEquipmentQr = (serialNumber: string) => {
   <title>QR ${serialNumber}</title>
   <style>
     *{box-sizing:border-box} body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111;color:#fff;font-family:Arial,sans-serif;padding:20px}
-    .card{width:min(92vw,520px);background:#fff;border-radius:18px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+    .wrap{width:min(92vw,520px)} .card{background:#fff;border-radius:18px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
     img{display:block;width:100%;height:auto}.ma{color:#000;text-align:center;font:700 clamp(24px,6vw,42px) Arial,sans-serif;margin-top:10px;letter-spacing:1px}
+    .actions{display:flex;gap:10px;margin-top:14px}.actions button{flex:1;border:0;border-radius:12px;padding:12px;font-weight:700;cursor:pointer}.print{background:#16c1e8;color:#001018}.close{background:#2a2a2a;color:#fff}
+    @media print{body{background:#fff;padding:0}.wrap{width:100%}.card{box-shadow:none;border-radius:0;padding:12mm}.actions{display:none}}
   </style>
 </head>
-<body><div class="card"><img src="${qrUrl}" alt="QR Code ${serialNumber}" /><div class="ma">${serialNumber}</div></div></body>
-</html>`);
-  popup.document.close();
+<body><div class="wrap"><div class="card"><img src="${qrUrl}" alt="QR Code ${serialNumber}" /><div class="ma">${serialNumber}</div></div><div class="actions"><button class="print" onclick="window.print()">Imprimir</button><button class="close" onclick="window.close()">Fechar</button></div></div></body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const objectUrl = URL.createObjectURL(blob);
+  const opened = window.open(objectUrl, '_blank');
+  if (!opened) {
+    // Em navegadores móveis mais restritivos, abre a mesma visualização identificada na aba atual.
+    // Nunca cai no QR cru, para não perder o MA na visualização/impressão.
+    window.location.href = objectUrl;
+    return;
+  }
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
 };

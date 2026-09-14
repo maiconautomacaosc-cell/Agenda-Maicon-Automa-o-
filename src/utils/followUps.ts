@@ -1,6 +1,6 @@
 import { Appointment, Client, Quote, WarrantyPeriod } from '../types';
 
-export type FollowUpKind = 'atrasado' | 'amanha' | 'garantia' | 'orcamento' | 'pos_venda';
+export type FollowUpKind = 'atrasado' | 'amanha' | 'garantia' | 'orcamento' | 'pos_venda' | 'bateria';
 export type FollowUpPriority = 'alta' | 'media' | 'baixa';
 export type FollowUpMode = 'operacao' | 'sandbox';
 export type FollowUpActionStatus = 'adiado' | 'resolvido' | 'dispensado';
@@ -15,6 +15,7 @@ export interface FollowUpItem {
   clientId?: string;
   appointmentId?: string;
   quoteId?: string;
+  serialNumber?: string;
 }
 
 export interface FollowUpAction {
@@ -54,6 +55,11 @@ const addMonths = (date: string, months: number) => {
   d.setMonth(d.getMonth() + months);
   return d;
 };
+
+const monthDiff = (later: Date, earlier: Date) =>
+  (later.getFullYear() - earlier.getFullYear()) * 12 + (later.getMonth() - earlier.getMonth()) - (later.getDate() < earlier.getDate() ? 1 : 0);
+
+const dateOnly = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export const loadFollowUpActions = (sandbox = false): Record<string, FollowUpAction> => {
   try {
@@ -194,6 +200,35 @@ export const getFollowUps = (
   clients
     .filter(client => mode === 'sandbox' ? true : !client.isTestClient)
     .forEach(client => {
+      // Lembrete preventivo trimestral por equipamento/MA com bateria.
+      // O ciclo é ancorado na data de cadastro/instalação e cada trimestre recebe um ID próprio,
+      // assim resolver o aviso atual nunca bloqueia os próximos.
+      (client.equipment || []).filter(eq => eq.usesBattery).forEach(eq => {
+        const installedDate = String(eq.createdAt || '').slice(0, 10);
+        if (!installedDate) return;
+        const installed = atNoon(installedDate);
+        if (installed > today) return;
+        const elapsedMonths = monthDiff(today, installed);
+        const cycle = Math.floor(elapsedMonths / 3);
+        if (cycle < 1) return;
+        const due = addMonths(installedDate, cycle * 3);
+        if (due > today) return;
+        const nextDue = addMonths(installedDate, (cycle + 1) * 3);
+        const daysSinceDue = Math.max(0, -dayDiff(due, today));
+        items.push({
+          id: `battery-${eq.serialNumber}-${cycle}`,
+          kind: 'bateria',
+          priority: daysSinceDue >= 15 ? 'media' : 'baixa',
+          title: `${client.name} • lembrete de bateria`,
+          subtitle: `${eq.serialNumber} • ciclo de ${cycle * 3} meses${daysSinceDue ? ` • vencido há ${daysSinceDue} dia${daysSinceDue === 1 ? '' : 's'}` : ' • vence hoje'}`,
+          date: dateOnly(due),
+          clientId: client.id,
+          serialNumber: eq.serialNumber,
+        });
+        // nextDue é calculado para manter o ciclo ancorado e documentar a recorrência trimestral.
+        void nextDue;
+      });
+
       const completed = appointments
         .filter(a => a.clientId === client.id && isEligibleAppointment(a) && a.status === 'concluido')
         .sort((a, b) => b.date.localeCompare(a.date));
