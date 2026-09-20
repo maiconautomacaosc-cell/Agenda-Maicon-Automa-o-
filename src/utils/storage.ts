@@ -10,8 +10,6 @@ const STORAGE_KEYS = {
 
 export interface AppSettings {
   defaultReminderMinutes: number;
-  alarmSoundEnabled: boolean;
-  alarmMelody: 'modern_chime' | 'urgent_beep' | 'radar_alert' | 'success_bell';
   autoOpenMapApp: 'google' | 'waze';
   technicianName: string;
   pixKey: string;
@@ -22,8 +20,6 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultReminderMinutes: 60,
-  alarmSoundEnabled: true,
-  alarmMelody: 'modern_chime',
   autoOpenMapApp: 'google',
   technicianName: 'Maicon Automação',
   pixKey: 'Maiconautomacaosc@gmail.com',
