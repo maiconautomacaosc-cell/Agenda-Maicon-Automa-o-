@@ -15,20 +15,12 @@ import {
 } from 'lucide-react';
 import { GoogleUser } from '../lib/googleAuth';
 import { BrandLogo } from './BrandLogo';
-import { AlarmNotifier } from './AlarmNotifier';
-import { Appointment, ViewTab } from '../types';
-import { AlarmMelody } from '../utils/audio';
+import { ViewTab } from '../types';
 
 interface HeaderProps {
   currentTab: ViewTab;
   onSelectTab: (tab: ViewTab) => void;
   onNewAppointment: () => void;
-  appointments: Appointment[];
-  soundEnabled: boolean;
-  onToggleSound: () => void;
-  alarmMelody: AlarmMelody;
-  onSelectMelody: (m: AlarmMelody) => void;
-  onOpenWhatsApp: (appt: Appointment) => void;
   onOpenBrandInfo: () => void;
   onPlayIntroAnimation?: () => void;
   user: GoogleUser | null;
@@ -44,12 +36,6 @@ export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onSelectTab,
   onNewAppointment,
-  appointments,
-  soundEnabled,
-  onToggleSound,
-  alarmMelody,
-  onSelectMelody,
-  onOpenWhatsApp,
   onOpenBrandInfo,
   onPlayIntroAnimation,
   user,
@@ -207,14 +193,6 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          <AlarmNotifier
-            appointments={appointments}
-            soundEnabled={soundEnabled}
-            onToggleSound={onToggleSound}
-            onOpenWhatsApp={onOpenWhatsApp}
-            alarmMelody={alarmMelody}
-            onSelectMelody={onSelectMelody}
-          />
 
         </div>
       </div>

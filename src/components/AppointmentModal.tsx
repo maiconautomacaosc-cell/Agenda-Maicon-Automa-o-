@@ -9,7 +9,6 @@ import {
   FileText, 
   DollarSign, 
   KeyRound, 
-  Bell, 
   Plus, 
   Check, 
   Sparkles,
@@ -670,7 +669,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
           <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 space-y-3">
             <span className="font-mono font-bold text-zinc-300 text-xs flex items-center gap-1.5 uppercase tracking-wider">
               <Clock className="w-3.5 h-3.5 text-cyan-400" />
-              {isParticular ? 'Data e Período do Bloqueio' : 'Data, Horário e Despertador'}
+              {isParticular ? 'Data e Período do Bloqueio' : 'Data e Horário'}
             </span>
 
             {/* Option to block entire day */}
@@ -748,30 +747,6 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               />
             </div>
 
-            {/* Notification / Sound Alarm config */}
-            <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-amber-400" />
-                <div>
-                  <div className="text-zinc-200 font-semibold text-xs">Alerta Sonoro / Despertador:</div>
-                  <div className="text-[10px] text-zinc-400 font-mono">Toca alarme no aparelho</div>
-                </div>
-              </div>
-
-              <select
-                id="select-reminder-alert"
-                value={reminderMinutesBefore}
-                onChange={(e) => setReminderMinutesBefore(Number(e.target.value))}
-                className="p-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-cyan-500"
-              >
-                <option value={0}>Exatamente no horário</option>
-                <option value={15}>15 minutos antes</option>
-                <option value={30}>30 minutos antes</option>
-                <option value={60}>1 hora antes (Recomendado)</option>
-                <option value={120}>2 horas antes</option>
-                <option value={1440}>1 dia antes (24h)</option>
-              </select>
-            </div>
           </div>
 
           {/* Section: Status and Price (Only for technical service) */}

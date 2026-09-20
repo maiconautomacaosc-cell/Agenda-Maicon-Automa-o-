@@ -141,8 +141,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="space-y-4">
+      {newAppointmentSelectionMode && (
+        <div className="fixed inset-0 z-[41] bg-black/80 backdrop-blur-[2px] pointer-events-none" aria-hidden="true" />
+      )}
       {/* Calendar Header & Month Navigation */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 shadow-xl">
+      <div className={`bg-zinc-900 border rounded-3xl p-4 shadow-xl ${newAppointmentSelectionMode ? 'relative z-[42] border-cyan-500/70 shadow-cyan-950/50' : 'border-zinc-800'}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-zinc-950 border border-zinc-800 text-cyan-400">
@@ -190,9 +193,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         {newAppointmentSelectionMode && (
-          <div className="mx-1 mb-3 p-3 rounded-2xl bg-cyan-950/50 border border-cyan-700 text-cyan-100">
+          <div className="mx-1 mb-3 p-3 rounded-2xl bg-cyan-950/70 border border-cyan-500 text-cyan-100 shadow-lg shadow-cyan-950/60">
             <div className="text-sm font-black">Selecione o dia do novo agendamento</div>
-            <div className="text-[11px] text-cyan-300 mt-0.5">Toque diretamente no dia desejado no calendário.</div>
+            <div className="text-[11px] text-cyan-300 mt-0.5">A tela foi destacada para você. Toque no dia desejado para continuar.</div>
           </div>
         )}
 
@@ -352,7 +355,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     : hasParticular
                     ? 'bg-purple-950/30 border border-purple-800/60 text-purple-200 hover:bg-purple-950/50'
                     : 'bg-zinc-950/80 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-300'
-                } ${isFilteredOut ? 'opacity-20 ring-0' : ''}`}
+                } ${isFilteredOut ? 'opacity-20 ring-0' : ''} ${newAppointmentSelectionMode && dayObj.isCurrentMonth ? (isSelected ? 'animate-pulse ring-4 ring-cyan-300/70 scale-[1.04] z-10' : 'ring-1 ring-cyan-500/30 hover:ring-cyan-300') : ''}`}
               >
                 {/* Day Number and Today Indicator */}
                 <div className="w-full flex items-center justify-between">

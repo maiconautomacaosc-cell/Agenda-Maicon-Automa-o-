@@ -14,7 +14,6 @@ import {
   Trash2, 
   KeyRound, 
   DollarSign, 
-  Bell,
   Sparkles,
   Calendar,
   Download,
@@ -400,10 +399,6 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
               </button>
             )}
 
-            <div className="flex items-center gap-1 text-[10px] text-zinc-400 font-mono">
-              <Bell className="w-3 h-3 text-amber-400" />
-              <span>{appointment.reminderMinutesBefore === 0 ? 'No horário' : `${appointment.reminderMinutesBefore}m`}</span>
-            </div>
           </div>
         </div>
 
