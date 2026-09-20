@@ -24,7 +24,6 @@ import {
   AppSettings, loadSandboxData, saveSandboxData, resetSandboxData 
 } from './utils/storage';
 import { getTodayString } from './utils/date';
-import { AlarmMelody } from './utils/audio';
 import { GoogleUser, ensureValidAccessToken, getCachedAccessToken, getCachedGoogleUser, subscribeGoogleToken, subscribeGoogleUser, validateCachedToken } from './lib/googleAuth';
 import { createDriveBackupSnapshot, ensureClientDriveStructure, renameGoogleDriveItem, saveDatabaseToGoogleDrive, uploadAppointmentPhotos, uploadBlobToDriveFolder } from './lib/googleDrive';
 import { getClientsRootFolderId, getOfficialSequences, getSpreadsheetId, loadDatabaseFromGoogleSheets, migratePermanentTestClientIdentityInMainSheets, reserveSerialNumberForAppointment, saveDatabaseToGoogleSheets, syncCompletedAppointmentToMainSheets, updateEquipmentMasterData, updateServiceOrderFinancialData } from './lib/googleSheets';
@@ -1511,21 +1510,6 @@ export default function App() {
     setCurrentTab('agenda');
   };
 
-  // Sound Settings
-  const handleToggleSound = () => {
-    setSettings((prev) => {
-      const updated = { ...prev, alarmSoundEnabled: !prev.alarmSoundEnabled };
-      return updated;
-    });
-  };
-
-  const handleSelectMelody = (melody: AlarmMelody) => {
-    setSettings((prev) => {
-      const updated = { ...prev, alarmMelody: melody };
-      return updated;
-    });
-  };
-
   // Backup restore
   const handleDataImported = () => {
     const c = loadClients();
@@ -1545,12 +1529,6 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         onNewAppointment={() => handleOpenNewAppointment()}
-        appointments={appointments}
-        soundEnabled={settings.alarmSoundEnabled}
-        onToggleSound={handleToggleSound}
-        alarmMelody={settings.alarmMelody}
-        onSelectMelody={handleSelectMelody}
-        onOpenWhatsApp={handleOpenWhatsApp}
         onOpenBrandInfo={() => setIsBrandInfoOpen(true)}
         onPlayIntroAnimation={() => setIsSplashScreenOpen(true)}
         user={currentUser}
