@@ -514,6 +514,19 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
               <span>Concluído</span>
             </span>
           )}
+          <button
+            id={`btn-delete-particular-${appointment.id}`}
+            onClick={() => {
+              if (window.confirm(`Excluir somente este compromisso particular?${appointment.recurrenceGroupId ? '\n\nAs outras ocorrências da recorrência serão mantidas.' : ''}`)) {
+                onDelete(appointment.id);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-900/50 text-xs font-semibold transition-colors active:scale-95"
+            title="Excluir somente esta ocorrência"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Excluir</span>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-1 p-1.5 bg-zinc-950 border-t border-zinc-800">

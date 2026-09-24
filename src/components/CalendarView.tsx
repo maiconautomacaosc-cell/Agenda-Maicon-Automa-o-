@@ -13,7 +13,8 @@ import {
   Lock,
   Edit3,
   Filter,
-  Wrench
+  Wrench,
+  Trash2
 } from 'lucide-react';
 import { Appointment, DayInfo, DayOccupancyStatus } from '../types';
 import { generateMonthDays, formatDateFriendly, formatDateBR, getTodayString } from '../utils/date';
@@ -496,6 +497,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <span>Particular concluído</span>
                 </span>
               )}
+              <button
+                onClick={() => {
+                  if (window.confirm(`Excluir somente este compromisso particular de ${formatDateBR(particularAppt.date)}?${particularAppt.recurrenceGroupId ? '\n\nAs outras ocorrências da recorrência serão mantidas.' : ''}`)) {
+                    onDeleteAppointment(particularAppt.id);
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-950/50 hover:bg-rose-900/70 text-rose-300 border border-rose-800/60 text-xs font-semibold transition-colors"
+                title="Excluir somente esta ocorrência"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Excluir</span>
+              </button>
             </div>
           </div>
         )}
@@ -514,6 +527,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         ) : (
           <div className="space-y-3">
             {selectedDayAppointments
+              .filter((a) => a.serviceType !== 'compromisso_particular')
               .sort((a, b) => a.startTime.localeCompare(b.startTime))
               .map((appt) => (
                 <AppointmentCard
