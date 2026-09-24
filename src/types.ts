@@ -112,6 +112,9 @@ export interface Appointment {
   warrantyUrl?: string;
   reminderMinutesBefore: number;
   alarmDismissed?: boolean;
+  /** v4.6.9: vínculo opcional entre compromissos particulares recorrentes. */
+  recurrenceGroupId?: string;
+  recurrenceRule?: 'weekly' | 'daily';
   googleEventId?: string;
   googleSyncedAt?: string;
   syncedToCalendar?: boolean;

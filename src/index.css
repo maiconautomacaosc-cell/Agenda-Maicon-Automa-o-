@@ -26,3 +26,23 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
 }
+
+
+/* v4.6.9 — seleção de data: todos os dias disponíveis acendem em azul claro. */
+@keyframes calendar-day-awaiting-selection-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(103, 232, 249, .95), 0 0 10px rgba(34, 211, 238, .55), 0 0 20px rgba(14, 165, 233, .30);
+    border-color: rgba(103, 232, 249, .95);
+    filter: brightness(1.05);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(165, 243, 252, 1), 0 0 18px rgba(34, 211, 238, .95), 0 0 34px rgba(14, 165, 233, .72);
+    border-color: rgb(165, 243, 252);
+    filter: brightness(1.28);
+  }
+}
+
+.calendar-day-awaiting-selection {
+  animation: calendar-day-awaiting-selection-glow 1.05s ease-in-out infinite;
+  transform: translateZ(0);
+}

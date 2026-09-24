@@ -1775,6 +1775,7 @@ export default function App() {
         clients={clients}
         initialAppointment={editingAppointment}
         initialDate={modalInitialDate}
+        existingAppointments={appointments}
       />
 
       {/* Modal: Quote Editor */}
