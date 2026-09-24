@@ -712,9 +712,10 @@ export default function App() {
     });
 
     // Automatic Google Calendar Sync
-    // Compromissos particulares são histórico interno da Agenda Maicon: não geram Drive, planilha principal nem Google Calendar.
+    // v4.7.2: compromissos particulares também entram no Google Agenda no ambiente OFICIAL.
+    // O Sandbox continua bloqueando qualquer integração externa.
     const tokenToUse = googleAccessToken || getCachedAccessToken();
-    if (!isSandbox && tokenToUse && appt.serviceType !== 'compromisso_particular') {
+    if (!isSandbox && tokenToUse) {
       updateGoogleCalendarEvent(appt, tokenToUse)
         .then(({ eventId }) => {
           if (eventId) {
@@ -730,7 +731,7 @@ export default function App() {
               return updated;
             });
           }
-          showGoogleNotification(`📅 Agendamento de ${appt.clientName} sincronizado com seu Google Agenda!`);
+          showGoogleNotification(`📅 ${appt.serviceType === 'compromisso_particular' ? 'Compromisso' : 'Agendamento'} de ${appt.clientName} sincronizado com seu Google Agenda!`);
         })
         .catch((err) => {
           console.warn('Erro ao sincronizar com Google Agenda:', err);
