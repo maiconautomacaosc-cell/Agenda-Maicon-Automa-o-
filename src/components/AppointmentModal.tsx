@@ -89,6 +89,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [isAllDayBlocked, setIsAllDayBlocked] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'weekly' | 'daily'>('none');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
 
   useEffect(() => {
     if (initialAppointment) {
@@ -111,6 +112,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setSelectedClientId(initialAppointment.clientId || '');
       setIsAllDayBlocked(initialAppointment.serviceType === 'compromisso_particular' && initialAppointment.durationMinutes >= 480);
       setRecurrence('none');
+      setRecurrenceUntil('');
     } else {
       // Reset form
       const st = initialServiceType || 'instalacao_sobrepor';
@@ -143,6 +145,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setNotes('');
       setSelectedClientId('');
       setRecurrence('none');
+      setRecurrenceUntil('');
     }
   }, [initialAppointment, initialDate, initialServiceType, isOpen]);
 
@@ -323,9 +326,16 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     // exatamente no mesmo horário/período. Cada ocorrência continua independente
     // para poder ser concluída, editada ou liberada sem alterar as demais.
     if (isParticular && (!initialAppointment || isNewParticularDraft) && recurrence !== 'none') {
+      if (!recurrenceUntil) {
+        alert('Informe a data em “Repetir até”.');
+        return;
+      }
       const base = new Date(`${date}T12:00:00`);
-      const limit = new Date(base);
-      limit.setFullYear(limit.getFullYear() + 1);
+      const limit = new Date(`${recurrenceUntil}T12:00:00`);
+      if (limit < base) {
+        alert('A data “Repetir até” não pode ser anterior à data inicial.');
+        return;
+      }
       const groupId = `rec-${Date.now()}`;
       let cursor = new Date(base);
       let index = 0;
@@ -780,6 +790,20 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   <option value="weekly">Semanalmente • mesmo dia e horário</option>
                   <option value="daily">Todos os dias • mesmo horário</option>
                 </select>
+              </div>
+            )}
+
+            {isParticular && (!initialAppointment || isNewParticularDraft) && recurrence !== 'none' && (
+              <div>
+                <label className="block text-zinc-300 font-semibold mb-1">Repetir até</label>
+                <input
+                  type="date"
+                  min={date}
+                  required
+                  value={recurrenceUntil}
+                  onChange={(e) => setRecurrenceUntil(e.target.value)}
+                  className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                />
               </div>
             )}
 
