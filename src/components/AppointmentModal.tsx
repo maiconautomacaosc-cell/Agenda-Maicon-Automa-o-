@@ -149,6 +149,9 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   if (!isOpen) return null;
 
   const isParticular = serviceTypes.includes('compromisso_particular');
+  // handleBlockDay abre um rascunho com id bloq-* para pré-preencher o formulário.
+  // Apesar de chegar em initialAppointment, ele ainda é um NOVO compromisso e pode ser recorrente.
+  const isNewParticularDraft = Boolean(initialAppointment?.id?.startsWith('bloq-'));
   const fullDateLabel = new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const inferredMaintenanceSerial = initialAppointment?.maintenanceSerialNumber || (
     initialAppointment &&
@@ -319,7 +322,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     // Mantém o compromisso-base e cria as próximas ocorrências por 12 meses,
     // exatamente no mesmo horário/período. Cada ocorrência continua independente
     // para poder ser concluída, editada ou liberada sem alterar as demais.
-    if (isParticular && !initialAppointment && recurrence !== 'none') {
+    if (isParticular && (!initialAppointment || isNewParticularDraft) && recurrence !== 'none') {
       const base = new Date(`${date}T12:00:00`);
       const limit = new Date(base);
       limit.setFullYear(limit.getFullYear() + 1);
@@ -765,7 +768,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               </div>
             )}
 
-            {isParticular && !initialAppointment && (
+            {isParticular && (!initialAppointment || isNewParticularDraft) && (
               <div>
                 <label className="block text-zinc-300 font-semibold mb-1">Repetir compromisso</label>
                 <select
