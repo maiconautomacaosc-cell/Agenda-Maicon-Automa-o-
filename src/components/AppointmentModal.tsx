@@ -88,6 +88,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [isAllDayBlocked, setIsAllDayBlocked] = useState(false);
+  const [recurrence, setRecurrence] = useState<'none' | 'weekly' | 'daily'>('none');
 
   useEffect(() => {
     if (initialAppointment) {
@@ -109,6 +110,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setNotes(initialAppointment.notes || '');
       setSelectedClientId(initialAppointment.clientId || '');
       setIsAllDayBlocked(initialAppointment.serviceType === 'compromisso_particular' && initialAppointment.durationMinutes >= 480);
+      setRecurrence('none');
     } else {
       // Reset form
       const st = initialServiceType || 'instalacao_sobrepor';
@@ -140,6 +142,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setReminderMinutesBefore(60);
       setNotes('');
       setSelectedClientId('');
+      setRecurrence('none');
     }
   }, [initialAppointment, initialDate, initialServiceType, isOpen]);
 
@@ -312,8 +315,37 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    // Todo agendamento técnico cadastra/atualiza o cliente automaticamente.
-    onSaveAppointment(newAppt, !isParticular);
+    // Recorrência é exclusiva para novos compromissos particulares.
+    // Mantém o compromisso-base e cria as próximas ocorrências por 12 meses,
+    // exatamente no mesmo horário/período. Cada ocorrência continua independente
+    // para poder ser concluída, editada ou liberada sem alterar as demais.
+    if (isParticular && !initialAppointment && recurrence !== 'none') {
+      const base = new Date(`${date}T12:00:00`);
+      const limit = new Date(base);
+      limit.setFullYear(limit.getFullYear() + 1);
+      const groupId = `rec-${Date.now()}`;
+      let cursor = new Date(base);
+      let index = 0;
+      while (cursor <= limit) {
+        const occurrenceDate = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const occurrence: Appointment = {
+          ...newAppt,
+          id: `${newAppt.id}-r${index}`,
+          date: occurrenceDate,
+          recurrenceGroupId: groupId,
+          recurrenceRule: recurrence,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        onSaveAppointment(occurrence, false);
+        index += 1;
+        if (recurrence === 'weekly') cursor.setDate(cursor.getDate() + 7);
+        else cursor.setDate(cursor.getDate() + 1);
+      }
+    } else {
+      // Todo agendamento técnico cadastra/atualiza o cliente automaticamente.
+      onSaveAppointment(newAppt, !isParticular);
+    }
     onClose();
   };
 
@@ -729,6 +761,21 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   <option value={240}>4 horas (Meio período manhã/tarde)</option>
                   <option value={360}>6 horas</option>
                   <option value={600}>10 horas (Dia todo)</option>
+                </select>
+              </div>
+            )}
+
+            {isParticular && !initialAppointment && (
+              <div>
+                <label className="block text-zinc-300 font-semibold mb-1">Repetir compromisso</label>
+                <select
+                  value={recurrence}
+                  onChange={(e) => setRecurrence(e.target.value as 'none' | 'weekly' | 'daily')}
+                  className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="none">Não repetir</option>
+                  <option value="weekly">Semanalmente • mesmo dia e horário</option>
+                  <option value="daily">Todos os dias • mesmo horário</option>
                 </select>
               </div>
             )}

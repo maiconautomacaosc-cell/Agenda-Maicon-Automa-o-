@@ -355,7 +355,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     : hasParticular
                     ? 'bg-purple-950/30 border border-purple-800/60 text-purple-200 hover:bg-purple-950/50'
                     : 'bg-zinc-950/80 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-300'
-                } ${isFilteredOut ? 'opacity-20 ring-0' : ''} ${newAppointmentSelectionMode && dayObj.isCurrentMonth ? (isSelected ? 'animate-pulse ring-4 ring-cyan-300/70 scale-[1.04] z-10' : 'ring-1 ring-cyan-500/30 hover:ring-cyan-300') : ''}`}
+                } ${isFilteredOut ? 'opacity-20 ring-0' : ''} ${newAppointmentSelectionMode && dayObj.isCurrentMonth ? 'calendar-day-awaiting-selection z-10' : ''}`}
               >
                 {/* Day Number and Today Indicator */}
                 <div className="w-full flex items-center justify-between">
