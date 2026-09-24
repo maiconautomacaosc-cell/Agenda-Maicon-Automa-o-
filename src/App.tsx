@@ -91,6 +91,7 @@ export default function App() {
   const [newAppointmentSelectionMode, setNewAppointmentSelectionMode] = useState(false);
   const [pendingNewAppointmentDate, setPendingNewAppointmentDate] = useState<string | null>(null);
   const [newAppointmentKind, setNewAppointmentKind] = useState<'servico' | 'particular'>('servico');
+  const [newAppointmentKindPickerOpen, setNewAppointmentKindPickerOpen] = useState(false);
 
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [whatsAppAppointment, setWhatsAppAppointment] = useState<Appointment | null>(null);
@@ -564,29 +565,27 @@ export default function App() {
 
   // Appointment Actions
   const startSafeNewAppointmentFlow = () => {
+    // v4.7.1: primeiro escolhe o tipo; só depois o calendário entra no modo de seleção.
     setAgendaFocusFilter(null);
     setPendingNewAppointmentDate(null);
     setNewAppointmentKind('servico');
+    setNewAppointmentSelectionMode(false);
+    setNewAppointmentKindPickerOpen(true);
+  };
+
+  const chooseNewAppointmentKind = (kind: 'servico' | 'particular') => {
+    setNewAppointmentKind(kind);
+    setNewAppointmentKindPickerOpen(false);
     setNewAppointmentSelectionMode(true);
     setCurrentTab('agenda');
   };
 
   const handleSelectDateForNewAppointment = (date: string) => {
     setSelectedDate(date);
-    setPendingNewAppointmentDate(date);
-    setNewAppointmentKind('servico');
-    setNewAppointmentSelectionMode(false);
-  };
-
-  const confirmNewAppointmentKind = () => {
-    if (!pendingNewAppointmentDate) return;
-    const date = pendingNewAppointmentDate;
     setPendingNewAppointmentDate(null);
-    if (newAppointmentKind === 'particular') {
-      handleBlockDay(date);
-    } else {
-      handleOpenNewAppointment(date);
-    }
+    setNewAppointmentSelectionMode(false);
+    if (newAppointmentKind === 'particular') handleBlockDay(date);
+    else handleOpenNewAppointment(date);
   };
 
   const handleOpenNewAppointment = (date?: string) => {
@@ -1682,28 +1681,21 @@ export default function App() {
         onNewAppointment={startSafeNewAppointmentFlow}
       />
 
-      {pendingNewAppointmentDate && (
+      {newAppointmentKindPickerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl bg-zinc-900 border border-zinc-800 p-4 shadow-2xl">
             <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-cyan-400">Novo agendamento</div>
-            <h2 className="text-lg font-black text-white mt-1 capitalize">
-              {new Date(`${pendingNewAppointmentDate}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-            </h2>
-            <p className="text-xs text-zinc-500 mt-1">Escolha o tipo de registro antes de continuar.</p>
-
+            <h2 className="text-lg font-black text-white mt-1">O que você quer agendar?</h2>
+            <p className="text-xs text-zinc-500 mt-1">Escolha o tipo. Em seguida você seleciona o dia no calendário.</p>
             <div className="grid grid-cols-2 gap-2 mt-4">
-              <button type="button" onClick={() => setNewAppointmentKind('servico')} className={`p-3 rounded-2xl border text-left ${newAppointmentKind === 'servico' ? 'bg-cyan-500 text-black border-cyan-300' : 'bg-zinc-950 text-zinc-300 border-zinc-700'}`}>
-                <div className="font-black">Serviço</div><div className="text-[10px] opacity-75 mt-1">Pré-selecionado</div>
+              <button type="button" onClick={() => chooseNewAppointmentKind('servico')} className="p-3 rounded-2xl border text-left bg-cyan-500 text-black border-cyan-300">
+                <div className="font-black">Serviço</div><div className="text-[10px] opacity-75 mt-1">Atendimento</div>
               </button>
-              <button type="button" onClick={() => setNewAppointmentKind('particular')} className={`p-3 rounded-2xl border text-left ${newAppointmentKind === 'particular' ? 'bg-purple-600 text-white border-purple-400' : 'bg-zinc-950 text-zinc-300 border-zinc-700'}`}>
+              <button type="button" onClick={() => chooseNewAppointmentKind('particular')} className="p-3 rounded-2xl border text-left bg-purple-600 text-white border-purple-400">
                 <div className="font-black">Particular</div><div className="text-[10px] opacity-75 mt-1">Compromisso pessoal</div>
               </button>
             </div>
-
-            <div className="flex gap-2 mt-4">
-              <button type="button" onClick={() => { setPendingNewAppointmentDate(null); setNewAppointmentSelectionMode(true); }} className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-bold">Trocar dia</button>
-              <button type="button" onClick={confirmNewAppointmentKind} className="flex-1 py-2.5 rounded-xl bg-cyan-500 text-black text-xs font-black">Continuar</button>
-            </div>
+            <button type="button" onClick={() => setNewAppointmentKindPickerOpen(false)} className="w-full mt-4 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-bold">Cancelar</button>
           </div>
         </div>
       )}
