@@ -311,10 +311,6 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
             const clientAppts = appointments.filter(
               a => a.clientId === client.id || a.clientName.toLowerCase() === client.name.toLowerCase()
             );
-            const completedCount = clientAppts.filter(a => a.status === 'concluido').length;
-            const totalSpent = clientAppts
-              .filter(a => a.status === 'concluido' && a.price)
-              .reduce((acc, c) => acc + (c.price || 0), 0);
 
             return (
               <div
@@ -356,48 +352,12 @@ export const ClientsManager: React.FC<ClientsManagerProps> = ({
                     </div>
                   </div>
 
-                  {/* Serial Number & Service Order Badges */}
-                  {(client.serialNumber || client.serviceOrder) && (
-                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                      {client.serialNumber && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-700/60 text-cyan-300 text-[11px] font-mono font-bold shadow-xs">
-                          <Tag className="w-3 h-3 text-cyan-400" />
-                          <span>Série: {client.serialNumber}</span>
-                        </span>
-                      )}
-                      {client.serviceOrder && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/70 border border-amber-700/60 text-amber-300 text-[11px] font-mono font-bold shadow-xs">
-                          <ClipboardList className="w-3 h-3 text-amber-400" />
-                          <span>OS: {client.serviceOrder}</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
-
                   {/* Address */}
                   <div className="flex items-start gap-1.5 text-xs text-zinc-300 bg-zinc-950 p-2 rounded-xl border border-zinc-800 mt-2.5">
                     <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
                     <span className="line-clamp-2">{client.address}</span>
                   </div>
 
-                  {/* Notes if any */}
-                  {client.notes && (
-                    <div className="text-[11px] text-zinc-400 bg-zinc-950/70 p-2 rounded-lg border border-zinc-800 mt-1.5">
-                      💬 <span className="text-zinc-300">{client.notes}</span>
-                    </div>
-                  )}
-
-                  {/* Badges metrics */}
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono pt-2">
-                    <span>
-                      {clientAppts.length} serv. ({completedCount} conc.)
-                    </span>
-                    {totalSpent > 0 && (
-                      <span className="font-semibold text-emerald-400">
-                        {formatCurrencyBRL(totalSpent)}
-                      </span>
-                    )}
-                  </div>
                 </div>
 
                 {/* Quick actions for client */}

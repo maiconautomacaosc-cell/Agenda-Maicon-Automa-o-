@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -59,6 +59,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
   type CalendarFilter = DayOccupancyStatus | 'todos' | 'manutencoes_abertas';
   const [filterOccupancy, setFilterOccupancy] = useState<CalendarFilter>('todos');
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const suppressDayClick = useRef(false);
 
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -121,6 +123,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
+  const handleCalendarTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    swipeStart.current = { x: t.clientX, y: t.clientY };
+    suppressDayClick.current = false;
+  };
+
+  const handleCalendarTouchEnd = (e: React.TouchEvent) => {
+    if (!swipeStart.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStart.current.x;
+    const dy = t.clientY - swipeStart.current.y;
+    swipeStart.current = null;
+    if (Math.abs(dx) >= 55 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+      suppressDayClick.current = true;
+      dx < 0 ? handleNextMonth() : handlePrevMonth();
+      window.setTimeout(() => { suppressDayClick.current = false; }, 250);
+    }
+  };
+
   const handleToday = () => {
     const today = new Date();
     setCurrentYear(today.getFullYear());
@@ -130,7 +151,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const selectedDayAppointments = appointments.filter(a => a.date === selectedDate);
   const selectedDayActive = selectedDayAppointments.filter(a => a.status !== 'cancelado');
-  const particularAppt = selectedDayActive.find(a => a.serviceType === 'compromisso_particular');
+  const particularAppts = selectedDayActive.filter(a => a.serviceType === 'compromisso_particular').sort((a,b) => a.startTime.localeCompare(b.startTime));
+  const particularAppt = particularAppts[0];
   const selectedTechnical = selectedDayActive.filter(a => a.serviceType !== 'compromisso_particular');
   const selectedDayIsMixed = Boolean(particularAppt && selectedTechnical.length > 0);
 
@@ -146,7 +168,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="fixed inset-0 z-[41] bg-black/80 backdrop-blur-[2px] pointer-events-none" aria-hidden="true" />
       )}
       {/* Calendar Header & Month Navigation */}
-      <div className={`bg-zinc-900 border rounded-3xl p-4 shadow-xl ${newAppointmentSelectionMode ? 'relative z-[42] border-cyan-500/70 shadow-cyan-950/50' : 'border-zinc-800'}`}>
+      <div onTouchStart={handleCalendarTouchStart} onTouchEnd={handleCalendarTouchEnd} className={`bg-zinc-900 border rounded-3xl p-4 shadow-xl touch-pan-y ${newAppointmentSelectionMode ? 'relative z-[42] border-cyan-500/70 shadow-cyan-950/50' : 'border-zinc-800'}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-zinc-950 border border-zinc-800 text-cyan-400">
@@ -233,24 +255,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </label>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[10px]">
+          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
             <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
-              <span className="w-2 h-2 rounded-full bg-white"></span><span>Livre</span>
-            </div>
-            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
-              <span className="w-2 h-2 rounded-full bg-amber-400"></span><span>Pendente</span>
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span><span>Serviço pendente</span>
             </div>
             <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span><span>Concluído</span>
             </div>
             <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400">
               <span className="w-2 h-2 rounded-full bg-purple-400"></span><span>Particular</span>
-            </div>
-            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-red-950/30 border border-red-900/50 text-red-300 col-span-2 sm:col-span-1">
-              <span className="w-2 h-2 rounded-full bg-red-500"></span><span>Misto</span>
-            </div>
-            <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-orange-950/30 border border-orange-900/50 text-orange-300 col-span-2 sm:col-span-1">
-              <span className="w-2 h-2 rounded-full bg-orange-500"></span><span>Misto concluído</span>
             </div>
           </div>
         </div>
@@ -324,101 +337,41 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             const technicalCount = dayObj.appointments.filter(
               a => a.serviceType !== 'compromisso_particular' && a.status !== 'cancelado'
             ).length;
-            const isMixedDay = hasParticular && technicalCount > 0;
-            const isMixedCompletedDay = dayObj.status === 'misto_concluido';
+            const technicalAppointments = dayObj.appointments.filter(a => a.serviceType !== 'compromisso_particular' && a.status !== 'cancelado');
+            const hasPendingTechnical = technicalAppointments.some(a => a.status !== 'concluido');
+            const hasCompletedTechnical = technicalAppointments.some(a => a.status === 'concluido');
 
             return (
               <button
                 key={dayObj.date}
                 id={`calendar-day-${dayObj.date}`}
-                onClick={() => newAppointmentSelectionMode ? onSelectDateForNewAppointment?.(dayObj.date) : onSelectDate(dayObj.date)}
-                className={`relative min-h-[58px] sm:min-h-[70px] p-1.5 rounded-2xl flex flex-col justify-between items-center text-left transition-all duration-150 ${
+                onClick={() => {
+                  if (suppressDayClick.current) return;
+                  newAppointmentSelectionMode ? onSelectDateForNewAppointment?.(dayObj.date) : onSelectDate(dayObj.date);
+                }}
+                className={`relative min-h-[58px] sm:min-h-[70px] p-1.5 rounded-2xl flex flex-col justify-center items-center transition-all duration-150 ${
                   !dayObj.isCurrentMonth
                     ? 'opacity-25 bg-zinc-950/30 border border-transparent'
                     : isSelected
-                    ? isMixedCompletedDay
-                      ? 'bg-orange-950/80 border-2 border-orange-500 ring-2 ring-orange-500/20 text-white shadow-lg shadow-orange-950/50'
-                      : isMixedDay
-                      ? 'bg-red-950/80 border-2 border-red-500 ring-2 ring-red-500/20 text-white shadow-lg shadow-red-950/50'
-                      : hasParticular
-                      ? 'bg-purple-950/80 border-2 border-purple-400 ring-2 ring-purple-400/20 text-white shadow-lg shadow-purple-950/50'
-                      : 'bg-cyan-950/70 border-2 border-cyan-400 ring-2 ring-cyan-400/20 text-white shadow-lg shadow-cyan-950/50'
+                    ? 'bg-cyan-950/70 border-2 border-cyan-400 ring-2 ring-cyan-400/20 text-white shadow-lg shadow-cyan-950/50'
                     : dayObj.isToday
-                    ? isMixedCompletedDay
-                      ? 'bg-orange-950/50 border border-orange-500/80 text-white'
-                      : isMixedDay
-                      ? 'bg-red-950/50 border border-red-500/80 text-white'
-                      : 'bg-zinc-800 border border-cyan-500/60 text-white'
-                    : isMixedCompletedDay
-                    ? 'bg-orange-950/35 border border-orange-800/70 text-orange-200 hover:bg-orange-950/55'
-                    : isMixedDay
-                    ? 'bg-red-950/35 border border-red-800/70 text-red-200 hover:bg-red-950/55'
-                    : hasParticular
-                    ? 'bg-purple-950/30 border border-purple-800/60 text-purple-200 hover:bg-purple-950/50'
+                    ? 'bg-zinc-800 border border-cyan-500/60 text-white'
                     : 'bg-zinc-950/80 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-300'
                 } ${isFilteredOut ? 'opacity-20 ring-0' : ''} ${newAppointmentSelectionMode && dayObj.isCurrentMonth ? 'calendar-day-awaiting-selection z-10' : ''}`}
               >
-                {/* Day Number and Today Indicator */}
-                <div className="w-full flex items-center justify-between">
-                  <span
-                    className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                      dayObj.isToday
-                        ? 'bg-cyan-500 text-black font-extrabold'
-                        : isSelected
-                        ? isMixedCompletedDay ? 'text-orange-300 font-extrabold' : isMixedDay ? 'text-red-300 font-extrabold' : hasParticular ? 'text-purple-300 font-extrabold' : 'text-cyan-300 font-extrabold'
-                        : 'text-zinc-300'
-                    }`}
-                  >
-                    {dayObj.dayNumber}
-                  </span>
+                <span className={`text-sm font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                  dayObj.isToday ? 'bg-cyan-500 text-black font-extrabold' : isSelected ? 'text-cyan-300 font-extrabold' : 'text-zinc-300'
+                }`}>
+                  {dayObj.dayNumber}
+                </span>
 
-                  {/* Dot status */}
-                  {isMixedCompletedDay ? (
-                    <span className="w-2 h-2 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50" title="Dia misto concluído: cliente + compromisso particular finalizados" />
-                  ) : isMixedDay ? (
-                    <span className="w-2 h-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50" title="Dia misto: cliente + compromisso particular" />
-                  ) : hasParticular ? (
-                    <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50" title="Compromisso particular" />
-                  ) : dayObj.status === 'livre' ? (
-                    <span className="w-2 h-2 rounded-full bg-white shadow-sm shadow-white/40" title="Dia livre" />
-                  ) : dayObj.status === 'concluido' ? (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" title="Todos os serviços concluídos" />
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50" title="Há agendamento pendente" />
-                  )}
-                </div>
-
-                {/* Badge for Appointments count & time */}
-                <div className="w-full mt-1 flex flex-col items-center">
-                  {isMixedCompletedDay ? (
-                    <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-orange-500 text-black font-extrabold font-mono flex items-center justify-center gap-0.5" title={`${technicalCount} atendimento(s) + compromisso particular concluídos`}>
-                      <span>Misto concluído</span>
-                    </span>
-                  ) : isMixedDay ? (
-                    <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-red-600 text-white font-mono flex items-center justify-center gap-0.5" title={`${technicalCount} atendimento(s) + compromisso particular`}>
-                      <span>Misto • {technicalCount} cli.</span>
-                    </span>
-                  ) : hasParticular ? (
-                    <span className="w-full text-center text-[9px] font-bold py-0.5 px-0.5 rounded-md truncate bg-purple-600 text-white font-mono flex items-center justify-center gap-0.5">
-                      <Ban className="w-2.5 h-2.5" />
-                      <span>Particular</span>
-                    </span>
-                  ) : apptsCount > 0 ? (
-                    <span
-                      className={`w-full text-center text-[10px] font-bold py-0.5 px-1 rounded-md truncate ${
-                        dayObj.status === 'concluido'
-                          ? 'bg-emerald-500 text-black font-extrabold'
-                          : 'bg-amber-400 text-black font-extrabold'
-                      }`}
-                    >
-                      {apptsCount} {apptsCount === 1 ? 'serv.' : 'serv.'}
-                    </span>
-                  ) : (
-                    <span className="text-[9px] text-white/75 font-mono hidden sm:inline">
-                      Livre
-                    </span>
-                  )}
-                </div>
+                {(hasPendingTechnical || hasCompletedTechnical || hasParticular) && (
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1" aria-label="Indicadores do dia">
+                    {hasPendingTechnical && <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50" title="Serviço pendente" />}
+                    {hasCompletedTechnical && <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" title="Serviço concluído" />}
+                    {hasParticular && <span className="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50" title="Compromisso particular" />}
+                  </div>
+                )}
               </button>
             );
           })}
@@ -439,7 +392,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     ? `🟠 Dia misto concluído • ${selectedTechnical.length} cliente(s) + compromisso particular`
                     : `🔴 Dia misto • ${selectedTechnical.length} cliente(s) + compromisso particular`)
                 : particularAppt
-                ? `🟣 Compromisso particular • ${particularAppt.startTime} às ${particularAppt.endTime || '18:00'}`
+                ? `🟣 ${particularAppts.length} compromisso${particularAppts.length !== 1 ? 's' : ''} particular${particularAppts.length !== 1 ? 'es' : ''}`
                 : selectedDayActive.length === 0
                 ? 'Nenhum serviço agendado (Dia 100% Livre)'
                 : `${selectedDayActive.length} serviço(s) • ${selectedDayAppointments.reduce((acc, c) => acc + (c.durationMinutes || 0), 0)} min estimados`}
@@ -449,7 +402,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         {/* If day is blocked with personal commitment, show prominent notification banner */}
-        {particularAppt && (
+        {particularAppts.map((particularItem) => (
+          <React.Fragment key={particularItem.id}>
           <div className="p-3.5 rounded-2xl bg-purple-950/50 border border-purple-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-purple-200 text-xs">
             <div className="flex items-start gap-2.5">
               <div className="p-2 rounded-xl bg-purple-900/70 text-purple-300 border border-purple-700/80 shrink-0">
@@ -459,31 +413,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <div className="font-bold text-sm text-white flex items-center gap-1.5">
                   <span>{selectedDayIsMixed ? 'Compromisso Particular no Dia Misto' : 'Compromisso Particular'}</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-900 text-purple-300 font-mono">
-                    {particularAppt.clientName}
+                    {particularItem.clientName}
                   </span>
                 </div>
                 <div className="text-purple-300/90 mt-0.5">
-                  Horário: <span className="font-mono font-semibold">{particularAppt.startTime}</span> às <span className="font-mono font-semibold">{particularAppt.endTime || '18:00'}</span> ({particularAppt.durationMinutes >= 480 ? 'Dia Todo' : `${particularAppt.durationMinutes}m`})
+                  Horário: <span className="font-mono font-semibold">{particularItem.startTime}</span> às <span className="font-mono font-semibold">{particularItem.endTime || '18:00'}</span> ({particularItem.durationMinutes >= 480 ? 'Dia Todo' : `${particularItem.durationMinutes}m`})
                 </div>
-                {particularAppt.description && (
-                  <div className="text-purple-400/80 text-[11px] mt-0.5">{particularAppt.description}</div>
+                {particularItem.description && (
+                  <div className="text-purple-400/80 text-[11px] mt-0.5">{particularItem.description}</div>
                 )}
               </div>
             </div>
 
             <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
-                onClick={() => onEditAppointment(particularAppt)}
+                onClick={() => onEditAppointment(particularItem)}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-colors"
               >
                 <Edit3 className="w-3 h-3" />
                 <span>Editar</span>
               </button>
-              {particularAppt.status !== 'concluido' ? (
+              {particularItem.status !== 'concluido' ? (
                 <button
                   onClick={() => {
                     if (window.confirm('Liberar este período e manter o compromisso particular no histórico como concluído?')) {
-                      onStatusChange(particularAppt.id, 'concluido');
+                      onStatusChange(particularItem.id, 'concluido');
                     }
                   }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-950/60 hover:bg-orange-900/80 text-orange-300 border border-orange-800/60 text-xs font-semibold transition-colors"
@@ -499,8 +453,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               )}
               <button
                 onClick={() => {
-                  if (window.confirm(`Excluir somente este compromisso particular de ${formatDateBR(particularAppt.date)}?${particularAppt.recurrenceGroupId ? '\n\nAs outras ocorrências da recorrência serão mantidas.' : ''}`)) {
-                    onDeleteAppointment(particularAppt.id);
+                  if (window.confirm(`Excluir somente este compromisso particular de ${formatDateBR(particularItem.date)}?${particularItem.recurrenceGroupId ? '\n\nAs outras ocorrências da recorrência serão mantidas.' : ''}`)) {
+                    onDeleteAppointment(particularItem.id);
                   }
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-950/50 hover:bg-rose-900/70 text-rose-300 border border-rose-800/60 text-xs font-semibold transition-colors"
@@ -511,7 +465,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        )}
+          </React.Fragment>
+        ))}
 
         {/* Appointments List for Selected Day */}
         {selectedDayAppointments.length === 0 ? (

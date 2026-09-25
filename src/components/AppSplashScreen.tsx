@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, ShieldCheck, KeyRound, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, KeyRound, Zap } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 
 interface AppSplashScreenProps {
@@ -11,53 +11,17 @@ interface AppSplashScreenProps {
 export const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
   isOpen,
   onFinish,
-  autoCloseDelayMs = 4500,
+  autoCloseDelayMs = 1750,
 }) => {
-  const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState('Iniciando sistema...');
   const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
-      setProgress(0);
       setIsClosing(false);
       return;
     }
-
-    setProgress(12);
-    setStatusText('Iniciando sistema Maicon Automação...');
-
-    const t1 = setTimeout(() => {
-      setProgress(38);
-      setStatusText('Carregando catálogo de fechaduras digitais...');
-    }, 1000);
-
-    const t2 = setTimeout(() => {
-      setProgress(68);
-      setStatusText('Sincronizando agenda e ordens de serviço...');
-    }, 2200);
-
-    const t3 = setTimeout(() => {
-      setProgress(92);
-      setStatusText('Fechaduras Inteligentes conectadas com sucesso...');
-    }, 3300);
-
-    const t4 = setTimeout(() => {
-      setProgress(100);
-      setStatusText('Acesso Liberado! Bem-vindo(a)');
-    }, 4000);
-
-    const tClose = setTimeout(() => {
-      handleClose();
-    }, autoCloseDelayMs);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      clearTimeout(tClose);
-    };
+    const tClose = setTimeout(() => handleClose(), autoCloseDelayMs);
+    return () => clearTimeout(tClose);
   }, [isOpen, autoCloseDelayMs]);
 
   const handleClose = () => {
@@ -65,7 +29,7 @@ export const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
     setTimeout(() => {
       onFinish();
       setIsClosing(false);
-    }, 400);
+    }, 250);
   };
 
   if (!isOpen) return null;
@@ -131,39 +95,9 @@ export const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
           </div>
         </div>
 
-        {/* High-Tech Loading Progress Bar */}
-        <div className="w-full space-y-2 pt-2 animate-in fade-in duration-700 delay-300">
-          <div className="flex justify-between items-center text-[11px] font-mono text-zinc-400 px-1">
-            <span className="flex items-center gap-1.5 text-cyan-400">
-              <Sparkles className="w-3 h-3 animate-spin" />
-              {statusText}
-            </span>
-            <span className="font-bold text-zinc-300">{progress}%</span>
-          </div>
-
-          <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800 p-0.5">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(6,182,212,0.8)]"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Skip / Enter Action Button */}
-        <button
-          id="btn-splash-enter-app"
-          onClick={handleClose}
-          className="mt-4 flex items-center gap-2 px-6 py-2.5 rounded-full bg-zinc-900/90 hover:bg-cyan-500 text-zinc-300 hover:text-black font-mono text-xs font-bold border border-zinc-800 hover:border-cyan-400 transition-all shadow-lg active:scale-95 group"
-        >
-          <span>Acessar Painel</span>
-          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-        </button>
       </div>
 
-      {/* Footer Branding */}
-      <div className="absolute bottom-4 text-[10px] font-mono text-zinc-600">
-        MAICON AUTOMAÇÃO © {new Date().getFullYear()} • SISTEMA PROFISSIONAL
-      </div>
+
     </div>
   );
 };
