@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Clock, 
   Calendar, 
@@ -50,6 +50,7 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
 }) => {
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'todos'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   // Date shifting
   const changeDateByDays = (days: number) => {
@@ -57,6 +58,25 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
     d.setDate(d.getDate() + days);
     const newStr = d.toISOString().split('T')[0];
     onSelectDate(newStr);
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    swipeStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
+    // Mesmo sentido natural usado no calendário mensal:
+    // arrastar para a esquerda avança; para a direita volta.
+    changeDateByDays(dx < 0 ? 1 : -1);
   };
 
   const dayAppointments = appointments
@@ -129,7 +149,7 @@ export const DayScheduleView: React.FC<DayScheduleViewProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 touch-pan-y" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Daily Header with Date Selector */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-4 shadow-xl space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -7,6 +7,7 @@ import { Appointment, Client, Quote, ViewTab, WarrantyPeriod } from '../types';
 import { formatCurrencyBRL, getTodayString } from '../utils/date';
 import { DAILY_BIBLE_INSPIRATIONS } from '../data/dailyBibleInspirations';
 import { getFollowUps, filterVisibleFollowUps } from '../utils/followUps';
+import { loadCommercialClosings } from '../utils/commercialClosings';
 
 interface DashboardProps {
   appointments: Appointment[];
@@ -81,9 +82,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
     const weekServices = weekItems.filter(a => a.serviceType !== 'compromisso_particular');
     const weekDone = weekServices.filter(a => a.status === 'concluido');
 
-    const monthRevenue = active
-      .filter(a => a.serviceType !== 'compromisso_particular' && a.status === 'concluido' && a.date.startsWith(monthPrefix))
-      .reduce((sum, a) => sum + (a.price || 0), 0);
+    // Faturamento do painel = dinheiro efetivamente recebido no mês.
+    // Usa a mesma fonte financeira dos Relatórios: pagamentos de FC + pagamentos
+    // explícitos de OS ainda fora de fechamento. Conclusão técnica não conta como pagamento.
+    const closings = loadCommercialClosings(sandboxActive);
+    const groupedAppointmentIds = new Set(closings.flatMap(c => c.appointmentIds));
+    const monthClosingReceived = closings.reduce((sum, closing) => sum + (closing.payments || [])
+      .filter(payment => payment.date?.startsWith(monthPrefix))
+      .reduce((paymentSum, payment) => paymentSum + Number(payment.amount || 0), 0), 0);
+    const monthStandaloneReceived = active
+      .filter(a => a.serviceType !== 'compromisso_particular' && !groupedAppointmentIds.has(a.id))
+      .reduce((sum, appointment) => {
+        const monthPayments = (appointment.payments || []).filter(payment => payment.date?.startsWith(monthPrefix));
+        return sum + monthPayments.reduce((paymentSum, payment) => paymentSum + Number(payment.amount || 0), 0);
+      }, 0);
+    const monthRevenue = monthClosingReceived + monthStandaloneReceived;
 
     const maintenanceOpen = active.filter(a =>
       (a.serviceType === 'manutencao_preventiva' || a.serviceType === 'manutencao_corretiva') &&
@@ -156,7 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ appointments, clients, quo
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card icon={<CalendarClock/>} title="Semana" value={`${metrics.weekDone.length} de ${metrics.weekServices.length}`} note={`concluídos • ${metrics.weekCompletionPercent}%`} onClick={() => onSelectTab('agenda')} />
-        <Card icon={<DollarSign/>} title="Faturamento" value={formatCurrencyBRL(metrics.monthRevenue)} note="concluído neste mês" onClick={() => onSelectTab('financeiro')} valueSmall />
+        <Card icon={<DollarSign/>} title="Faturamento" value={formatCurrencyBRL(metrics.monthRevenue)} note="recebido neste mês" onClick={() => onSelectTab('financeiro')} valueSmall />
         <Card icon={<KeyRound/>} title="Equipamentos" value={String(metrics.equipment)} note="MA identificados" onClick={() => onSelectTab('clientes')} />
         <Card icon={<Users/>} title="Clientes" value={String(metrics.realClientsCount)} note="clientes reais" onClick={() => onSelectTab('clientes')} />
       </div>
