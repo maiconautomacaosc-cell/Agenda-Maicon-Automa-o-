@@ -512,6 +512,32 @@ export default function App() {
     return () => clearInterval(interval);
   }, [googleAccessToken, cloudReady, isSandbox]);
 
+  // Compromissos particulares são bloqueios visuais: ao terminar o horário, liberam a agenda automaticamente.
+  useEffect(() => {
+    const finishExpiredParticulars = () => {
+      const now = new Date();
+      const today = getTodayString();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      setAppointments(prev => {
+        let changed = false;
+        const next = prev.map(a => {
+          if (a.serviceType !== 'compromisso_particular' || a.status === 'concluido' || a.status === 'cancelado') return a;
+          const end = a.endTime || a.startTime;
+          const [hh, mm] = end.split(':').map(Number);
+          const expired = a.date < today || (a.date === today && currentMinutes >= hh * 60 + mm);
+          if (!expired) return a;
+          changed = true;
+          return { ...a, status: 'concluido' as const, updatedAt: new Date().toISOString() };
+        });
+        if (changed && !isSandbox) saveAppointments(next);
+        return changed ? next : prev;
+      });
+    };
+    finishExpiredParticulars();
+    const timer = window.setInterval(finishExpiredParticulars, 60_000);
+    return () => window.clearInterval(timer);
+  }, [isSandbox]);
+
   const handleRestoreData = (data: { clients: Client[]; appointments: Appointment[]; quotes: Quote[]; settings?: AppSettings }) => {
     if (isSandbox) { showGoogleNotification('🧪 Sandbox: restauração da nuvem bloqueada.'); return; }
     const safeClients = mergeByIdLatest(clients, data.clients || []);
@@ -1601,6 +1627,7 @@ export default function App() {
             appointments={appointments}
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
+            onNewAppointment={() => startSafeNewAppointmentFlow()}
             onEditAppointment={handleOpenEditAppointment}
             onDeleteAppointment={handleDeleteAppointment}
             onStatusChange={handleStatusChange}
