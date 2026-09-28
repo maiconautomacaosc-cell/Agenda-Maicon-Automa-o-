@@ -86,9 +86,15 @@ function buildEventPayload(appointment: Appointment): GoogleCalendarEventPayload
   const descLines = isParticular
     ? [
         '🚫 COMPROMISSO PARTICULAR / DIA OCUPADO',
-        `📌 MOTIVO: ${appointment.clientName}`,
-        appointment.description ? `📝 DETALHES: ${appointment.description}` : null,
-        appointment.notes ? `🗒️ NOTAS: ${appointment.notes}` : null,
+        `📌 COMPROMISSO: ${appointment.clientName || 'Compromisso Particular'}`,
+        `📅 DATA: ${pad(day)}/${pad(month)}/${year}`,
+        `🕒 HORÁRIO: ${appointment.startTime} às ${appointment.endTime || `${pad(endH)}:${pad(endM)}`}`,
+        `⏱️ DURAÇÃO: ${appointment.durationMinutes || 90} minutos`,
+        appointment.description ? `📝 OBSERVAÇÕES: ${appointment.description}` : null,
+        appointment.notes ? `🗒️ NOTAS ADICIONAIS: ${appointment.notes}` : null,
+        appointment.address && appointment.address !== 'Compromisso Particular' && appointment.address !== 'A combinar'
+          ? `📍 LOCAL: ${appointment.address}${appointment.neighborhood ? `, ${appointment.neighborhood}` : ''}`
+          : null,
         '',
         '🔒 Horário reservado no Agenda Maicon Automação - Não agendar atendimentos.'
       ].filter(Boolean).join('\n')
