@@ -426,13 +426,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2 self-end sm:self-auto">
-              <button
-                onClick={() => onEditAppointment(particularItem)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-colors"
-              >
-                <Edit3 className="w-3 h-3" />
-                <span>Editar</span>
-              </button>
+              {particularItem.status !== 'concluido' && (
+                <button
+                  onClick={() => onEditAppointment(particularItem)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-colors"
+                  title="Editar ou reagendar compromisso"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>Editar</span>
+                </button>
+              )}
               {particularItem.status !== 'concluido' ? (
                 <button
                   onClick={() => {

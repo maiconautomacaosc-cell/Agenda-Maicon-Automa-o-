@@ -485,15 +485,17 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       {/* Field Action Buttons */}
       {isParticular ? (
         <div className="flex items-center justify-end gap-1.5 p-2 bg-zinc-950 border-t border-purple-900/30">
-          <button
-            id={`btn-edit-${appointment.id}`}
-            onClick={() => onEdit(appointment)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-colors active:scale-95"
-            title="Editar horário ou motivo"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span>Editar Bloqueio</span>
-          </button>
+          {appointment.status !== 'concluido' && (
+            <button
+              id={`btn-edit-${appointment.id}`}
+              onClick={() => onEdit(appointment)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-colors active:scale-95"
+              title="Editar ou reagendar compromisso"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Editar</span>
+            </button>
+          )}
           {appointment.status !== 'concluido' ? (
             <button
               id={`btn-complete-particular-${appointment.id}`}
@@ -529,7 +531,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-1 p-1.5 bg-zinc-950 border-t border-zinc-800">
+        <div className={`grid ${appointment.status === 'concluido' ? 'grid-cols-5' : 'grid-cols-6'} gap-1 p-1.5 bg-zinc-950 border-t border-zinc-800`}>
           {/* WhatsApp Button */}
           <button
             id={`btn-whatsapp-${appointment.id}`}
@@ -565,39 +567,44 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             <span className="text-[9px] font-bold uppercase tracking-wider">Ligar</span>
           </a>
 
-          {/* Visualizar, editar e excluir */}
-          <div className="flex gap-1">
-            <button
-              id={`btn-view-${appointment.id}`}
-              onClick={() => setShowDetails(true)}
-              className="flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/50 transition-colors active:scale-95"
-              title="Visualizar informações do atendimento"
-            >
-              <Eye className="w-3 h-3 mb-0.5" />
-              <span className="text-[8px] font-bold uppercase tracking-wider">Ver</span>
-            </button>
+          {/* Visualizar */}
+          <button
+            id={`btn-view-${appointment.id}`}
+            onClick={() => setShowDetails(true)}
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/50 transition-colors active:scale-95"
+            title="Visualizar informações do atendimento"
+          >
+            <Eye className="w-3.5 h-3.5 mb-0.5" />
+            <span className="text-[8px] font-bold uppercase tracking-wider">Ver</span>
+          </button>
+
+          {/* Reagendamento só existe enquanto o atendimento não foi concluído. */}
+          {appointment.status !== 'concluido' && (
             <button
               id={`btn-edit-${appointment.id}`}
               onClick={() => onEdit(appointment)}
-              className="flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 transition-colors active:scale-95"
+              className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 transition-colors active:scale-95"
               title="Editar ou reagendar atendimento"
             >
-              <Edit3 className="w-3 h-3 mb-0.5" />
+              <Edit3 className="w-3.5 h-3.5 mb-0.5" />
               <span className="text-[8px] font-bold uppercase tracking-wider">Reagendar</span>
             </button>
-            <button
-              id={`btn-delete-${appointment.id}`}
-              onClick={() => {
-                if (window.confirm(`Deseja realmente remover o agendamento de "${appointment.clientName}"?`)) {
-                  onDelete(appointment.id);
-                }
-              }}
-              className="flex flex-col items-center justify-center py-1.5 px-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-900/50 transition-colors active:scale-95"
-              title="Excluir"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          )}
+
+          {/* Excluir permanece disponível inclusive para registros concluídos. */}
+          <button
+            id={`btn-delete-${appointment.id}`}
+            onClick={() => {
+              if (window.confirm(`Deseja realmente remover o agendamento de "${appointment.clientName}"?`)) {
+                onDelete(appointment.id);
+              }
+            }}
+            className="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-900/50 transition-colors active:scale-95"
+            title="Excluir"
+          >
+            <Trash2 className="w-3.5 h-3.5 mb-0.5" />
+            <span className="text-[8px] font-bold uppercase tracking-wider">Excluir</span>
+          </button>
         </div>
       )}
 
