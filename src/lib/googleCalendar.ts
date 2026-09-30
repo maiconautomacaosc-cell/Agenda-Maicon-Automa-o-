@@ -72,12 +72,9 @@ function buildEventPayload(appointment: Appointment): GoogleCalendarEventPayload
   const reminderMins = appointment.reminderMinutesBefore ?? 60;
   const overrides: Array<{ method: 'popup'; minutes: number }> = [];
 
+  // Usa exatamente o aviso escolhido no app. Sem lembrete extra oculto.
   if (reminderMins > 0) {
     overrides.push({ method: 'popup', minutes: reminderMins });
-  }
-
-  if (reminderMins !== 15) {
-    overrides.push({ method: 'popup', minutes: 15 });
   }
 
   const isParticular =
