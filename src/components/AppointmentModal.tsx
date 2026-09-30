@@ -738,9 +738,21 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   <Calendar className="w-3 h-3 text-zinc-400" />
                   Data *
                 </label>
-                <div id="input-appt-date" className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white capitalize">
-                  {fullDateLabel}
-                </div>
+                {initialAppointment && !isParticular ? (
+                  <input
+                    id="input-appt-date"
+                    type="date"
+                    required
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white font-semibold focus:outline-none focus:border-cyan-500"
+                    title="Altere a data para reagendar este atendimento"
+                  />
+                ) : (
+                  <div id="input-appt-date" className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white capitalize">
+                    {fullDateLabel}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -804,6 +816,28 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   onChange={(e) => setRecurrenceUntil(e.target.value)}
                   className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
                 />
+              </div>
+            )}
+
+            {!isParticular && (
+              <div>
+                <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-cyan-400" />
+                  Quando devo avisar?
+                </label>
+                <select
+                  value={reminderMinutesBefore}
+                  onChange={(e) => setReminderMinutesBefore(Number(e.target.value))}
+                  className="w-full p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value={0}>Sem aviso</option>
+                  <option value={30}>30 minutos antes</option>
+                  <option value={60}>1 hora antes</option>
+                  <option value={120}>2 horas antes</option>
+                  <option value={720}>12 horas antes</option>
+                  <option value={1440}>24 horas antes</option>
+                </select>
+                <div className="text-[10px] text-zinc-500 mt-1">O aviso acompanha o evento no Google Agenda, inclusive quando o atendimento for reagendado.</div>
               </div>
             )}
 

@@ -580,10 +580,10 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
               id={`btn-edit-${appointment.id}`}
               onClick={() => onEdit(appointment)}
               className="flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 transition-colors active:scale-95"
-              title="Editar agendamento"
+              title="Editar ou reagendar atendimento"
             >
               <Edit3 className="w-3 h-3 mb-0.5" />
-              <span className="text-[8px] font-bold uppercase tracking-wider">Editar</span>
+              <span className="text-[8px] font-bold uppercase tracking-wider">Reagendar</span>
             </button>
             <button
               id={`btn-delete-${appointment.id}`}
