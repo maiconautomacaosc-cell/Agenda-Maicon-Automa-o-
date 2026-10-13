@@ -38,6 +38,7 @@ const SERVICE_OPTIONS: { type: ServiceType; label: string; defaultDuration: numb
   { type: 'instalacao_embutir', label: 'Instalação Fechadura Embutir (com mortise)', defaultDuration: 120 },
   { type: 'manutencao_preventiva', label: 'Manutenção Preventiva / Revisão', defaultDuration: 60 },
   { type: 'manutencao_corretiva', label: 'Manutenção Corretiva / Reparo', defaultDuration: 90 },
+  { type: 'garantia_servico', label: 'Garantia de Serviço (retorno)', defaultDuration: 60 },
   { type: 'troca_bateria_config', label: 'Troca de Bateria & Reconfiguração', defaultDuration: 45 },
   { type: 'automacao_alexa_google', label: 'Automação Hub Zigbee / Alexa / Google', defaultDuration: 90 },
   { type: 'orcamento_tecnico', label: 'Visita Técnica / Orçamento', defaultDuration: 60 },
@@ -90,6 +91,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   const [isAllDayBlocked, setIsAllDayBlocked] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'weekly' | 'daily'>('none');
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
+  const [warrantyOriginalAppointmentId, setWarrantyOriginalAppointmentId] = useState('');
+  const [warrantySerialNumber, setWarrantySerialNumber] = useState('');
 
   useEffect(() => {
     if (initialAppointment) {
@@ -113,6 +116,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setIsAllDayBlocked(initialAppointment.serviceType === 'compromisso_particular' && initialAppointment.durationMinutes >= 480);
       setRecurrence('none');
       setRecurrenceUntil('');
+      setWarrantyOriginalAppointmentId(initialAppointment.warrantyOriginalAppointmentId || '');
+      setWarrantySerialNumber(initialAppointment.warrantySerialNumber || '');
     } else {
       // Reset form
       const st = initialServiceType || 'instalacao_sobrepor';
@@ -146,6 +151,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setSelectedClientId('');
       setRecurrence('none');
       setRecurrenceUntil('');
+      setWarrantyOriginalAppointmentId('');
+      setWarrantySerialNumber('');
     }
   }, [initialAppointment, initialDate, initialServiceType, isOpen]);
 
@@ -261,6 +268,11 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
     }
 
     const selectedTechnicalTypes = serviceTypes.filter(t => t !== 'compromisso_particular');
+    const isWarrantyService = selectedTechnicalTypes.includes('garantia_servico');
+    if (isWarrantyService && (!selectedClientId || (!warrantyOriginalAppointmentId && !warrantySerialNumber))) {
+      alert('Para agendar uma garantia, selecione o cliente e vincule pelo menos a OS original ou o MA/equipamento.');
+      return;
+    }
     if (!isParticular && selectedTechnicalTypes.length === 0) {
       alert('Selecione pelo menos um tipo de atendimento.');
       return;
@@ -308,8 +320,12 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         : (initialAppointment?.reservedSerialNumbers?.length
             ? initialAppointment.reservedSerialNumbers
             : (inferredMaintenanceSerial ? [inferredMaintenanceSerial] : undefined)),
-      maintenanceSerialNumber: isParticular ? undefined : inferredMaintenanceSerial,
-      description: description.trim() || (isParticular ? 'Compromisso Particular / Bloqueio de Agenda' : serviceTypeName),
+      maintenanceSerialNumber: isParticular ? undefined : (isWarrantyService ? warrantySerialNumber : inferredMaintenanceSerial),
+      isWarrantyService: isWarrantyService || undefined,
+      warrantyOriginalAppointmentId: isWarrantyService ? warrantyOriginalAppointmentId : undefined,
+      warrantyOriginalServiceOrder: isWarrantyService ? existingAppointments.find(a => a.id === warrantyOriginalAppointmentId)?.serviceOrder : undefined,
+      warrantySerialNumber: isWarrantyService ? warrantySerialNumber : undefined,
+      description: description.trim() || (isParticular ? 'Compromisso Particular / Bloqueio de Agenda' : (isWarrantyService ? `Garantia de serviço vinculada à ${existingAppointments.find(a => a.id === warrantyOriginalAppointmentId)?.serviceOrder || 'OS original'} • ${warrantySerialNumber}` : serviceTypeName)),
       price: price ? parseFloat(price.replace(',', '.')) : undefined,
       paymentMethod: isParticular ? 'a_combinar' : paymentMethod,
       status,
@@ -509,6 +525,26 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 })}
               </div>
               <p className="text-[11px] text-zinc-500">Você pode marcar mais de um tipo no mesmo atendimento. Ex.: 2 instalações sobrepor + 1 embutir continuam sendo uma única visita.</p>
+            </div>
+          )}
+
+          {serviceTypes.includes('garantia_servico') && !isParticular && (
+            <div className="bg-emerald-950/25 p-3.5 rounded-2xl border border-emerald-700/60 space-y-3">
+              <div className="font-mono font-bold text-emerald-200 text-xs uppercase tracking-wider flex items-center gap-2"><Wrench className="w-4 h-4" />Vínculo da garantia</div>
+              <p className="text-[11px] text-emerald-100/75">Selecione a OS original ou o MA (pode preencher ambos). A garantia não gera cobrança automática pelo serviço coberto. Após concluir, você ainda poderá lançar deslocamento, pilhas, parafusos ou outros valores adicionais no financeiro.</p>
+              <label className="block space-y-1"><span className="text-zinc-300 font-semibold">OS original (opcional se selecionar o MA)</span>
+                <select value={warrantyOriginalAppointmentId} onChange={e => { setWarrantyOriginalAppointmentId(e.target.value); const original = existingAppointments.find(a => a.id === e.target.value); const originalMa = original?.serialNumber || original?.equipment?.[0]?.serialNumber; if (originalMa) setWarrantySerialNumber(originalMa); }} className="w-full rounded-xl bg-zinc-900 border border-zinc-700 p-3 text-white">
+                  <option value="">Selecione a OS/atendimento original</option>
+                  {existingAppointments.filter(a => a.serviceType !== 'compromisso_particular' && a.clientId === selectedClientId && (a.serviceOrder || a.serialNumber || a.equipment?.length)).map(a => <option key={a.id} value={a.id}>{a.serviceOrder || 'Sem OS'} · {a.serviceTypeName} · {formatDateBR(a.date)}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1"><span className="text-zinc-300 font-semibold">Equipamento / MA (opcional se selecionar a OS)</span>
+                <select value={warrantySerialNumber} onChange={e => setWarrantySerialNumber(e.target.value)} className="w-full rounded-xl bg-zinc-900 border border-zinc-700 p-3 text-white">
+                  <option value="">Selecione o MA/equipamento</option>
+                  {[...new Set(existingAppointments.filter(a => a.clientId === selectedClientId && a.serviceType !== 'compromisso_particular').flatMap(a => [a.serialNumber, ...(a.equipment || []).map(eq => eq.serialNumber)].filter(Boolean) as string[]))].map(ma => <option key={ma} value={ma}>{ma}</option>)}
+                </select>
+              </label>
+              {!selectedClientId && <p className="text-amber-300 text-[11px]">Primeiro selecione o cliente na seção abaixo. A lista mostrará as OS e os equipamentos dele.</p>}
             </div>
           )}
 
@@ -819,7 +855,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
               </div>
             )}
 
-            {!isParticular && (
+            {
               <div>
                 <label className="block text-zinc-300 font-semibold mb-1 flex items-center gap-1">
                   <Clock className="w-3 h-3 text-cyan-400" />
@@ -839,7 +875,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 </select>
                 <div className="text-[10px] text-zinc-500 mt-1">O aviso acompanha o evento no Google Agenda, inclusive quando o atendimento for reagendado.</div>
               </div>
-            )}
+            }
 
             <div>
               <label className="block text-zinc-300 font-semibold mb-1">

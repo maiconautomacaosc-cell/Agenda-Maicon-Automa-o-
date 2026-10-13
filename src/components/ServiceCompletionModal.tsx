@@ -26,6 +26,7 @@ const SERVICE_LABELS: Partial<Record<ServiceType, string>> = {
   instalacao_embutir: 'Instalação Fechadura Embutir (com mortise)',
   manutencao_preventiva: 'Manutenção Preventiva / Revisão',
   manutencao_corretiva: 'Manutenção Corretiva / Reparo',
+  garantia_servico: 'Garantia de Serviço (retorno)',
   troca_bateria_config: 'Troca de Bateria & Reconfiguração',
   automacao_alexa_google: 'Automação Hub Zigbee / Alexa / Google',
   orcamento_tecnico: 'Visita Técnica / Orçamento',
