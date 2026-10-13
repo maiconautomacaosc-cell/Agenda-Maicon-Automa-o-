@@ -5,6 +5,7 @@ export type ServiceType =
   | 'instalacao_embutir'
   | 'manutencao_preventiva'
   | 'manutencao_corretiva'
+  | 'garantia_servico'
   | 'troca_bateria_config'
   | 'automacao_alexa_google'
   | 'orcamento_tecnico'
@@ -84,6 +85,11 @@ export interface Appointment {
   equipment?: EquipmentRecord[]; // zero, um ou vários equipamentos no mesmo atendimento
   reservedSerialNumbers?: string[]; // MA reservado antecipadamente para gerar/imprimir o QR antes da visita
   maintenanceSerialNumber?: string; // quando é manutenção de MA já existente, preserva o mesmo equipamento e bloqueia nova reserva de QR
+  /** Atendimento de garantia vinculado à OS/equipamento original. */
+  isWarrantyService?: boolean;
+  warrantyOriginalAppointmentId?: string;
+  warrantyOriginalServiceOrder?: string;
+  warrantySerialNumber?: string;
   date: string;
   startTime: string;
   endTime?: string;
