@@ -330,17 +330,20 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
 
     // Tabela
     let y = 752;
-    const colItem = 78;
-    const colValue = 165;
-    const colWarranty = 240;
+    // v4.7.3 — tabela comercial: descrição, quantidade, valor unitário e total.
+    // A garantia permanece nas condições do orçamento, fora da tabela.
+    const qtyX = margin + 590;
+    const unitX = margin + 755;
+    const totalRight = margin + contentWidth - 22;
     fillRound(margin, y, contentWidth, 62, DARK, 18);
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 21px Arial, sans-serif';
-    ctx.fillText('ITEM', margin + 18, y + 39);
-    ctx.fillText('DESCRIÇÃO DO SERVIÇO / PRODUTO', margin + colItem + 20, y + 39);
-    ctx.fillText('GARANTIA', margin + contentWidth - colValue - colWarranty + 25, y + 39);
+    ctx.font = '800 19px Arial, sans-serif';
+    ctx.fillText('DESCRIÇÃO DO SERVIÇO / PRODUTO', margin + 18, y + 39);
+    ctx.textAlign = 'center';
+    ctx.fillText('QNT', qtyX + 22, y + 39);
     ctx.textAlign = 'right';
-    ctx.fillText('VALOR', margin + contentWidth - 22, y + 39);
+    ctx.fillText('VALOR UNIT.', unitX + 125, y + 39);
+    ctx.fillText('TOTAL', totalRight, y + 39);
     ctx.textAlign = 'left';
     y += 62;
 
@@ -351,24 +354,16 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
       ctx.lineWidth = 1;
       ctx.strokeRect(margin, y, contentWidth, itemRowHeight);
       ctx.fillStyle = TEXT;
-      ctx.font = '700 22px Arial, sans-serif';
-      ctx.fillText(String(index + 1), margin + 30, y + 44);
-      ctx.font = '600 22px Arial, sans-serif';
-      wrapText(item.description, margin + colItem + 20, y + 30, contentWidth - colItem - colValue - colWarranty - 45, 26, 2);
-      ctx.fillStyle = MUTED;
-      ctx.font = '600 18px Arial, sans-serif';
-      wrapText(
-        quote.warrantyInfo || '—',
-        margin + contentWidth - colValue - colWarranty + 18,
-        y + 30,
-        colWarranty - 32,
-        23,
-        2
-      );
-      ctx.fillStyle = TEXT;
+      ctx.font = '600 21px Arial, sans-serif';
+      wrapText(item.description, margin + 18, y + 30, 545, 26, 2);
+      ctx.font = '700 21px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(item.quantity ?? 1), qtyX + 22, y + 44);
       ctx.textAlign = 'right';
-      ctx.font = '800 22px Arial, sans-serif';
-      ctx.fillText(formatCurrencyBRL(item.total), margin + contentWidth - 22, y + 44);
+      ctx.font = '700 20px Arial, sans-serif';
+      ctx.fillText(formatCurrencyBRL(item.unitPrice ?? item.total), unitX + 125, y + 44);
+      ctx.font = '800 21px Arial, sans-serif';
+      ctx.fillText(formatCurrencyBRL(item.total), totalRight, y + 44);
       ctx.textAlign = 'left';
       y += itemRowHeight;
     });
@@ -685,16 +680,16 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
               </section>
 
               <section className="overflow-hidden rounded-2xl border border-slate-200">
-                <div className="grid grid-cols-[34px_1fr_90px] bg-[#0a0e13] px-3 py-2.5 text-[9px] font-black uppercase tracking-wider text-white sm:grid-cols-[38px_1fr_110px_105px]">
-                  <div>Item</div><div>Descrição do serviço / produto</div><div className="hidden sm:block text-center">Garantia</div><div className="text-right">Valor</div>
+                <div className="grid grid-cols-[minmax(0,1fr)_38px_88px_88px] sm:grid-cols-[minmax(0,1fr)_58px_125px_125px] items-center gap-1 bg-[#0a0e13] px-2.5 py-2.5 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-white">
+                  <div>Descrição do serviço / produto</div><div className="text-center">QNT</div><div className="text-right">Valor unit.</div><div className="text-right">Total</div>
                 </div>
                 <div className="divide-y divide-slate-200 bg-white">
-                  {quote.items.map((item, index) => (
-                    <div key={item.id} className="grid grid-cols-[34px_1fr_90px] items-center px-3 py-3 text-[11px] sm:grid-cols-[38px_1fr_110px_105px]">
-                      <div className="font-black text-slate-500">{index + 1}</div>
-                      <div className="pr-2 font-semibold text-slate-800">{item.description} {item.quantity > 1 ? `(${item.quantity}x)` : ''}</div>
-                      <div className="hidden text-center text-[10px] text-slate-500 sm:block">{quote.warrantyInfo || '—'}</div>
-                      <div className="text-right font-black">{formatCurrencyBRL(item.total)}</div>
+                  {quote.items.map((item) => (
+                    <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_38px_88px_88px] sm:grid-cols-[minmax(0,1fr)_58px_125px_125px] items-center gap-1 px-2.5 py-3 text-[10px] sm:text-[11px]">
+                      <div className="pr-1 font-semibold text-slate-800">{item.description}</div>
+                      <div className="text-center font-bold text-slate-700">{item.quantity ?? 1}</div>
+                      <div className="text-right font-semibold text-slate-700">{formatCurrencyBRL(item.unitPrice ?? item.total)}</div>
+                      <div className="text-right font-black text-slate-900">{formatCurrencyBRL(item.total)}</div>
                     </div>
                   ))}
                 </div>
